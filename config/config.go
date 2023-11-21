@@ -23,6 +23,7 @@ var (
 
 type Config struct {
 	APIKey       string `yaml:"api_key"`
+	ProjectID    string `yaml:"project_id"`
 	Verbose      bool   `yaml:"verbose"`
 	APIBaseURL   string `yaml:"api_base_url"`
 	DashboardURL string `yaml:"dashboard_url"`

@@ -14,9 +14,14 @@ import (
 	"github.com/apoxy-dev/apoxy-cli/web"
 )
 
+type authContext struct {
+	APIKey    string
+	ProjectID string
+}
+
 type Authenticator struct {
 	cfg    *Config
-	authCh chan string
+	authCh chan authContext
 }
 
 func NewAuthenticator(cfg *Config) *Authenticator {
@@ -36,8 +41,9 @@ func (a *Authenticator) healthzHandler(w http.ResponseWriter, r *http.Request) {
 
 func (a *Authenticator) handler(w http.ResponseWriter, r *http.Request) {
 	key := r.URL.Query().Get("key")
-	slog.Debug("API key received", "APIKey", key)
-	a.authCh <- key
+	projectID := r.URL.Query().Get("project")
+	slog.Debug("API key received", "APIKey", key, "ProjectID", projectID)
+	a.authCh <- authContext{APIKey: key, ProjectID: projectID}
 	fmt.Fprintf(w, web.LoginOKHTML)
 }
 
@@ -86,7 +92,7 @@ func (a *Authenticator) launchServer() int {
 }
 
 func (a *Authenticator) Authenticate() {
-	a.authCh = make(chan string)
+	a.authCh = make(chan authContext)
 	port := a.launchServer()
 	next := url.QueryEscape(fmt.Sprintf("http://localhost:%d/auth", port))
 	host := a.cfg.DashboardURL
@@ -98,8 +104,9 @@ func (a *Authenticator) Authenticate() {
 	fmt.Println("If a browser window did not open, you may authenticate using the following URL:")
 	fmt.Printf("\n\t%s\n\n", authUrl)
 	key := <-a.authCh
-	a.cfg.APIKey = key
-	slog.Debug("API key set", "APIKey", a.cfg.APIKey)
+	a.cfg.APIKey = key.APIKey
+	a.cfg.ProjectID = key.ProjectID
+	slog.Debug("API key set", "APIKey", a.cfg.APIKey, "ProjectID", a.cfg.ProjectID)
 	fmt.Println("Login Succcessful!")
 	return
 }
