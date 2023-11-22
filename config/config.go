@@ -22,11 +22,18 @@ var (
 )
 
 type Config struct {
-	APIKey       string `yaml:"api_key"`
-	ProjectID    string `yaml:"project_id"`
-	Verbose      bool   `yaml:"verbose"`
-	APIBaseURL   string `yaml:"api_base_url"`
-	DashboardURL string `yaml:"dashboard_url"`
+	// The API key to use for authentication.
+	APIKey string `yaml:"api_key,omitempty"`
+	// The project ID to use for authentication.
+	ProjectID string `yaml:"project_id,omitempty"`
+	// Whether to enable verbose logging.
+	Verbose bool `yaml:"verbose,omitempty"`
+	// The base URL for API requests.
+	APIBaseURL string `yaml:"api_base_url,omitempty"`
+	// The host header to set for API requests.
+	APIBaseHost string `yaml:"api_base_host,omitempty"`
+	// The URL for the dashboard UI.
+	DashboardURL string `yaml:"dashboard_url,omitempty"`
 }
 
 func getDefaultConfigPath() string {

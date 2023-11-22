@@ -11,6 +11,7 @@ import (
 	"github.com/pkg/browser"
 	"golang.org/x/exp/slog"
 
+	"github.com/apoxy-dev/apoxy-cli/rest"
 	"github.com/apoxy-dev/apoxy-cli/web"
 )
 
@@ -32,7 +33,16 @@ func NewAuthenticator(cfg *Config) *Authenticator {
 
 func (a *Authenticator) Check() (bool, error) {
 	slog.Debug("Checking API Key", "APIKey", a.cfg.APIKey)
-	return false, nil
+	c := rest.NewAPIClient(a.cfg.APIBaseURL, a.cfg.APIBaseHost, a.cfg.APIKey, a.cfg.ProjectID)
+	resp, err := c.SendRequest(http.MethodPost, "/v1/terra/check", nil)
+	if err != nil {
+		return true, err
+	}
+	slog.Debug("/v1/terra/check returned", "status", resp.StatusCode)
+	if resp.StatusCode != 200 {
+		return false, nil
+	}
+	return true, nil
 }
 
 func (a *Authenticator) healthzHandler(w http.ResponseWriter, r *http.Request) {
