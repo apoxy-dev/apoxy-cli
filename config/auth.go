@@ -33,7 +33,10 @@ func NewAuthenticator(cfg *Config) *Authenticator {
 
 func (a *Authenticator) Check() (bool, error) {
 	slog.Debug("Checking API Key", "APIKey", a.cfg.APIKey)
-	c := rest.NewAPIClient(a.cfg.APIBaseURL, a.cfg.APIBaseHost, a.cfg.APIKey, a.cfg.ProjectID)
+	c, err := rest.NewAPIClient(a.cfg.APIBaseURL, a.cfg.APIBaseHost, a.cfg.APIKey, a.cfg.ProjectID)
+	if err != nil {
+		return true, err
+	}
 	resp, err := c.SendRequest(http.MethodPost, "/v1/terra/check", nil)
 	if err != nil {
 		return true, err

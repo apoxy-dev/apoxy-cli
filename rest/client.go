@@ -15,14 +15,19 @@ type APIClient struct {
 	APIKey     string
 	ProjectID  string
 	HTTPClient *http.Client
+	K8SClient  *K8SClient
 }
 
 // NewAPIClient creates a new instance of the APIClient.
-func NewAPIClient(baseURL, baseHost, apiKey, projectID string) *APIClient {
+func NewAPIClient(baseURL, baseHost, apiKey, projectID string) (*APIClient, error) {
 	tlsCfg := &tls.Config{}
 	if baseHost != "" {
 		tlsCfg.InsecureSkipVerify = true
 		tlsCfg.ServerName = baseHost
+	}
+	k8sClient, err := NewK8SClient(baseURL, baseHost, apiKey, projectID)
+	if err != nil {
+		return nil, err
 	}
 	return &APIClient{
 		BaseURL:   baseURL,
@@ -34,7 +39,8 @@ func NewAPIClient(baseURL, baseHost, apiKey, projectID string) *APIClient {
 				TLSClientConfig: tlsCfg,
 			},
 		},
-	}
+		K8SClient: k8sClient,
+	}, nil
 }
 
 // sendRequest sends an HTTP request with the configured headers.
