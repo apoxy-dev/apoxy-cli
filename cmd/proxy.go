@@ -9,6 +9,7 @@ import (
 	"golang.org/x/exp/slog"
 
 	"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
+	"github.com/apoxy-dev/apoxy-cli/pretty"
 )
 
 // proxyCmd represents the proxy command
@@ -20,6 +21,32 @@ var proxyCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("proxy called")
 	},
+}
+
+func fmtProxy(r *v1alpha.Proxy) {
+	t := pretty.Table{
+		Header: buildProxyHeader(),
+		Rows: pretty.Rows{
+			buildProxyRow(r),
+		},
+	}
+	t.Print()
+}
+
+func buildProxyHeader() pretty.Header {
+	return pretty.Header{
+		"NAME",
+		"STATUS",
+		"AGE",
+	}
+}
+
+func buildProxyRow(r *v1alpha.Proxy) []interface{} {
+	return []interface{}{
+		r.Name,
+		r.Status.Phase,
+		pretty.SinceString(r.CreationTimestamp.Time),
+	}
 }
 
 // getProxyCmd represents the get proxy command
@@ -37,8 +64,7 @@ var getProxyCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		// TODO: pretty print.
-		fmt.Println(r)
+		fmtProxy(r)
 		return nil
 	},
 }
@@ -56,8 +82,13 @@ var listProxyCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		// TODO: pretty print.
-		fmt.Println(r)
+		t := pretty.Table{
+			Header: buildProxyHeader(),
+		}
+		for _, p := range r.Items {
+			t.Rows = append(t.Rows, buildProxyRow(&p))
+		}
+		t.Print()
 		return nil
 	},
 }
@@ -111,8 +142,7 @@ var createProxyCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		// TODO: pretty print.
-		fmt.Println(r)
+		fmt.Printf("proxy %q created\n", r.Name)
 		return nil
 	},
 }
