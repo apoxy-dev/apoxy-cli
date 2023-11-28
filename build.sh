@@ -1,4 +1,4 @@
-#/bin/bash
+#!/bin/bash
 
 PACKAGE="github.com/apoxy-dev/apoxy-cli"
 VERSION="$(git describe --tags --always --abbrev=0 --match='v[0-9]*.[0-9]*.[0-9]*' 2> /dev/null | sed 's/^.//')"
