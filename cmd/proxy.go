@@ -36,7 +36,9 @@ func fmtProxy(r *v1alpha.Proxy) {
 func buildProxyHeader() pretty.Header {
 	return pretty.Header{
 		"NAME",
+		"PROVIDER",
 		"STATUS",
+		"ADDRESS",
 		"AGE",
 	}
 }
@@ -44,7 +46,9 @@ func buildProxyHeader() pretty.Header {
 func buildProxyRow(r *v1alpha.Proxy) []interface{} {
 	return []interface{}{
 		r.Name,
+		r.Spec.Provider,
 		r.Status.Phase,
+		r.Status.Address,
 		pretty.SinceString(r.CreationTimestamp.Time),
 	}
 }
