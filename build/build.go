@@ -14,7 +14,7 @@ func Version() string {
 	if BuildVersion == "dev" {
 		return BuildVersion
 	}
-	return fmt.Sprintf("v%s, built %s", BuildVersion, CommitHash, BuildDate)
+	return fmt.Sprintf("v%s (%s), built %s", BuildVersion, CommitHash, BuildDate)
 }
 
 func UserAgent() string {
