@@ -12,17 +12,6 @@ import (
 	"github.com/apoxy-dev/apoxy-cli/pretty"
 )
 
-// proxyCmd represents the proxy command
-var proxyCmd = &cobra.Command{
-	Use:     "proxy",
-	Short:   "Manage proxy objects",
-	Long:    `The core object in the Apoxy API.`,
-	Aliases: []string{"p", "proxies"},
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("proxy called")
-	},
-}
-
 func fmtProxy(r *v1alpha.Proxy) {
 	t := pretty.Table{
 		Header: buildProxyHeader(),
@@ -53,6 +42,49 @@ func buildProxyRow(r *v1alpha.Proxy) []interface{} {
 	}
 }
 
+func GetProxy(name string) error {
+	c, err := defaultAPIClient()
+	if err != nil {
+		return err
+	}
+	r, err := c.Proxy().Get(name)
+	if err != nil {
+		return err
+	}
+	fmtProxy(r)
+	return nil
+}
+
+func ListProxies() error {
+	c, err := defaultAPIClient()
+	if err != nil {
+		return err
+	}
+	r, err := c.Proxy().List()
+	if err != nil {
+		return err
+	}
+	t := pretty.Table{
+		Header: buildProxyHeader(),
+	}
+	for _, p := range r.Items {
+		t.Rows = append(t.Rows, buildProxyRow(&p))
+	}
+	t.Print()
+	return nil
+}
+
+// proxyCmd represents the proxy command
+var proxyCmd = &cobra.Command{
+	Use:     "proxy",
+	Short:   "Manage proxy objects",
+	Long:    `The core object in the Apoxy API.`,
+	Aliases: []string{"p", "proxies"},
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return ListProxies()
+	},
+}
+
 // getProxyCmd represents the get proxy command
 var getProxyCmd = &cobra.Command{
 	Use:       "get <name>",
@@ -60,16 +92,7 @@ var getProxyCmd = &cobra.Command{
 	ValidArgs: []string{"name"},
 	Args:      cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		c, err := defaultAPIClient()
-		if err != nil {
-			return err
-		}
-		r, err := c.Proxy().Get(args[0])
-		if err != nil {
-			return err
-		}
-		fmtProxy(r)
-		return nil
+		return GetProxy(args[0])
 	},
 }
 
@@ -78,22 +101,7 @@ var listProxyCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List proxy objects",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		c, err := defaultAPIClient()
-		if err != nil {
-			return err
-		}
-		r, err := c.Proxy().List()
-		if err != nil {
-			return err
-		}
-		t := pretty.Table{
-			Header: buildProxyHeader(),
-		}
-		for _, p := range r.Items {
-			t.Rows = append(t.Rows, buildProxyRow(&p))
-		}
-		t.Print()
-		return nil
+		return ListProxies()
 	},
 }
 
