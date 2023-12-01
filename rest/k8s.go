@@ -33,7 +33,7 @@ func NewK8SClient(baseURL, baseHost, apiKey, projectID string) (*K8SClient, erro
 		return nil, err
 	}
 	config := &rest.Config{
-		Host:      url.Host,
+		Host:      fmt.Sprintf("https://%s", url.Host),
 		UserAgent: build.UserAgent(),
 	}
 	if baseHost != "" {
