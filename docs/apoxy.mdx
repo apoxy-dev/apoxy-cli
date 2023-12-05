@@ -1,0 +1,243 @@
+## apoxy
+
+Apoxy helps you expose, explore, and evolve your APIs and services.
+
+### Synopsis
+
+The Apoxy CLI is the quickest and easiest way to create and control Apoxy proxies.
+
+Start by creating an account on https://apoxy.dev and logging in with 'apoxy auth'.
+
+
+### Options
+
+```
+      --check           only check the authentication status
+      --config string   config file (default is $HOME/.apoxy/config.yaml)
+  -h, --help            help for apoxy
+  -v, --verbose         enable verbose output
+```
+
+### SEE ALSO
+
+* [apoxy auth](#apoxy-auth)	 - Authenticate this CLI
+* [apoxy proxy](#apoxy-proxy)	 - Manage proxy objects
+* [apoxy version](#apoxy-version)	 - The version of this CLI
+
+
+
+## apoxy auth
+
+Authenticate this CLI
+
+### Synopsis
+
+If you are not authenticated, this will open a browser window to login via the Apoxy Dashboard.
+
+If your CLI is already authenticated this will return information about your session.
+
+```
+apoxy auth [flags]
+```
+
+### Options
+
+```
+  -h, --help   help for auth
+```
+
+### Options inherited from parent commands
+
+```
+      --check           only check the authentication status
+      --config string   config file (default is $HOME/.apoxy/config.yaml)
+  -v, --verbose         enable verbose output
+```
+
+### SEE ALSO
+
+* [apoxy](#apoxy)	 - Apoxy helps you expose, explore, and evolve your APIs and services.
+
+
+
+## apoxy proxy
+
+Manage proxy objects
+
+### Synopsis
+
+The core object in the Apoxy API.
+
+```
+apoxy proxy [flags]
+```
+
+### Options
+
+```
+  -h, --help   help for proxy
+```
+
+### Options inherited from parent commands
+
+```
+      --check           only check the authentication status
+      --config string   config file (default is $HOME/.apoxy/config.yaml)
+  -v, --verbose         enable verbose output
+```
+
+### SEE ALSO
+
+* [apoxy](#apoxy)	 - Apoxy helps you expose, explore, and evolve your APIs and services.
+* [apoxy proxy create](#apoxy-proxy-create)	 - Create proxy objects
+* [apoxy proxy delete](#apoxy-proxy-delete)	 - Delete proxy objects
+* [apoxy proxy get](#apoxy-proxy-get)	 - Get proxy objects
+* [apoxy proxy list](#apoxy-proxy-list)	 - List proxy objects
+
+
+
+## apoxy proxy create
+
+Create proxy objects
+
+### Synopsis
+
+Create proxy objects by providing a configuration as a file or via stdin.
+
+```
+apoxy proxy create [-f filename] [flags]
+```
+
+### Options
+
+```
+  -f, --filename string   The file that contains the configuration to create.
+  -h, --help              help for create
+```
+
+### Options inherited from parent commands
+
+```
+      --check           only check the authentication status
+      --config string   config file (default is $HOME/.apoxy/config.yaml)
+  -v, --verbose         enable verbose output
+```
+
+### SEE ALSO
+
+* [apoxy proxy](#apoxy-proxy)	 - Manage proxy objects
+
+
+
+## apoxy proxy delete
+
+Delete proxy objects
+
+```
+apoxy proxy delete [flags]
+```
+
+### Options
+
+```
+  -h, --help   help for delete
+```
+
+### Options inherited from parent commands
+
+```
+      --check           only check the authentication status
+      --config string   config file (default is $HOME/.apoxy/config.yaml)
+  -v, --verbose         enable verbose output
+```
+
+### SEE ALSO
+
+* [apoxy proxy](#apoxy-proxy)	 - Manage proxy objects
+
+
+
+## apoxy proxy get
+
+Get proxy objects
+
+```
+apoxy proxy get <name> [flags]
+```
+
+### Options
+
+```
+  -h, --help   help for get
+```
+
+### Options inherited from parent commands
+
+```
+      --check           only check the authentication status
+      --config string   config file (default is $HOME/.apoxy/config.yaml)
+  -v, --verbose         enable verbose output
+```
+
+### SEE ALSO
+
+* [apoxy proxy](#apoxy-proxy)	 - Manage proxy objects
+
+
+
+## apoxy proxy list
+
+List proxy objects
+
+```
+apoxy proxy list [flags]
+```
+
+### Options
+
+```
+  -h, --help   help for list
+```
+
+### Options inherited from parent commands
+
+```
+      --check           only check the authentication status
+      --config string   config file (default is $HOME/.apoxy/config.yaml)
+  -v, --verbose         enable verbose output
+```
+
+### SEE ALSO
+
+* [apoxy proxy](#apoxy-proxy)	 - Manage proxy objects
+
+
+
+## apoxy version
+
+The version of this CLI
+
+```
+apoxy version [flags]
+```
+
+### Options
+
+```
+  -h, --help   help for version
+```
+
+### Options inherited from parent commands
+
+```
+      --check           only check the authentication status
+      --config string   config file (default is $HOME/.apoxy/config.yaml)
+  -v, --verbose         enable verbose output
+```
+
+### SEE ALSO
+
+* [apoxy](#apoxy)	 - Apoxy helps you expose, explore, and evolve your APIs and services.
+
+
+

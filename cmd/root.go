@@ -4,9 +4,13 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/cobra/doc"
 	"golang.org/x/exp/slog"
 	"gopkg.in/yaml.v3"
 
@@ -22,6 +26,7 @@ var rootCmd = &cobra.Command{
 
 Start by creating an account on https://apoxy.dev and logging in with 'apoxy auth'.
 `,
+	DisableAutoGenTag: true,
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -86,4 +91,68 @@ func yamlStringToJSONString(yamlString string) (string, error) {
 		return "", err
 	}
 	return string(jsonBytes), nil
+}
+
+// GenerateDocs generates the docs in the docs folder.
+func GenerateDocs() {
+	anchorLinks := func(s string) string {
+		s = strings.ReplaceAll(s, "_", "-")
+		s = strings.ToLower(s)
+		s = strings.ReplaceAll(s, ".md", "")
+		return fmt.Sprintf("#%s", s)
+	}
+	emptyStr := func(s string) string { return "" }
+	files, err := genMarkdownTreeCustom(rootCmd, "./docs", emptyStr, anchorLinks)
+	if err != nil {
+		panic(err)
+	}
+	combined := ""
+	for _, file := range files {
+	  f, err := os.ReadFile(file)
+	  if err != nil {
+			panic(err)
+	  }
+	  combined += string(f) + "\n\n"
+	}
+	if err = os.WriteFile(files[0], []byte(combined), 0644); err!= nil {
+		panic(err)
+	}
+	for _, file := range files[1:] {
+		os.Remove(file)
+	}
+}
+
+func genMarkdownTreeCustom(
+	cmd *cobra.Command,
+	dir string,
+	filePrepender, linkHandler func(string) string,
+) ([]string, error) {
+	fmt.Println("handling command", cmd.CommandPath())
+	basename := strings.ReplaceAll(cmd.CommandPath(), " ", "_") + ".mdx"
+	filename := filepath.Join(dir, basename)
+	f, err := os.Create(filename)
+	if err != nil {
+		return []string{}, err
+	}
+	defer f.Close()
+
+	if _, err := io.WriteString(f, filePrepender(filename)); err != nil {
+		return []string{}, err
+	}
+	if err := doc.GenMarkdownCustom(cmd, f, linkHandler); err != nil {
+		return []string{}, err
+	}
+
+	newFiles := []string{filename}
+	for _, c := range cmd.Commands() {
+		if !c.IsAvailableCommand() || c.IsAdditionalHelpTopicCommand() {
+			continue
+		}
+		if files, err := genMarkdownTreeCustom(c, dir, filePrepender, linkHandler); err != nil {
+			return newFiles, err
+		} else {
+			newFiles = append(newFiles, files...)
+		}
+	}
+	return newFiles, nil
 }
