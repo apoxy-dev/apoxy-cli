@@ -81,6 +81,7 @@ var proxyCmd = &cobra.Command{
 	Long:    `The core object in the Apoxy API.`,
 	Aliases: []string{"p", "proxies"},
 	RunE: func(cmd *cobra.Command, args []string) error {
+		cmd.SilenceUsage = true
 		return ListProxies()
 	},
 }
@@ -92,6 +93,7 @@ var getProxyCmd = &cobra.Command{
 	ValidArgs: []string{"name"},
 	Args:      cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		cmd.SilenceUsage = true
 		return GetProxy(args[0])
 	},
 }
@@ -101,6 +103,7 @@ var listProxyCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List proxy objects",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		cmd.SilenceUsage = true
 		return ListProxies()
 	},
 }
@@ -114,13 +117,9 @@ var createProxyCmd = &cobra.Command{
 	Short: "Create proxy objects",
 	Long:  `Create proxy objects by providing a configuration as a file or via stdin.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		c, err := defaultAPIClient()
-		if err != nil {
-			return err
-		}
-
 		// Load the config to create from a file or stdin.
 		var proxyConfig string
+		var err error
 		stat, _ := os.Stdin.Stat()
 		if stat.Mode()&os.ModeCharDevice == 0 {
 			if proxyFile != "" {
@@ -132,7 +131,13 @@ var createProxyCmd = &cobra.Command{
 		} else {
 			return fmt.Errorf("please provide a configuration via --filename or stdin")
 		}
+		if err != nil {
+			return err
+		}
 
+		cmd.SilenceUsage = true
+
+		c, err := defaultAPIClient()
 		if err != nil {
 			return err
 		}
@@ -164,6 +169,7 @@ var deleteProxyCmd = &cobra.Command{
 	Use:   "delete",
 	Short: "Delete proxy objects",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		cmd.SilenceUsage = true
 		c, err := defaultAPIClient()
 		if err != nil {
 			return err
