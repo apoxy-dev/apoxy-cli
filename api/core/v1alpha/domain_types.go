@@ -84,6 +84,9 @@ const (
 	// one or more addresses. If there are no addresses found, the domain
 	// will be stuck in either the pending or allocated phase.
 	DomainPhaseAttached = "Attached"
+	// DomainPhaseError is the state of the domain when an unrecoverable
+	// error has occured.
+	DomainPhaseError = "Error"
 )
 
 type DomainStatus struct {

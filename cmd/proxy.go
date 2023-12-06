@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slog"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
 	"github.com/apoxy-dev/apoxy-cli/pretty"
@@ -55,12 +56,17 @@ func GetProxy(name string) error {
 	return nil
 }
 
-func ListProxies() error {
+func ListProxies(opts ...metav1.ListOptions) error {
 	c, err := defaultAPIClient()
 	if err != nil {
 		return err
 	}
-	r, err := c.Proxy().List()
+	var r *v1alpha.ProxyList
+	if len(opts) > 0 {
+		r, err = c.Proxy().ListWithOptions(opts[0])
+	} else {
+		r, err = c.Proxy().List()
+	}
 	if err != nil {
 		return err
 	}

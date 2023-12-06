@@ -37,12 +37,29 @@ func (c *ProxyClient) Get(name string) (*v1alpha.Proxy, error) {
 	return &proxy, err
 }
 
-// List returns all of Proxy object.
+// List returns all of Proxy objects.
 func (c *ProxyClient) List() (*v1alpha.ProxyList, error) {
 	var proxy v1alpha.Proxy
 	result, err := c.client.client.
 		Resource(proxy.GetGroupVersionResource()).
 		List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+	var proxyList v1alpha.ProxyList
+	err = runtime.DefaultUnstructuredConverter.FromUnstructured(result.UnstructuredContent(), &proxyList)
+	if err != nil {
+		return nil, err
+	}
+	return &proxyList, err
+}
+
+// ListWithOptions returns all of Proxy objects.
+func (c *ProxyClient) ListWithOptions(opts metav1.ListOptions) (*v1alpha.ProxyList, error) {
+	var proxy v1alpha.Proxy
+	result, err := c.client.client.
+		Resource(proxy.GetGroupVersionResource()).
+		List(context.TODO(), opts)
 	if err != nil {
 		return nil, err
 	}

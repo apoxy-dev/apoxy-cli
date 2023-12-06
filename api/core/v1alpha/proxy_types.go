@@ -78,6 +78,11 @@ type ProxySpec struct {
 	// that will be used to collect access logs from the proxy so proxy config should have the
 	// configuration to produce access logs using the matching format/sink.
 	AccessLog *AccessLog `json:"accessLog,omitempty"`
+
+	// DynamicForwardProxy enables a dynamic forward proxy for sending
+	// traffic to dynamically created upstreams based on the host
+	// exctracted from the request.
+	DynamicForwardProxy bool `json:"dynamicForwardProxy,omitempty"`
 }
 
 type ProxyPhase string
@@ -139,10 +144,12 @@ type Proxy struct {
 	Status ProxyStatus `json:"status,omitempty"`
 }
 
-var _ runtime.Object = &Proxy{}
-var _ resource.Object = &Proxy{}
-var _ resource.ObjectWithStatusSubResource = &Proxy{}
-var _ rest.SingularNameProvider = &Proxy{}
+var (
+	_ runtime.Object                       = &Proxy{}
+	_ resource.Object                      = &Proxy{}
+	_ resource.ObjectWithStatusSubResource = &Proxy{}
+	_ rest.SingularNameProvider            = &Proxy{}
+)
 
 func (p *Proxy) GetObjectMeta() *metav1.ObjectMeta {
 	return &p.ObjectMeta
