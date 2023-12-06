@@ -1,14 +1,33 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
-	"os"
+	"time"
 
 	"github.com/spf13/cobra"
 )
+
+type accessLog struct {
+	Timestamp     string `json:"timestamp"`
+	RequestMethod string `json:"request_method"`
+	RequestHost   string `json:"request_host"`
+	ResponseCode  string `json:"response_code"`
+}
+
+type logRecord struct {
+	ID        int       `json:"id"`
+	Message   string    `json:"message"`
+	Timestamp time.Time `json:"timestamp"`
+}
+
+type logResponse struct {
+	Logs  []*logRecord `json:"logs"`
+	Total int          `json:"total"`
+}
 
 var logsCmd = &cobra.Command{
 	Use:   "logs",
@@ -43,9 +62,41 @@ and/or date range. By default, logs are streamed in real-time.`,
 			return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 		}
 
-		_, err = io.Copy(os.Stdout, resp.Body)
-		if err != nil {
-			return err
+		dec := json.NewDecoder(resp.Body)
+		for {
+			t, err := dec.Token() // Top-level token.
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				return err
+			}
+
+			if t == "logs" {
+				t, err = dec.Token() // [ delimiter.
+				if err != nil {
+					return err
+				}
+				if t != json.Delim('[') {
+					return fmt.Errorf("unexpected token: %v", t)
+				}
+
+				for dec.More() { // Array of logs.
+					var lr logRecord
+					if err := dec.Decode(&lr); err != nil {
+						return err
+					}
+					fmt.Printf("[accesslog] %s %s\n", lr.Timestamp.Format(time.RFC3339), lr.Message)
+				}
+
+				t, err = dec.Token() // ] delimiter.
+				if err != nil {
+					return err
+				}
+				if t != json.Delim(']') {
+					return fmt.Errorf("unexpected token: %v", t)
+				}
+			}
 		}
 
 		return nil
