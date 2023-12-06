@@ -71,6 +71,8 @@ func getOrCreateMagicProxy(c *rest.APIClient, name string) error {
 			},
 		},
 		Spec: v1alpha.ProxySpec{
+			Type:                v1alpha.ProxyTypeEnvoy,
+			Provider:            v1alpha.InfraProviderCloud,
 			DynamicForwardProxy: true,
 		},
 	})
