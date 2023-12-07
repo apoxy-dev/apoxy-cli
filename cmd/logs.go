@@ -23,8 +23,9 @@ type accessLog struct {
 
 type logRecord struct {
 	ID        int       `json:"id"`
-	Message   string    `json:"message"`
 	Timestamp time.Time `json:"timestamp"`
+	Source    string    `json:"source"`
+	Message   string    `json:"message"`
 }
 
 type logResponse struct {
@@ -71,7 +72,7 @@ func printLogsOneShot(c *rest.APIClient, params url.Values) error {
 				if err := dec.Decode(&lr); err != nil {
 					return err
 				}
-				pretty.PrintLn(lr.Timestamp, "accesslog", lr.Message)
+				pretty.PrintLn(lr.Timestamp, lr.Source, lr.Message)
 			}
 
 			t, err = dec.Token() // ] delimiter.
@@ -107,7 +108,7 @@ func printLogsFollow(c *rest.APIClient, params url.Values) error {
 		if lr.Result == nil {
 			continue
 		}
-		pretty.PrintLn(lr.Result.Timestamp, "accesslog", lr.Result.Message)
+		pretty.PrintLn(lr.Result.Timestamp, lr.Result.Source, lr.Result.Message)
 	}
 
 	return nil
