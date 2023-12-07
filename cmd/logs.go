@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+
+	"github.com/apoxy-dev/apoxy-cli/rest"
 )
 
 type accessLog struct {
@@ -29,6 +31,87 @@ type logResponse struct {
 	Total int          `json:"total"`
 }
 
+type logResponseChunk struct {
+	Result *logRecord `json:"result"`
+}
+
+func printLogsOneShot(c *rest.APIClient, params url.Values) error {
+	resp, err := c.SendRequest(http.MethodGet, "/v1/logs?"+params.Encode(), nil)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	dec := json.NewDecoder(resp.Body)
+	for {
+		t, err := dec.Token() // Top-level token.
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+
+		if t == "logs" {
+			t, err = dec.Token() // [ delimiter.
+			if err != nil {
+				return err
+			}
+			if t != json.Delim('[') {
+				return fmt.Errorf("unexpected token: %v", t)
+			}
+
+			for dec.More() { // Array of logs.
+				var lr logRecord
+				if err := dec.Decode(&lr); err != nil {
+					return err
+				}
+				fmt.Printf("[accesslog] %s %s\n", lr.Timestamp.Format(time.RFC3339), lr.Message)
+			}
+
+			t, err = dec.Token() // ] delimiter.
+			if err != nil {
+				return err
+			}
+			if t != json.Delim(']') {
+				return fmt.Errorf("unexpected token: %v", t)
+			}
+		}
+	}
+
+	return nil
+}
+
+func printLogsFollow(c *rest.APIClient, params url.Values) error {
+	resp, err := c.SendRequest(http.MethodGet, "/v1/logs/tail?"+params.Encode(), nil)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	dec := json.NewDecoder(resp.Body)
+	for dec.More() {
+		var lr logResponseChunk
+		if err := dec.Decode(&lr); err != nil {
+			return err
+		}
+		if lr.Result == nil {
+			continue
+		}
+		fmt.Printf("[accesslog] %s %s\n", lr.Result.Timestamp.Format(time.RFC3339), lr.Result.Message)
+	}
+
+	return nil
+}
+
 var logsCmd = &cobra.Command{
 	Use:   "logs",
 	Short: "View proxy logs",
@@ -36,6 +119,10 @@ var logsCmd = &cobra.Command{
 and/or date range. By default, logs are streamed in real-time.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		proxy, err := cmd.Flags().GetString("proxy")
+		if err != nil {
+			return err
+		}
+		follow, err := cmd.Flags().GetBool("follow")
 		if err != nil {
 			return err
 		}
@@ -52,51 +139,10 @@ and/or date range. By default, logs are streamed in real-time.`,
 			params.Add("query", fmt.Sprintf("proxy=%q", proxy))
 		}
 
-		resp, err := c.SendRequest(http.MethodGet, "/v1/logs?"+params.Encode(), nil)
-		if err != nil {
-			return err
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK {
-			return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
-		}
-
-		dec := json.NewDecoder(resp.Body)
-		for {
-			t, err := dec.Token() // Top-level token.
-			if err == io.EOF {
-				break
-			}
-			if err != nil {
-				return err
-			}
-
-			if t == "logs" {
-				t, err = dec.Token() // [ delimiter.
-				if err != nil {
-					return err
-				}
-				if t != json.Delim('[') {
-					return fmt.Errorf("unexpected token: %v", t)
-				}
-
-				for dec.More() { // Array of logs.
-					var lr logRecord
-					if err := dec.Decode(&lr); err != nil {
-						return err
-					}
-					fmt.Printf("[accesslog] %s %s\n", lr.Timestamp.Format(time.RFC3339), lr.Message)
-				}
-
-				t, err = dec.Token() // ] delimiter.
-				if err != nil {
-					return err
-				}
-				if t != json.Delim(']') {
-					return fmt.Errorf("unexpected token: %v", t)
-				}
-			}
+		if follow {
+			return printLogsFollow(c, params)
+		} else {
+			return printLogsOneShot(c, params)
 		}
 
 		return nil
@@ -105,5 +151,6 @@ and/or date range. By default, logs are streamed in real-time.`,
 
 func init() {
 	logsCmd.PersistentFlags().StringP("proxy", "p", "", "Proxy name")
+	logsCmd.Flags().BoolP("follow", "f", true, "Follow logs in real-time")
 	rootCmd.AddCommand(logsCmd)
 }
