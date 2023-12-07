@@ -40,6 +40,7 @@ type logResponseChunk struct {
 var jsonOutput bool
 
 func printLogsOneShot(c *rest.APIClient, params url.Values) error {
+	params.Add("order", "asc")
 	resp, err := c.SendRequest(http.MethodGet, "/v1/logs?"+params.Encode(), nil)
 	if err != nil {
 		return err
