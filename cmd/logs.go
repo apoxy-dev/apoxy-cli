@@ -37,6 +37,8 @@ type logResponseChunk struct {
 	Result *logRecord `json:"result"`
 }
 
+var jsonOutput bool
+
 func printLogsOneShot(c *rest.APIClient, params url.Values) error {
 	resp, err := c.SendRequest(http.MethodGet, "/v1/logs?"+params.Encode(), nil)
 	if err != nil {
@@ -72,7 +74,11 @@ func printLogsOneShot(c *rest.APIClient, params url.Values) error {
 				if err := dec.Decode(&lr); err != nil {
 					return err
 				}
-				pretty.PrintLn(lr.Timestamp, lr.Source, lr.Message)
+				if jsonOutput {
+					fmt.Printf("%s\n", lr.Message)
+				} else {
+					pretty.PrintLn(lr.Timestamp, lr.Source, lr.Message)
+				}
 			}
 
 			t, err = dec.Token() // ] delimiter.
@@ -108,7 +114,11 @@ func printLogsFollow(c *rest.APIClient, params url.Values) error {
 		if lr.Result == nil {
 			continue
 		}
-		pretty.PrintLn(lr.Result.Timestamp, lr.Result.Source, lr.Result.Message)
+		if jsonOutput {
+			fmt.Printf("%s\n", lr.Result.Message)
+		} else {
+			pretty.PrintLn(lr.Result.Timestamp, lr.Result.Source, lr.Result.Message)
+		}
 	}
 
 	return nil
@@ -153,6 +163,7 @@ and/or date range. By default, logs are streamed in real-time.`,
 
 func init() {
 	logsCmd.PersistentFlags().StringP("proxy", "p", "", "Proxy name")
-	logsCmd.Flags().BoolP("follow", "f", true, "Follow logs in real-time")
+	logsCmd.PersistentFlags().BoolVar(&jsonOutput, "json", false, "Output in raw JSON format")
+	logsCmd.Flags().BoolP("follow", "f", false, "Follow logs in real-time")
 	rootCmd.AddCommand(logsCmd)
 }
