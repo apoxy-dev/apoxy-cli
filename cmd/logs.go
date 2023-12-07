@@ -10,6 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/apoxy-dev/apoxy-cli/pretty"
 	"github.com/apoxy-dev/apoxy-cli/rest"
 )
 
@@ -70,7 +71,7 @@ func printLogsOneShot(c *rest.APIClient, params url.Values) error {
 				if err := dec.Decode(&lr); err != nil {
 					return err
 				}
-				fmt.Printf("[accesslog] %s %s\n", lr.Timestamp.Format(time.RFC3339), lr.Message)
+				pretty.PrintLn(lr.Timestamp, "accesslog", lr.Message)
 			}
 
 			t, err = dec.Token() // ] delimiter.
@@ -106,7 +107,7 @@ func printLogsFollow(c *rest.APIClient, params url.Values) error {
 		if lr.Result == nil {
 			continue
 		}
-		fmt.Printf("[accesslog] %s %s\n", lr.Result.Timestamp.Format(time.RFC3339), lr.Result.Message)
+		pretty.PrintLn(lr.Result.Timestamp, "accesslog", lr.Result.Message)
 	}
 
 	return nil
