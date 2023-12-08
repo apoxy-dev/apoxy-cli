@@ -139,6 +139,24 @@ and/or date range. By default, logs are streamed in real-time.`,
 		if err != nil {
 			return err
 		}
+		since, err := cmd.Flags().GetDuration("since")
+		if err != nil {
+			return err
+		}
+		sinceTimeS, err := cmd.Flags().GetString("since-time")
+		if err != nil {
+			return err
+		}
+		var sinceTime time.Time
+		if sinceTimeS != "" {
+			sinceTime, err = time.Parse(time.RFC3339, sinceTimeS)
+			if err != nil {
+				return fmt.Errorf("invalid time format (expecting RFC3999): %s", sinceTimeS)
+			}
+		}
+		if since != 0 && !sinceTime.IsZero() {
+			return fmt.Errorf("only one of --since and --since-time can be specified")
+		}
 
 		cmd.SilenceUsage = true
 
@@ -150,6 +168,11 @@ and/or date range. By default, logs are streamed in real-time.`,
 		params := url.Values{}
 		if proxy != "" {
 			params.Add("query", fmt.Sprintf("proxy=%q", proxy))
+		}
+		if since != 0 {
+			params.Add("start_time", time.Now().Add(-since).Format(time.RFC3339))
+		} else if !sinceTime.IsZero() {
+			params.Add("start_time", sinceTime.Format(time.RFC3339))
 		}
 
 		if follow {
@@ -166,5 +189,7 @@ func init() {
 	logsCmd.PersistentFlags().StringP("proxy", "p", "", "Proxy name")
 	logsCmd.PersistentFlags().BoolVar(&jsonOutput, "json", false, "Output in raw JSON format")
 	logsCmd.Flags().BoolP("follow", "f", false, "Follow logs in real-time")
+	logsCmd.Flags().DurationP("since", "", 0, "Show logs since a given duration (e.g. 5m, 1h)")
+	logsCmd.Flags().StringP("since-time", "", "", "Show logs from a given date (e.g. 2019-01-01T00:00:00Z)")
 	rootCmd.AddCommand(logsCmd)
 }
