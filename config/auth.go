@@ -56,7 +56,10 @@ func (a *Authenticator) handler(w http.ResponseWriter, r *http.Request) {
 	key := r.URL.Query().Get("key")
 	projectID := r.URL.Query().Get("project")
 	slog.Debug("API key received", "APIKey", key, "ProjectID", projectID)
-	a.authCh <- authContext{APIKey: key, ProjectID: projectID}
+	go func() {
+		time.Sleep(2 * time.Second)
+		a.authCh <- authContext{APIKey: key, ProjectID: projectID}
+	}()
 	fmt.Fprintf(w, web.LoginOKHTML)
 }
 
