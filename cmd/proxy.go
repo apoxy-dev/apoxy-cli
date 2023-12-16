@@ -15,15 +15,25 @@ import (
 
 func fmtProxy(r *v1alpha.Proxy) {
 	t := pretty.Table{
-		Header: buildProxyHeader(),
+		Header: buildProxyHeader(false),
 		Rows: pretty.Rows{
-			buildProxyRow(r),
+			buildProxyRow(r, false),
 		},
 	}
 	t.Print()
 }
 
-func buildProxyHeader() pretty.Header {
+func buildProxyHeader(labels bool) pretty.Header {
+	if labels {
+		return pretty.Header{
+			"NAME",
+			"PROVIDER",
+			"STATUS",
+			"ADDRESS",
+			"AGE",
+			"LABELS",
+		}
+	}
 	return pretty.Header{
 		"NAME",
 		"PROVIDER",
@@ -33,7 +43,17 @@ func buildProxyHeader() pretty.Header {
 	}
 }
 
-func buildProxyRow(r *v1alpha.Proxy) []interface{} {
+func buildProxyRow(r *v1alpha.Proxy, labels bool) []interface{} {
+	if labels {
+		return []interface{}{
+			r.Name,
+			r.Spec.Provider,
+			r.Status.Phase,
+			r.Status.Address,
+			pretty.SinceString(r.CreationTimestamp.Time),
+			labelsToString(r.Labels),
+		}
+	}
 	return []interface{}{
 		r.Name,
 		r.Spec.Provider,
@@ -56,6 +76,8 @@ func GetProxy(name string) error {
 	return nil
 }
 
+var showProxyLabels bool
+
 func ListProxies(opts ...metav1.ListOptions) error {
 	c, err := defaultAPIClient()
 	if err != nil {
@@ -71,10 +93,10 @@ func ListProxies(opts ...metav1.ListOptions) error {
 		return err
 	}
 	t := pretty.Table{
-		Header: buildProxyHeader(),
+		Header: buildProxyHeader(showProxyLabels),
 	}
 	for _, p := range r.Items {
-		t.Rows = append(t.Rows, buildProxyRow(&p))
+		t.Rows = append(t.Rows, buildProxyRow(&p, showProxyLabels))
 	}
 	t.Print()
 	return nil
@@ -191,6 +213,8 @@ var deleteProxyCmd = &cobra.Command{
 func init() {
 	createProxyCmd.PersistentFlags().
 		StringVarP(&proxyFile, "filename", "f", "", "The file that contains the configuration to create.")
+	listProxyCmd.PersistentFlags().
+		BoolVar(&showProxyLabels, "show-labels", false, "Print the proxy's labels.")
 	// TODO: add flags for proxy config as raw envoy config
 
 	proxyCmd.AddCommand(getProxyCmd, listProxyCmd, createProxyCmd, deleteProxyCmd)

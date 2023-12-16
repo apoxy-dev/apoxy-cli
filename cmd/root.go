@@ -93,6 +93,15 @@ func yamlStringToJSONString(yamlString string) (string, error) {
 	return string(jsonBytes), nil
 }
 
+// labelsToString converts a map of labels to a string.
+func labelsToString(labels map[string]string) string {
+	var l []string
+	for k, v := range labels {
+		l = append(l, fmt.Sprintf("%s=%s", k, v))
+	}
+	return strings.Join(l, ",")
+}
+
 // GenerateDocs generates the docs in the docs folder.
 func GenerateDocs() {
 	anchorLinks := func(s string) string {

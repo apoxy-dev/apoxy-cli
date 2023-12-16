@@ -19,15 +19,24 @@ import (
 
 func fmtDomain(r *v1alpha.Domain) {
 	t := pretty.Table{
-		Header: buildDomainHeader(),
+		Header: buildDomainHeader(false),
 		Rows: pretty.Rows{
-			buildDomainRow(r),
+			buildDomainRow(r, false),
 		},
 	}
 	t.Print()
 }
 
-func buildDomainHeader() pretty.Header {
+func buildDomainHeader(labels bool) pretty.Header {
+	if labels {
+		return pretty.Header{
+			"NAME",
+			"HOSTNAMES",
+			"STATUS",
+			"AGE",
+			"LABELS",
+		}
+	}
 	return pretty.Header{
 		"NAME",
 		"HOSTNAMES",
@@ -36,21 +45,26 @@ func buildDomainHeader() pretty.Header {
 	}
 }
 
-func buildDomainRow(r *v1alpha.Domain) []interface{} {
+func buildDomainRow(r *v1alpha.Domain, labels bool) (res []interface{}) {
 	if r.Spec.Style == v1alpha.DomainStyleMagic {
-		return []interface{}{
+		res = []interface{}{
 			r.Name,
 			fmt.Sprintf("%s.apoxy.io", r.Spec.MagicKey),
 			r.Status.Phase,
 			pretty.SinceString(r.CreationTimestamp.Time),
 		}
+	} else {
+		res = []interface{}{
+			r.Name,
+			strings.Join(r.Spec.Hostnames, ", "),
+			r.Status.Phase,
+			pretty.SinceString(r.CreationTimestamp.Time),
+		}
 	}
-	return []interface{}{
-		r.Name,
-		strings.Join(r.Spec.Hostnames, ", "),
-		r.Status.Phase,
-		pretty.SinceString(r.CreationTimestamp.Time),
+	if labels {
+		res = append(res, labelsToString(r.Labels))
 	}
+	return
 }
 
 func getOrCreateMagicProxy(c *rest.APIClient, name string) error {
@@ -96,6 +110,8 @@ func GetDomain(name string) error {
 	return nil
 }
 
+var showDomainLabels bool
+
 func ListDomains() error {
 	c, err := defaultAPIClient()
 	if err != nil {
@@ -106,10 +122,10 @@ func ListDomains() error {
 		return err
 	}
 	t := pretty.Table{
-		Header: buildDomainHeader(),
+		Header: buildDomainHeader(showDomainLabels),
 	}
 	for _, p := range r.Items {
-		t.Rows = append(t.Rows, buildDomainRow(&p))
+		t.Rows = append(t.Rows, buildDomainRow(&p, showDomainLabels))
 	}
 	t.Print()
 	return nil
@@ -307,6 +323,8 @@ func init() {
 		BoolVar(&domainRandomName, "random", false, "Generate a random name of the domain.")
 	getDomainCmd.PersistentFlags().
 		BoolVarP(&listProxies, "proxies", "p", false, "List the proxies this domain points to.")
+	listDomainCmd.PersistentFlags().
+		BoolVar(&showDomainLabels, "show-labels", false, "Print the domain's labels.")
 	// TODO: add flags for domain config as raw envoy config
 
 	domainCmd.AddCommand(getDomainCmd, listDomainCmd, createDomainCmd, deleteDomainCmd)
