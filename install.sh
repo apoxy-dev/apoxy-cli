@@ -7,7 +7,7 @@
 
 # When releasing Apoxy, the releaser should update this version number
 # AFTER they upload new binaries.
-VERSION="0.1.1"
+VERSION="0.1.2"
 
 set -e
 
@@ -31,7 +31,7 @@ function install_apoxy() {
 			# This is a small workaround so that the install script works on ARM.
 			case $(uname -m) in
 					aarch64) ARCH=arm64;;
-					armv7l)  ARCH=arm;;
+					armv7l)  ARCH=armv6;;
 					*)       ARCH=$(uname -m);;
 			esac
 			set -x
