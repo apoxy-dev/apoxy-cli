@@ -31,7 +31,7 @@ jobs:
       - name: Install Dagger CLI
         run: cd /usr/local && { curl -L https://dl.dagger.io/dagger/install.sh | sh; cd -; }
       - name: Run Dagger pipeline
-        run: dagger run go run run/ci/main.go
+        run: dagger run go run ci/main.go
         env:
            #DAGGER_CLOUD_TOKEN: ${{ secrets.DAGGER_CLOUD_TOKEN }}
            _EXPERIMENTAL_DAGGER_RUNNER_HOST: tcp://localhost:9080
