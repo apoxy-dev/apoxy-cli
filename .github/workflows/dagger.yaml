@@ -19,6 +19,7 @@ jobs:
           echo "$DAGGER_CLIENT_CERT" > secrets/client.crt
           echo "$DAGGER_CLIENT_KEY" > secrets/client.key
           chmod 700 secrets/client.key
+          sha256sum secrets/*
         shell: bash
         env:
           DAGGER_CA: ${{ secrets.DAGGER_CA }}
