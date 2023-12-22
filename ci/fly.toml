@@ -1,0 +1,56 @@
+app = "apoxy-cli-dagger"
+primary_region = "sjc"
+
+kill_signal = "SIGINT"
+kill_timeout = 60
+
+[build]
+  image = "registry.dagger.io/engine:v0.9.4"
+
+[mounts]
+  source = "apoxy_dagger"
+  destination = "/var/lib/dagger"
+
+[experimental]
+  exec = [
+    "/usr/local/bin/dagger-engine", "--debug",
+    "--config", "/etc/dagger/engine.toml",
+    "--addr", "tcp://0.0.0.0:8080",
+    "--tlscert", "/etc/dagger-certs/server.crt",
+    "--tlskey", "/etc/dagger-certs/server.key",
+    "--tlscacert", "/etc/dagger-certs/ca.crt",
+  ]
+
+[[files]]
+  guest_path = "/etc/dagger-certs/ca.crt"
+  secret_name = "DAGGER_CA"
+
+[[files]]
+  guest_path = "/etc/dagger-certs/server.crt"
+  secret_name = "SERVER_CERT"
+
+[[files]]
+  guest_path = "/etc/dagger-certs/server.key"
+  secret_name = "SERVER_KEY"
+
+[[services]]
+  internal_port = 8080
+  protocol = "tcp"
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+  [[services.ports]]
+    port = 8080
+  [[services.tcp_checks]]
+    grace_period = "3s"
+    interval = "2s"
+    port = 8080
+    timeout = "2s"
+  [services.concurrency]
+    type = "connections"
+    hard_limit = 3
+    soft_limit = 1
+
+[[vm]]
+  size = "shared-cpu-2x"
+  memory = "2gb"
