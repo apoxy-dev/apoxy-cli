@@ -21,7 +21,7 @@ jobs:
           chmod 700 secrets/client.key
         shell: bash
         env:
-          DAGGER_CA_CERT: ${{ secrets.DAGGER_CA }}
+          DAGGER_CA: ${{ secrets.DAGGER_CA }}
           DAGGER_CLIENT_CERT: ${{ secrets.DAGGER_CLIENT_CERT }}
           DAGGER_CLIENT_KEY: ${{ secrets.DAGGER_CLIENT_KEY }}
       - name: Install func-e CLI
