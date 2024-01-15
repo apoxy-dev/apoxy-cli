@@ -13,6 +13,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	runtimejson "k8s.io/apimachinery/pkg/runtime/serializer/json"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/discovery/cached/memory"
@@ -25,6 +27,7 @@ import (
 
 var (
 	decoder = scheme.Codecs.UniversalDeserializer()
+	encoder = runtimejson.NewYAMLSerializer(runtimejson.DefaultMetaFactory, scheme.Scheme, scheme.Scheme)
 )
 
 func getYAML() ([]byte, error) {
@@ -46,7 +49,7 @@ func getYAML() ([]byte, error) {
 	return ioutil.ReadAll(resp.Body)
 }
 
-func installController(ctx context.Context, kc *rest.Config, yamlz []byte) error {
+func installController(ctx context.Context, kc *rest.Config, yamlz []byte, ns string, dryRun, force bool) error {
 	dc, err := discovery.NewDiscoveryClientForConfig(kc)
 	if err != nil {
 		return err
@@ -58,6 +61,7 @@ func installController(ctx context.Context, kc *rest.Config, yamlz []byte) error
 	}
 	mapper := restmapper.NewDeferredDiscoveryRESTMapper(memory.NewMemCacheClient(dc))
 
+	drOutput := strings.Builder{}
 	for _, yaml := range strings.Split(string(yamlz), "---") {
 		if yaml == "" {
 			continue
@@ -74,8 +78,15 @@ func installController(ctx context.Context, kc *rest.Config, yamlz []byte) error
 			return fmt.Errorf("failed to get REST mapping: %w", err)
 		}
 
+		if ns != "" && gvk.Group == "" && gvk.Kind == "Namespace" {
+			obj.SetName(ns)
+		}
+
 		var resource dynamic.ResourceInterface
 		if mapping.Scope.Name() == meta.RESTScopeNameNamespace { // Namespaced resource.
+			if ns != "" {
+				obj.SetNamespace(ns)
+			}
 			resource = dynClient.Resource(mapping.Resource).Namespace(obj.GetNamespace())
 		} else { // Cluster-scoped resource.
 			resource = dynClient.Resource(mapping.Resource)
@@ -86,12 +97,38 @@ func installController(ctx context.Context, kc *rest.Config, yamlz []byte) error
 			return fmt.Errorf("failed to marshal JSON: %w", err)
 		}
 
+		prettyGVK := obj.GroupVersionKind().String()
+		if prettyGVK[0] == '/' {
+			prettyGVK = "core" + prettyGVK
+		}
 		patchOpts := metav1.PatchOptions{
 			FieldManager: "apoxy-cli",
+			Force:        &force,
 		}
-		if _, err = resource.Patch(ctx, obj.GetName(), types.ApplyPatchType, jsonData, patchOpts); err != nil {
-			return fmt.Errorf("failed to apply patch for %s (%v): %w", obj.GetName(), obj.GroupVersionKind(), err)
+		if dryRun {
+			patchOpts.DryRun = []string{metav1.DryRunAll}
 		}
+		un, err := resource.Patch(ctx, obj.GetName(), types.ApplyPatchType, jsonData, patchOpts)
+		if err != nil {
+			return fmt.Errorf("failed to apply patch for %s (%s): %w", obj.GetName(), prettyGVK, err)
+		}
+
+		if dryRun {
+			gvkEncoder := scheme.Codecs.EncoderForVersion(encoder, gvk.GroupVersion())
+			yamlBytes, err := runtime.Encode(gvkEncoder, un)
+			if err != nil {
+				return fmt.Errorf("failed to encode YAML: %w", err)
+			}
+			drOutput.Write(yamlBytes) // Already has newline.
+			drOutput.WriteString("---\n")
+		} else {
+			fmt.Printf("applied %s (%s)\n", un.GetName(), prettyGVK)
+		}
+	}
+
+	if dryRun {
+		fmt.Fprintf(os.Stderr, "Dry run complete.  No changes were made.\n")
+		fmt.Print(drOutput.String())
 	}
 
 	return nil
@@ -126,12 +163,25 @@ will automatically connect to the Apoxy API and begin managing your in-cluster A
 			return fmt.Errorf("failed to build Kubernetes config: %w", err)
 		}
 
+		namespace, err := cmd.Flags().GetString("namespace")
+		if err != nil {
+			return err
+		}
+		force, err := cmd.Flags().GetBool("force")
+		if err != nil {
+			return err
+		}
+		dryRun, err := cmd.Flags().GetBool("dry-run")
+		if err != nil {
+			return err
+		}
+
 		yamlz, err := getYAML()
 		if err != nil {
 			return fmt.Errorf("failed to get YAML: %w", err)
 		}
 
-		if err := installController(cmd.Context(), kc, yamlz); err != nil {
+		if err := installController(cmd.Context(), kc, yamlz, namespace, dryRun, force); err != nil {
 			return fmt.Errorf("failed to install controller: %w", err)
 		}
 
@@ -146,7 +196,10 @@ var k8sCmd = &cobra.Command{
 }
 
 func init() {
-	installK8sCmd.Flags().StringP("kubeconfig", "k", "", "Path to the kubeconfig file to use for Kubernetes API access")
+	installK8sCmd.Flags().String("kubeconfig", "", "Path to the kubeconfig file to use for Kubernetes API access")
+	installK8sCmd.Flags().String("namespace", "apoxy", "The namespace to install the controller into")
+	installK8sCmd.Flags().Bool("dry-run", false, "If true, only print the YAML that would be applied")
+	installK8sCmd.Flags().Bool("force", false, "If true, forces value overwrites (See: https://v1-28.docs.kubernetes.io/docs/reference/using-api/server-side-apply/#conflicts)")
 	k8sCmd.AddCommand(installK8sCmd)
 
 	rootCmd.AddCommand(k8sCmd)
