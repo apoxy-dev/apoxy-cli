@@ -22,6 +22,7 @@ Start by creating an account on https://apoxy.dev and logging in with 'apoxy aut
 
 * [apoxy auth](#apoxy-auth)	 - Authenticate this CLI
 * [apoxy domain](#apoxy-domain)	 - Manage domain objects
+* [apoxy k8s](#apoxy-k8s)	 - Commands that manage Apoxy on Kubernetes
 * [apoxy logs](#apoxy-logs)	 - View proxy logs
 * [apoxy proxy](#apoxy-proxy)	 - Manage proxy objects
 * [apoxy version](#apoxy-version)	 - The version of this CLI
@@ -220,6 +221,70 @@ apoxy domain list [flags]
 
 
 
+## apoxy k8s
+
+Commands that manage Apoxy on Kubernetes
+
+### Options
+
+```
+  -h, --help   help for k8s
+```
+
+### Options inherited from parent commands
+
+```
+      --check           only check the authentication status
+      --config string   config file (default is $HOME/.apoxy/config.yaml)
+  -v, --verbose         enable verbose output
+```
+
+### SEE ALSO
+
+* [apoxy](#apoxy)	 - Apoxy helps you expose, explore, and evolve your APIs and services.
+* [apoxy k8s install](#apoxy-k8s-install)	 - Install Apoxy Controller in Kubernetes
+
+
+
+## apoxy k8s install
+
+Install Apoxy Controller in Kubernetes
+
+### Synopsis
+
+Install the Apoxy Controller into the target Kubernetes cluster.
+
+This will create a new namespace and deploy the controller and supporting resources.  The controller
+will automatically connect to the Apoxy API and begin managing your in-cluster Apoxy resources.
+
+```
+apoxy k8s install [flags]
+```
+
+### Options
+
+```
+      --dry-run             If true, only print the YAML that would be applied
+      --force               If true, forces value overwrites (See: https://v1-28.docs.kubernetes.io/docs/reference/using-api/server-side-apply/#conflicts)
+  -h, --help                help for install
+      --kubeconfig string   Path to the kubeconfig file to use for Kubernetes API access
+      --namespace string    The namespace to install the controller into (default "apoxy")
+```
+
+### Options inherited from parent commands
+
+```
+      --check           only check the authentication status
+      --config string   config file (default is $HOME/.apoxy/config.yaml)
+  -v, --verbose         enable verbose output
+```
+
+### SEE ALSO
+
+* [apoxy k8s](#apoxy-k8s)	 - Commands that manage Apoxy on Kubernetes
+
+
+
 ## apoxy logs
 
 View proxy logs
@@ -239,7 +304,6 @@ apoxy logs [flags]
   -f, --follow              Follow logs in real-time
   -h, --help                help for logs
       --json                Output in raw JSON format
-  -p, --proxy string        Proxy name
       --since duration      Show logs since a given duration (e.g. 5m, 1h)
       --since-time string   Show logs from a given date (e.g. 2019-01-01T00:00:00Z)
 ```
