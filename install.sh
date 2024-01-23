@@ -7,7 +7,7 @@
 
 # When releasing Apoxy, the releaser should update this version number
 # AFTER they upload new binaries.
-VERSION="0.1.2"
+VERSION="0.1.4"
 
 set -e
 
