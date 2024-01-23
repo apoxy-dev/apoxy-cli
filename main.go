@@ -15,8 +15,32 @@ limitations under the License.
 */
 package main
 
-import "github.com/apoxy-dev/apoxy-cli/cmd"
+import (
+	"log"
+	"time"
+
+	"github.com/getsentry/sentry-go"
+
+	"github.com/apoxy-dev/apoxy-cli/cmd"
+)
 
 func main() {
+	// We send errors to Sentry to ensure the best possible experience for our users.
+	err := sentry.Init(sentry.ClientOptions{
+		Dsn:              "https://4da486e8bfc297ebd07dea8a1419f5da@o4506619284815872.ingest.sentry.io/4506619287306240",
+		TracesSampleRate: 1.0,
+	})
+	if err != nil {
+		log.Fatalf("sentry.Init: %s", err)
+	}
+	defer func() {
+		if err := recover(); err != nil {
+			sentry.CurrentHub().Recover(err)
+			sentry.Flush(5 * time.Second)
+			log.Printf("panic: %v", err)
+		}
+	}()
+	defer sentry.Flush(5 * time.Second)
+
 	cmd.Execute()
 }

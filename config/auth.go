@@ -10,6 +10,7 @@ import (
 
 	"github.com/pkg/browser"
 	"golang.org/x/exp/slog"
+	"github.com/getsentry/sentry-go"
 
 	"github.com/apoxy-dev/apoxy-cli/rest"
 	"github.com/apoxy-dev/apoxy-cli/web"
@@ -103,6 +104,7 @@ func (a *Authenticator) launchServer() int {
 	}()
 	if err := a.awaitHealthy(port); err != nil {
 		slog.Error(fmt.Sprintf("Error starting server: %v", err))
+		sentry.CaptureMessage("auth redirect server failed to start")
 	}
 	return port
 }
