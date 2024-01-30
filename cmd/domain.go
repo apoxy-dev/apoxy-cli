@@ -268,7 +268,18 @@ var createDomainCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
+			gotMagicKey := false
+			iteration := 1
+			for !gotMagicKey {
+				time.Sleep(time.Duration(iteration*250) * time.Millisecond)
+				d, err = c.Domain().Get(d.Name)
+				if err != nil {
+					return err
+				}
+				gotMagicKey = d.Spec.MagicKey != ""
+			}
 			fmt.Printf("domain %q created\n", d.Name)
+			fmt.Printf("%q is your magic key\n", d.Spec.MagicKey)
 			return nil
 		}
 
