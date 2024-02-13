@@ -5,13 +5,14 @@ import (
 )
 
 var (
-	BuildVersion = "dev"
+	buildVersion = "0.0.0-dev"
+	BuildVersion = buildVersion
 	BuildDate    = "n/a"
 	CommitHash   = "n/a"
 )
 
 func Version() string {
-	if BuildVersion == "dev" {
+	if BuildVersion == buildVersion {
 		return BuildVersion
 	}
 	return fmt.Sprintf("v%s (%s), built %s", BuildVersion, CommitHash, BuildDate)
