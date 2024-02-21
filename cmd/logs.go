@@ -180,13 +180,12 @@ and/or date range. By default, logs are streamed in real-time.`,
 		} else {
 			return printLogsOneShot(c, params)
 		}
-
-		return nil
 	},
 }
 
 func init() {
 	logsCmd.PersistentFlags().BoolVar(&jsonOutput, "json", false, "Output in raw JSON format")
+	logsCmd.PersistentFlags().StringP("proxy", "p", "", "Proxy name")
 	logsCmd.Flags().BoolP("follow", "f", false, "Follow logs in real-time")
 	logsCmd.Flags().DurationP("since", "", 0, "Show logs since a given duration (e.g. 5m, 1h)")
 	logsCmd.Flags().StringP("since-time", "", "", "Show logs from a given date (e.g. 2019-01-01T00:00:00Z)")
