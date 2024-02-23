@@ -2,6 +2,7 @@ package pretty
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 )
 
@@ -31,6 +32,11 @@ func colorize(s string, color int) string {
 }
 
 // PrintLn prints a log line with a timestamp and source.
-func PrintLn(t time.Time, source string, message string) {
-	fmt.Printf("%s [%s] %s\n", colorize(t.Format(timeFormat), darkGray), colorize(source, lightYellow), colorize(message, cyan))
+func PrintLn(t time.Time, id, spanid int, source string, message string) {
+	fmt.Printf("%s %s %s [%s] %s\n",
+		colorize(t.Format(timeFormat), darkGray),
+		colorize(strconv.Itoa(id), lightGreen),
+		colorize(strconv.Itoa(spanid), lightYellow),
+		colorize(source, lightYellow),
+		colorize(message, cyan))
 }

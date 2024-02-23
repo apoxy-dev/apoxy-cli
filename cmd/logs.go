@@ -8,21 +8,17 @@ import (
 	"net/url"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 
+	"github.com/apoxy-dev/apoxy-cli/internal/logs"
 	"github.com/apoxy-dev/apoxy-cli/pretty"
 	"github.com/apoxy-dev/apoxy-cli/rest"
 )
 
-type accessLog struct {
-	Timestamp     string `json:"timestamp"`
-	RequestMethod string `json:"request_method"`
-	RequestHost   string `json:"request_host"`
-	ResponseCode  string `json:"response_code"`
-}
-
 type logRecord struct {
 	ID        int       `json:"id"`
+	SpanID    int       `json:"spanId"`
 	Timestamp time.Time `json:"timestamp"`
 	Source    string    `json:"source"`
 	Message   string    `json:"message"`
@@ -39,7 +35,11 @@ type logResponseChunk struct {
 
 var jsonOutput bool
 
-func printLogsOneShot(c *rest.APIClient, params url.Values) error {
+func requestLogs(
+	c *rest.APIClient,
+	params url.Values,
+	cb func(*logRecord) error,
+) error {
 	params.Add("order", "asc")
 	resp, err := c.SendRequest(http.MethodGet, "/v1/logs?"+params.Encode(), nil)
 	if err != nil {
@@ -75,10 +75,9 @@ func printLogsOneShot(c *rest.APIClient, params url.Values) error {
 				if err := dec.Decode(&lr); err != nil {
 					return err
 				}
-				if jsonOutput {
-					fmt.Printf("%s\n", lr.Message)
-				} else {
-					pretty.PrintLn(lr.Timestamp, lr.Source, lr.Message)
+
+				if err := cb(&lr); err != nil {
+					return err
 				}
 			}
 
@@ -93,6 +92,17 @@ func printLogsOneShot(c *rest.APIClient, params url.Values) error {
 	}
 
 	return nil
+}
+
+func printLogsOneShot(c *rest.APIClient, params url.Values) error {
+	return requestLogs(c, params, func(lr *logRecord) error {
+		if jsonOutput {
+			fmt.Printf("%s\n", lr.Message)
+		} else {
+			pretty.PrintLn(lr.Timestamp, lr.ID, lr.SpanID, lr.Source, lr.Message)
+		}
+		return nil
+	})
 }
 
 func printLogsFollow(c *rest.APIClient, params url.Values) error {
@@ -118,10 +128,42 @@ func printLogsFollow(c *rest.APIClient, params url.Values) error {
 		if jsonOutput {
 			fmt.Printf("%s\n", lr.Result.Message)
 		} else {
-			pretty.PrintLn(lr.Result.Timestamp, lr.Result.Source, lr.Result.Message)
+			pretty.PrintLn(lr.Result.Timestamp, lr.Result.ID, lr.Result.SpanID, lr.Result.Source, lr.Result.Message)
 		}
 	}
 
+	return nil
+}
+
+func tuiProgram(c *rest.APIClient, follow bool, params url.Values) error {
+	lm := map[int]*logs.LogRecord{}
+	if err := requestLogs(c, params, func(lr *logRecord) error {
+		if lr.SpanID == 0 {
+			lm[lr.ID] = &logs.LogRecord{
+				Timestamp:  lr.Timestamp,
+				Source:     lr.Source,
+				RawMessage: lr.Message,
+			}
+		} else if r, ok := lm[lr.SpanID]; ok {
+			r.Spans = append(r.Spans, &logs.LogRecord{
+				Timestamp:  lr.Timestamp,
+				Source:     lr.Source,
+				RawMessage: lr.Message,
+			})
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	var ls []*logs.LogRecord
+	for _, l := range lm {
+		ls = append(ls, l)
+	}
+
+	p := tea.NewProgram(logs.NewModel(ls, follow, nil))
+	if _, err := p.Run(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -158,6 +200,11 @@ and/or date range. By default, logs are streamed in real-time.`,
 			return fmt.Errorf("only one of --since and --since-time can be specified")
 		}
 
+		enableTUI, err := cmd.Flags().GetBool("tui")
+		if err != nil {
+			return err
+		}
+
 		cmd.SilenceUsage = true
 
 		c, err := defaultAPIClient()
@@ -175,7 +222,9 @@ and/or date range. By default, logs are streamed in real-time.`,
 			params.Add("start_time", sinceTime.Format(time.RFC3339))
 		}
 
-		if follow {
+		if enableTUI {
+			return tuiProgram(c, follow, params)
+		} else if follow {
 			return printLogsFollow(c, params)
 		} else {
 			return printLogsOneShot(c, params)
@@ -189,5 +238,6 @@ func init() {
 	logsCmd.Flags().BoolP("follow", "f", false, "Follow logs in real-time")
 	logsCmd.Flags().DurationP("since", "", 0, "Show logs since a given duration (e.g. 5m, 1h)")
 	logsCmd.Flags().StringP("since-time", "", "", "Show logs from a given date (e.g. 2019-01-01T00:00:00Z)")
+	logsCmd.Flags().BoolP("tui", "", false, "Enable TUI mode")
 	rootCmd.AddCommand(logsCmd)
 }
