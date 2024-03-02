@@ -29,7 +29,7 @@ jobs:
       - name: Run Envoy
         run: func-e run -c ci/dagger-client.yaml &
       - name: Install Dagger CLI
-        run: cd /usr/local && { curl -L https://dl.dagger.io/dagger/install.sh | sh; cd -; }
+        run: cd /usr/local && { curl -L https://dl.dagger.io/dagger/install.sh | DAGGER_VERSION=0.9.4 sh; cd -; }
       - name: Run Dagger pipeline
         run: dagger run --progress=plain go run ci/main.go
         env:
