@@ -7,11 +7,15 @@ import (
 	"io"
 	"net"
 	"net/netip"
+	"os"
 	"sync"
+	"syscall"
 
 	"github.com/spf13/cobra"
+	"golang.zx2c4.com/wireguard/conn"
 	"golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/tun"
+	_ "golang.zx2c4.com/wireguard/tun/netstack"
 	"gvisor.dev/gvisor/pkg/buffer"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
@@ -162,6 +166,7 @@ func copyFromTUNToNetstack(ctx context.Context, tunDev tun.Device, ep *channel.E
 		if err != nil {
 			fmt.Printf("Failed to read from TUN device: %v\n", err)
 		}
+		fmt.Printf("Read %d packets from TUN device\n", n)
 		for i := range sizes[:n] {
 			buffers[i] = buffers[i][readOffset : readOffset+sizes[i]]
 			// ready to send data to channel
@@ -174,17 +179,91 @@ func copyFromTUNToNetstack(ctx context.Context, tunDev tun.Device, ep *channel.E
 	}
 }
 
-func createTunnel(ctx context.Context) error {
-	wgTun, err := tun.CreateTUN(tunName, defaultMTU)
-	if err != nil {
-		return fmt.Errorf("could not create TUN device: %v", err)
-	}
-	devName, err := wgTun.Name()
-	if err != nil {
-		return fmt.Errorf("could not get TUN device name: %v", err)
-	}
-	fmt.Printf("Created TUN device %s with MTU %d\n", devName, defaultMTU)
+type netTun struct {
+	ep             *channel.Endpoint
+	stack          *stack.Stack
+	events         chan tun.Event
+	incomingPacket chan *buffer.View
+	mtu            int
+	dnsServers     []netip.Addr
+	hasV4, hasV6   bool
+}
 
+func (tun *netTun) Name() (string, error) { return "go", nil }
+func (tun *netTun) File() *os.File        { return nil }
+
+func (tun *netTun) Events() <-chan tun.Event {
+	return tun.events
+}
+
+func (tun *netTun) Read(buf [][]byte, sizes []int, offset int) (int, error) {
+	view, ok := <-tun.incomingPacket
+	if !ok {
+		return 0, os.ErrClosed
+	}
+
+	n, err := view.Read(buf[0][offset:])
+	if err != nil {
+		return 0, err
+	}
+	sizes[0] = n
+	return 1, nil
+}
+
+func (tun *netTun) Write(buf [][]byte, offset int) (int, error) {
+	for _, buf := range buf {
+		packet := buf[offset:]
+		if len(packet) == 0 {
+			continue
+		}
+
+		pkb := stack.NewPacketBuffer(stack.PacketBufferOptions{Payload: buffer.MakeWithData(packet)})
+		switch packet[0] >> 4 {
+		case 4:
+			tun.ep.InjectInbound(header.IPv4ProtocolNumber, pkb)
+		case 6:
+			tun.ep.InjectInbound(header.IPv6ProtocolNumber, pkb)
+		default:
+			return 0, syscall.EAFNOSUPPORT
+		}
+	}
+	return len(buf), nil
+}
+
+func (tun *netTun) WriteNotify() {
+	pkt := tun.ep.Read()
+	if pkt.IsNil() {
+		return
+	}
+
+	view := pkt.ToView()
+	pkt.DecRef()
+
+	tun.incomingPacket <- view
+}
+
+func (tun *netTun) Close() error {
+	tun.stack.RemoveNIC(1)
+
+	if tun.events != nil {
+		close(tun.events)
+	}
+
+	tun.ep.Close()
+
+	if tun.incomingPacket != nil {
+		close(tun.incomingPacket)
+	}
+
+	return nil
+}
+
+func (tun *netTun) MTU() (int, error) { return tun.mtu, nil }
+func (tun *netTun) BatchSize() int    { return 1 }
+
+var _ tun.Device = (*netTun)(nil)
+
+func createTunnel(ctx context.Context) error {
 	ipstack := stack.New(stack.Options{
 		NetworkProtocols: []stack.NetworkProtocolFactory{
 			ipv4.NewProtocol,
@@ -243,8 +322,24 @@ func createTunnel(ctx context.Context) error {
 	)
 	ipstack.SetTransportProtocolHandler(tcp.ProtocolNumber, tcpForwarder.HandlePacket)
 
-	go copyFromTUNToNetstack(ctx, wgTun, linkEP)
-	go copyFromNetstackToTUN(ctx, linkEP, wgTun)
+	tunDev := &netTun{
+		ep:             linkEP,
+		stack:          ipstack,
+		events:         make(chan tun.Event, 10),
+		incomingPacket: make(chan *buffer.View),
+		mtu:            defaultMTU,
+	}
+	tunDev.ep.AddNotify(tunDev)
+	tunDev.events <- tun.EventUp
+
+	wgDev := device.NewDevice(tunDev, conn.NewDefaultBind(), device.NewLogger(device.LogLevelVerbose, ""))
+	wgDev.IpcSet(`private_key=003ed5d73b55806c30de3f8a7bdab38af13539220533055e635690b8b87ad641
+listen_port=58120
+public_key=f928d4f6c1b86c12f2562c10b07c555c5c57fd00f59e90c8d8d88767271cbf7c
+allowed_ip=192.168.4.28/32
+persistent_keepalive_interval=25
+`)
+	wgDev.Up()
 
 	<-ctx.Done()
 
