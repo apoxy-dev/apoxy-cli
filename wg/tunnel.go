@@ -1,21 +1,22 @@
-package cmd
+// Package wg implements a WireGuard tunnel device and TCP/UDP
+// forwarding.
+package wg
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"net"
 	"net/netip"
 	"os"
+	"strings"
 	"sync"
 	"syscall"
 
-	"github.com/spf13/cobra"
 	"golang.zx2c4.com/wireguard/conn"
 	"golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/tun"
-	_ "golang.zx2c4.com/wireguard/tun/netstack"
+	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	"gvisor.dev/gvisor/pkg/buffer"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
@@ -32,7 +33,7 @@ import (
 
 const (
 	tunName    = "utun7"
-	defaultMTU = 1280
+	defaultMTU = 1420
 )
 
 func addrFromNetstackIP(ip tcpip.Address) netip.Addr {
@@ -132,53 +133,6 @@ func tcpHandler(ctx context.Context, ns *stack.Stack, nicID tcpip.NICID) func(re
 	}
 }
 
-func copyFromNetstackToTUN(ctx context.Context, ep *channel.Endpoint, tunDev tun.Device) {
-	for {
-		pkt := ep.ReadContext(ctx)
-		if pkt.IsNil() {
-			continue
-		}
-		buf := pkt.ToBuffer()
-		bytes := (&buf).Flatten()
-		const writeOffset = device.MessageTransportHeaderSize
-		moreBytes := make([]byte, writeOffset, len(bytes)+writeOffset)
-		moreBytes = append(moreBytes[:writeOffset], bytes...)
-
-		if _, err := tunDev.Write([][]byte{moreBytes}, writeOffset); err != nil {
-			fmt.Printf("Failed to write to TUN device: %v\n", err)
-			return
-		}
-	}
-}
-
-func copyFromTUNToNetstack(ctx context.Context, tunDev tun.Device, ep *channel.Endpoint) {
-	buffers := make([][]byte, tunDev.BatchSize())
-	for i := range buffers {
-		buffers[i] = make([]byte, device.MaxMessageSize)
-	}
-	const readOffset = device.MessageTransportHeaderSize
-	sizes := make([]int, len(buffers))
-	for {
-		for i := range buffers {
-			buffers[i] = buffers[i][:cap(buffers[i])]
-		}
-		n, err := tunDev.Read(buffers, sizes, readOffset)
-		if err != nil {
-			fmt.Printf("Failed to read from TUN device: %v\n", err)
-		}
-		fmt.Printf("Read %d packets from TUN device\n", n)
-		for i := range sizes[:n] {
-			buffers[i] = buffers[i][readOffset : readOffset+sizes[i]]
-			// ready to send data to channel
-			packetBuf := stack.NewPacketBuffer(stack.PacketBufferOptions{
-				Payload: buffer.MakeWithData(bytes.Clone(buffers[i])),
-			})
-			ep.InjectInbound(header.IPv4ProtocolNumber, packetBuf)
-			packetBuf.DecRef()
-		}
-	}
-}
-
 type netTun struct {
 	ep             *channel.Endpoint
 	stack          *stack.Stack
@@ -263,7 +217,15 @@ func (tun *netTun) BatchSize() int    { return 1 }
 
 var _ tun.Device = (*netTun)(nil)
 
-func createTunnel(ctx context.Context) error {
+type Tunnel struct {
+	ipstack    *stack.Stack
+	tundev     *netTun
+	wgdev      *device.Device
+	publicAddr netip.AddrPort
+}
+
+// CreateTunnel creates a new WireGuard device (userspace).
+func CreateTunnel(ctx context.Context) (*Tunnel, error) {
 	ipstack := stack.New(stack.Options{
 		NetworkProtocols: []stack.NetworkProtocolFactory{
 			ipv4.NewProtocol,
@@ -279,13 +241,18 @@ func createTunnel(ctx context.Context) error {
 	sackEnabledOpt := tcpip.TCPSACKEnabled(true) // Enable SACK cuz we're not savages.
 	tcpipErr := ipstack.SetTransportProtocolOption(tcp.ProtocolNumber, &sackEnabledOpt)
 	if tcpipErr != nil {
-		return fmt.Errorf("could not enable TCP SACK: %v", tcpipErr)
+		return nil, fmt.Errorf("could not enable TCP SACK: %v", tcpipErr)
+	}
+	tcpCCOpt := tcpip.CongestionControlOption("cubic")
+	tcpipErr = ipstack.SetTransportProtocolOption(tcp.ProtocolNumber, &tcpCCOpt)
+	if tcpipErr != nil {
+		return nil, fmt.Errorf("could not set TCP congestion control: %v", tcpipErr)
 	}
 
 	nicID := tcpip.NICID(ipstack.UniqueID())
-	linkEP := channel.New(512, uint32(defaultMTU), "")
+	linkEP := channel.New(4096, uint32(defaultMTU), "")
 	if err := ipstack.CreateNIC(nicID, linkEP); err != nil {
-		return fmt.Errorf("could not create NIC: %v", err)
+		return nil, fmt.Errorf("could not create NIC: %v", err)
 	}
 	ipstack.SetPromiscuousMode(nicID, true)
 
@@ -294,14 +261,14 @@ func createTunnel(ctx context.Context) error {
 		tcpip.MaskFromBytes(make([]byte, 4)),
 	)
 	if err != nil {
-		return fmt.Errorf("could not create IPv4 subnet: %v", err)
+		return nil, fmt.Errorf("could not create IPv4 subnet: %v", err)
 	}
 	ipv6Subnet, err := tcpip.NewSubnet(
 		tcpip.AddrFromSlice(make([]byte, 16)),
 		tcpip.MaskFromBytes(make([]byte, 16)),
 	)
 	if err != nil {
-		return fmt.Errorf("could not create IPv6 subnet: %v", err)
+		return nil, fmt.Errorf("could not create IPv6 subnet: %v", err)
 	}
 	ipstack.SetRouteTable([]tcpip.Route{
 		{
@@ -316,8 +283,8 @@ func createTunnel(ctx context.Context) error {
 
 	tcpForwarder := tcp.NewForwarder(
 		ipstack,
-		0,    /* rcvWnd (0 - default) */
-		4096, /* maxInFlight */
+		0,     /* rcvWnd (0 - default) */
+		65535, /* maxInFlight */
 		tcpHandler(ctx, ipstack, nicID),
 	)
 	ipstack.SetTransportProtocolHandler(tcp.ProtocolNumber, tcpForwarder.HandlePacket)
@@ -325,12 +292,31 @@ func createTunnel(ctx context.Context) error {
 	tunDev := &netTun{
 		ep:             linkEP,
 		stack:          ipstack,
-		events:         make(chan tun.Event, 10),
-		incomingPacket: make(chan *buffer.View),
+		events:         make(chan tun.Event, 1),
+		incomingPacket: make(chan *buffer.View, 1000),
 		mtu:            defaultMTU,
 	}
 	tunDev.ep.AddNotify(tunDev)
 	tunDev.events <- tun.EventUp
+
+	extAddr, extPorts, err := trySTUN(58120,
+		"stun.l.google.com:19302",
+		"stun1.l.google.com:19302",
+		"stun2.l.google.com:19302")
+	if err != nil {
+		return nil, fmt.Errorf("could not get external port: %v", err)
+	}
+	// Check if the port mapping was stable.
+	for _, port := range extPorts {
+		if port != extPorts[0] {
+			return nil, fmt.Errorf("external port mapping was not stable: %v", extPorts)
+		}
+	}
+	fmt.Printf("External address: %v:%d\n", extAddr, extPorts[0])
+	publicAddr, err := netip.ParseAddrPort(fmt.Sprintf("%v:%d", extAddr, extPorts[0]))
+	if err != nil {
+		return nil, fmt.Errorf("could not parse external address: %v", err)
+	}
 
 	wgDev := device.NewDevice(tunDev, conn.NewDefaultBind(), device.NewLogger(device.LogLevelVerbose, ""))
 	wgDev.IpcSet(`private_key=003ed5d73b55806c30de3f8a7bdab38af13539220533055e635690b8b87ad641
@@ -341,28 +327,42 @@ persistent_keepalive_interval=25
 `)
 	wgDev.Up()
 
-	<-ctx.Done()
-
-	return nil
+	return &Tunnel{
+		ipstack:    ipstack,
+		tundev:     tunDev,
+		wgdev:      wgDev,
+		publicAddr: publicAddr,
+	}, nil
 }
 
-// tunnelCmd implements the `tunnel` command that creates a secure tunnel
-// to the remote Apoxy Edge fabric.
-var tunnelCmd = &cobra.Command{
-	Use:   "tunnel",
-	Short: "Create a secure tunnel to the remote Apoxy Edge fabric",
-	Long:  "Create a secure tunnel to the remote Apoxy Edge fabric.",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		cmd.SilenceUsage = true
-
-		if err := createTunnel(cmd.Context()); err != nil {
-			return fmt.Errorf("unable to create tunnel: %w", err)
-		}
-
-		return nil
-	},
+func allowedIPsToString(allowedIPs []net.IPNet) string {
+	var sb strings.Builder
+	for _, ipNet := range allowedIPs {
+		sb.WriteString(ipNet.String())
+		sb.WriteRune(',')
+	}
+	return sb.String()
 }
 
-func init() {
-	rootCmd.AddCommand(tunnelCmd)
+func (t *Tunnel) AddPeer(peer *wgtypes.Peer) error {
+	return t.wgdev.IpcSet(fmt.Sprintf(`public_key=%s
+		endpoint=%s
+		allowed_ip=%s
+		persistent_keepalive_interval=%d
+		`,
+		peer.PublicKey.String(),
+		peer.Endpoint.String(),
+		allowedIPsToString(peer.AllowedIPs),
+		peer.PersistentKeepaliveInterval,
+	))
+}
+
+func (t *Tunnel) RemovePeer(peer *wgtypes.Peer) error {
+	return t.wgdev.IpcSet(fmt.Sprintf(`remove=%s`, peer.PublicKey.String()))
+}
+
+func (t *Tunnel) Close() {
+	t.wgdev.Close()
+	t.tundev.Close()
+	t.ipstack.Close()
 }
