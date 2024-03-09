@@ -3,19 +3,22 @@ package rest
 import (
 	"bytes"
 	"crypto/tls"
+	"fmt"
 	"net/http"
 
 	"github.com/apoxy-dev/apoxy-cli/build"
+	"github.com/apoxy-dev/apoxy-cli/client/versioned"
 )
 
 // APIClient represents the HTTP client with API key, project ID, and base URL configuration.
 type APIClient struct {
+	versioned.Interface
+
 	BaseURL    string
 	BaseHost   string
 	APIKey     string
 	ProjectID  string
 	HTTPClient *http.Client
-	K8SClient  *K8SClient
 }
 
 // NewAPIClient creates a new instance of the APIClient.
@@ -25,11 +28,16 @@ func NewAPIClient(baseURL, baseHost, apiKey, projectID string) (*APIClient, erro
 		tlsCfg.InsecureSkipVerify = true
 		tlsCfg.ServerName = baseHost
 	}
-	k8sClient, err := NewK8SClient(baseURL, baseHost, apiKey, projectID)
+	a3yConfig, err := newA3YRESTConfig(baseURL, baseHost, apiKey, projectID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to create A3Y REST config: %w", err)
+	}
+	a3yClient, err := versioned.NewForConfig(a3yConfig)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create A3Y client: %w", err)
 	}
 	return &APIClient{
+		Interface: a3yClient,
 		BaseURL:   baseURL,
 		BaseHost:  baseHost,
 		APIKey:    apiKey,
@@ -39,11 +47,10 @@ func NewAPIClient(baseURL, baseHost, apiKey, projectID string) (*APIClient, erro
 				TLSClientConfig: tlsCfg,
 			},
 		},
-		K8SClient: k8sClient,
 	}, nil
 }
 
-// sendRequest sends an HTTP request with the configured headers.
+// SendRequest sends an HTTP request with the configured headers.
 func (c *APIClient) SendRequest(method, path string, body []byte) (*http.Response, error) {
 	url := c.BaseURL + path
 	req, err := http.NewRequest(method, url, bytes.NewBuffer(body))

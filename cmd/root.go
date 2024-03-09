@@ -43,8 +43,6 @@ func init() {
 	rootCmd.PersistentFlags().BoolVarP(&config.Verbose, "verbose", "v", false, "enable verbose output")
 }
 
-// TODO: Move the following functions to a separate file?
-
 // defaultAPIClient returns a new Apoxy API client.
 func defaultAPIClient() (*rest.APIClient, error) {
 	cfg, err := config.Load()
@@ -117,13 +115,13 @@ func GenerateDocs() {
 	}
 	combined := ""
 	for _, file := range files {
-	  f, err := os.ReadFile(file)
-	  if err != nil {
+		f, err := os.ReadFile(file)
+		if err != nil {
 			panic(err)
-	  }
-	  combined += string(f) + "\n\n"
+		}
+		combined += string(f) + "\n\n"
 	}
-	if err = os.WriteFile(files[0], []byte(combined), 0644); err!= nil {
+	if err = os.WriteFile(files[0], []byte(combined), 0644); err != nil {
 		panic(err)
 	}
 	for _, file := range files[1:] {
