@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -67,8 +68,8 @@ func buildDomainRow(r *v1alpha.Domain, labels bool) (res []interface{}) {
 	return
 }
 
-func getOrCreateMagicProxy(c *rest.APIClient, name string) error {
-	r, err := c.Proxy().ListWithOptions(metav1.ListOptions{
+func getOrCreateMagicProxy(ctx context.Context, c *rest.APIClient, name string) error {
+	r, err := c.CoreV1alpha().Proxies().List(ctx, metav1.ListOptions{
 		LabelSelector: "magic=yes",
 	})
 	if err != nil {
@@ -77,7 +78,7 @@ func getOrCreateMagicProxy(c *rest.APIClient, name string) error {
 	if len(r.Items) > 0 {
 		return nil
 	}
-	p, err := c.Proxy().Create(&v1alpha.Proxy{
+	p, err := c.CoreV1alpha().Proxies().Create(ctx, &v1alpha.Proxy{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 			Labels: map[string]string{
@@ -89,7 +90,7 @@ func getOrCreateMagicProxy(c *rest.APIClient, name string) error {
 			Provider:            v1alpha.InfraProviderCloud,
 			DynamicForwardProxy: true,
 		},
-	})
+	}, metav1.CreateOptions{})
 	if err != nil {
 		return err
 	}
@@ -97,12 +98,12 @@ func getOrCreateMagicProxy(c *rest.APIClient, name string) error {
 	return nil
 }
 
-func GetDomain(name string) error {
+func GetDomain(ctx context.Context, name string) error {
 	c, err := defaultAPIClient()
 	if err != nil {
 		return err
 	}
-	r, err := c.Domain().Get(name)
+	r, err := c.CoreV1alpha().Domains().Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
 		return err
 	}
@@ -112,12 +113,12 @@ func GetDomain(name string) error {
 
 var showDomainLabels bool
 
-func ListDomains() error {
+func ListDomains(ctx context.Context) error {
 	c, err := defaultAPIClient()
 	if err != nil {
 		return err
 	}
-	r, err := c.Domain().List()
+	r, err := c.CoreV1alpha().Domains().List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return err
 	}
@@ -139,11 +140,11 @@ var domainCmd = &cobra.Command{
 	Aliases: []string{"d", "domains"},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cmd.SilenceUsage = true
-		return ListDomains()
+		return ListDomains(cmd.Context())
 	},
 }
 
-var listProxies bool
+var showProxies bool
 
 // getDomainCmd represents the get domain command
 var getDomainCmd = &cobra.Command{
@@ -153,20 +154,20 @@ var getDomainCmd = &cobra.Command{
 	Args:      cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cmd.SilenceUsage = true
-		if listProxies {
+		if showProxies {
 			c, err := defaultAPIClient()
 			if err != nil {
 				return err
 			}
-			r, err := c.Domain().Get(args[0])
+			r, err := c.CoreV1alpha().Domains().Get(cmd.Context(), args[0], metav1.GetOptions{})
 			if err != nil {
 				return err
 			}
-			return ListProxies(metav1.ListOptions{
+			return listProxies(cmd.Context(), c, metav1.ListOptions{
 				LabelSelector: metav1.FormatLabelSelector(&r.Spec.Selector),
 			})
 		}
-		return GetDomain(args[0])
+		return GetDomain(cmd.Context(), args[0])
 	},
 }
 
@@ -176,7 +177,7 @@ var listDomainCmd = &cobra.Command{
 	Short: "List domain objects",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cmd.SilenceUsage = true
-		return ListDomains()
+		return ListDomains(cmd.Context())
 	},
 }
 
@@ -249,10 +250,10 @@ var createDomainCmd = &cobra.Command{
 		}
 
 		if domainMagic {
-			if err = getOrCreateMagicProxy(c, domainName); err != nil {
+			if err = getOrCreateMagicProxy(cmd.Context(), c, domainName); err != nil {
 				return err
 			}
-			d, err := c.Domain().Create(&v1alpha.Domain{
+			d, err := c.CoreV1alpha().Domains().Create(cmd.Context(), &v1alpha.Domain{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: domainName,
 				},
@@ -264,7 +265,7 @@ var createDomainCmd = &cobra.Command{
 					},
 					Style: v1alpha.DomainStyleMagic,
 				},
-			})
+			}, metav1.CreateOptions{})
 			if err != nil {
 				return err
 			}
@@ -272,7 +273,7 @@ var createDomainCmd = &cobra.Command{
 			iteration := 1
 			for !gotMagicKey {
 				time.Sleep(time.Duration(iteration*250) * time.Millisecond)
-				d, err = c.Domain().Get(d.Name)
+				d, err = c.CoreV1alpha().Domains().Get(cmd.Context(), d.Name, metav1.GetOptions{})
 				if err != nil {
 					return err
 				}
@@ -296,7 +297,7 @@ var createDomainCmd = &cobra.Command{
 			return err
 		}
 
-		r, err := c.Domain().Create(domain)
+		r, err := c.CoreV1alpha().Domains().Create(cmd.Context(), domain, metav1.CreateOptions{})
 		if err != nil {
 			return err
 		}
@@ -315,10 +316,12 @@ var deleteDomainCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		if err = c.Domain().Delete(args[0]); err != nil {
-			return err
+		for _, domain := range args {
+			if err = c.CoreV1alpha().Domains().Delete(cmd.Context(), domain, metav1.DeleteOptions{}); err != nil {
+				return err
+			}
+			fmt.Printf("domain %q deleted\n", domain)
 		}
-		fmt.Printf("domain %q deleted\n", args[0])
 		return nil
 	},
 }
@@ -333,7 +336,7 @@ func init() {
 	createDomainCmd.PersistentFlags().
 		BoolVar(&domainRandomName, "random", false, "Generate a random name of the domain.")
 	getDomainCmd.PersistentFlags().
-		BoolVarP(&listProxies, "proxies", "p", false, "List the proxies this domain points to.")
+		BoolVarP(&showProxies, "proxies", "p", false, "Show the proxies this domain points to.")
 	listDomainCmd.PersistentFlags().
 		BoolVar(&showDomainLabels, "show-labels", false, "Print the domain's labels.")
 	// TODO: add flags for domain config as raw envoy config

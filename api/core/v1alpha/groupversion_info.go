@@ -9,18 +9,18 @@ import (
 )
 
 var (
-	// GroupVersion is group version used to register these objects
-	GroupVersion = schema.GroupVersion{Group: "core.apoxy.dev", Version: "v1alpha"}
+	// SchemeGroupVersion is group version used to register these objects.
+	SchemeGroupVersion = schema.GroupVersion{Group: "core.apoxy.dev", Version: "v1alpha"}
 
 	// SchemeBuilder is used to add go types to the GroupVersionKind scheme
-	SchemeBuilder = &scheme.Builder{GroupVersion: GroupVersion}
+	SchemeBuilder = &scheme.Builder{GroupVersion: SchemeGroupVersion}
 
 	Scheme = runtime.NewScheme()
 )
 
 var AddToScheme = func(s *runtime.Scheme) error {
-	metav1.AddToGroupVersion(s, GroupVersion)
-	s.AddKnownTypes(GroupVersion,
+	metav1.AddToGroupVersion(s, SchemeGroupVersion)
+	s.AddKnownTypes(SchemeGroupVersion,
 		&Proxy{},
 		&ProxyList{},
 		&Address{},
