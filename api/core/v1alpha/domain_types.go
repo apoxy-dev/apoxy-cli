@@ -165,7 +165,3 @@ var _ resource.ObjectList = &DomainList{}
 func (pl *DomainList) GetListMeta() *metav1.ListMeta {
 	return &pl.ListMeta
 }
-
-func init() {
-	SchemeBuilder.Register(&Domain{}, &DomainList{})
-}

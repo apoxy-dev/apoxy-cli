@@ -156,7 +156,3 @@ var _ resource.ObjectList = &AddressList{}
 func (pl *AddressList) GetListMeta() *metav1.ListMeta {
 	return &pl.ListMeta
 }
-
-func init() {
-	SchemeBuilder.Register(&Address{}, &AddressList{})
-}
