@@ -204,7 +204,3 @@ var _ resource.ObjectList = &ProxyList{}
 func (pl *ProxyList) GetListMeta() *metav1.ListMeta {
 	return &pl.ListMeta
 }
-
-func init() {
-	SchemeBuilder.Register(&Proxy{}, &ProxyList{})
-}

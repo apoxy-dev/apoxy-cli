@@ -24,6 +24,10 @@ func (c *FakeCoreV1alpha) Proxies() v1alpha.ProxyInterface {
 	return &FakeProxies{c}
 }
 
+func (c *FakeCoreV1alpha) TunnelNodes() v1alpha.TunnelNodeInterface {
+	return &FakeTunnelNodes{c}
+}
+
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
 func (c *FakeCoreV1alpha) RESTClient() rest.Interface {

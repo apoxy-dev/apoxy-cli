@@ -7,3 +7,5 @@ type AddressExpansion interface{}
 type DomainExpansion interface{}
 
 type ProxyExpansion interface{}
+
+type TunnelNodeExpansion interface{}
