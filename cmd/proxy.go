@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
 	"github.com/apoxy-dev/apoxy-cli/pretty"
+	"github.com/apoxy-dev/apoxy-cli/rest"
 )
 
 func fmtProxy(r *v1alpha.Proxy) {
@@ -63,12 +65,8 @@ func buildProxyRow(r *v1alpha.Proxy, labels bool) []interface{} {
 	}
 }
 
-func GetProxy(name string) error {
-	c, err := defaultAPIClient()
-	if err != nil {
-		return err
-	}
-	r, err := c.Proxy().Get(name)
+func getProxy(ctx context.Context, c *rest.APIClient, name string) error {
+	r, err := c.CoreV1alpha().Proxies().Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
 		return err
 	}
@@ -78,24 +76,15 @@ func GetProxy(name string) error {
 
 var showProxyLabels bool
 
-func ListProxies(opts ...metav1.ListOptions) error {
-	c, err := defaultAPIClient()
-	if err != nil {
-		return err
-	}
-	var r *v1alpha.ProxyList
-	if len(opts) > 0 {
-		r, err = c.Proxy().ListWithOptions(opts[0])
-	} else {
-		r, err = c.Proxy().List()
-	}
+func listProxies(ctx context.Context, c *rest.APIClient, opts metav1.ListOptions) error {
+	proxies, err := c.CoreV1alpha().Proxies().List(ctx, opts)
 	if err != nil {
 		return err
 	}
 	t := pretty.Table{
 		Header: buildProxyHeader(showProxyLabels),
 	}
-	for _, p := range r.Items {
+	for _, p := range proxies.Items {
 		t.Rows = append(t.Rows, buildProxyRow(&p, showProxyLabels))
 	}
 	t.Print()
@@ -110,7 +99,11 @@ var proxyCmd = &cobra.Command{
 	Aliases: []string{"p", "proxies"},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cmd.SilenceUsage = true
-		return ListProxies()
+		c, err := defaultAPIClient()
+		if err != nil {
+			return err
+		}
+		return listProxies(cmd.Context(), c, metav1.ListOptions{})
 	},
 }
 
@@ -122,7 +115,11 @@ var getProxyCmd = &cobra.Command{
 	Args:      cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cmd.SilenceUsage = true
-		return GetProxy(args[0])
+		c, err := defaultAPIClient()
+		if err != nil {
+			return err
+		}
+		return getProxy(cmd.Context(), c, args[0])
 	},
 }
 
@@ -132,7 +129,11 @@ var listProxyCmd = &cobra.Command{
 	Short: "List proxy objects",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cmd.SilenceUsage = true
-		return ListProxies()
+		c, err := defaultAPIClient()
+		if err != nil {
+			return err
+		}
+		return listProxies(cmd.Context(), c, metav1.ListOptions{})
 	},
 }
 
@@ -183,7 +184,7 @@ var createProxyCmd = &cobra.Command{
 			return err
 		}
 
-		r, err := c.Proxy().Create(proxy)
+		r, err := c.CoreV1alpha().Proxies().Create(cmd.Context(), proxy, metav1.CreateOptions{})
 		if err != nil {
 			return err
 		}
@@ -198,14 +199,19 @@ var deleteProxyCmd = &cobra.Command{
 	Short: "Delete proxy objects",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cmd.SilenceUsage = true
+
 		c, err := defaultAPIClient()
 		if err != nil {
 			return err
 		}
-		if err = c.Proxy().Delete(args[0]); err != nil {
-			return err
+
+		for _, name := range args {
+			if err = c.CoreV1alpha().Proxies().Delete(cmd.Context(), name, metav1.DeleteOptions{}); err != nil {
+				return err
+			}
+			fmt.Printf("proxy %q deleted\n", name)
 		}
-		fmt.Printf("proxy %q deleted\n", args[0])
+
 		return nil
 	},
 }

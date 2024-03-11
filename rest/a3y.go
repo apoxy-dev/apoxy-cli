@@ -6,14 +6,12 @@ import (
 	"net/url"
 	"strings"
 
-	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
 
 	"github.com/apoxy-dev/apoxy-cli/build"
 )
 
-type K8SClient struct {
-	client *dynamic.DynamicClient
+type A3YClient struct {
 }
 
 func addSubdomain(baseURL, subdomain string) (*url.URL, error) {
@@ -27,7 +25,24 @@ func addSubdomain(baseURL, subdomain string) (*url.URL, error) {
 	return parsedURL, nil
 }
 
-func NewK8SClient(baseURL, baseHost, apiKey, projectID string) (*K8SClient, error) {
+type headerTransport struct {
+	roundTripper http.RoundTripper
+	apiKey       string
+	projectID    string
+	host         string
+}
+
+func (t *headerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	req.Header.Set("X-Apoxy-API-Key", t.apiKey)
+	req.Header.Set("X-Apoxy-Project-Id", t.projectID)
+	req.Header.Set("User-Agent", build.UserAgent())
+	if t.host != "" {
+		req.Host = t.host
+	}
+	return t.roundTripper.RoundTrip(req)
+}
+
+func newA3YRESTConfig(baseURL, baseHost, apiKey, projectID string) (*rest.Config, error) {
 	url, err := addSubdomain(baseURL, projectID)
 	if err != nil {
 		return nil, err
@@ -54,28 +69,5 @@ func NewK8SClient(baseURL, baseHost, apiKey, projectID string) (*K8SClient, erro
 		}
 		return ht
 	}
-	client, err := dynamic.NewForConfig(config)
-	if err != nil {
-		return nil, err
-	}
-	return &K8SClient{
-		client: client,
-	}, nil
-}
-
-type headerTransport struct {
-	roundTripper http.RoundTripper
-	apiKey       string
-	projectID    string
-	host         string
-}
-
-func (t *headerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	req.Header.Set("X-Apoxy-API-Key", t.apiKey)
-	req.Header.Set("X-Apoxy-Project-Id", t.projectID)
-	req.Header.Set("User-Agent", build.UserAgent())
-	if t.host != "" {
-		req.Host = t.host
-	}
-	return t.roundTripper.RoundTrip(req)
+	return config, nil
 }

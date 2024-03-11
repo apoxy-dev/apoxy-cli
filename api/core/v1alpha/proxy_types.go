@@ -133,6 +133,8 @@ func (ps *ProxyStatus) CopyTo(parent resource.ObjectWithStatusSubResource) {
 // +kubebuilder:subresource:status
 // +kubebuilder:subresource:log
 
+// +genclient
+// +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // Proxy is the Schema for the proxies API.
@@ -169,8 +171,8 @@ func (p *Proxy) NewList() runtime.Object {
 
 func (p *Proxy) GetGroupVersionResource() schema.GroupVersionResource {
 	return schema.GroupVersionResource{
-		Group:    GroupVersion.Group,
-		Version:  GroupVersion.Version,
+		Group:    SchemeGroupVersion.Group,
+		Version:  SchemeGroupVersion.Version,
 		Resource: "proxies",
 	}
 }
@@ -201,8 +203,4 @@ var _ resource.ObjectList = &ProxyList{}
 
 func (pl *ProxyList) GetListMeta() *metav1.ListMeta {
 	return &pl.ListMeta
-}
-
-func init() {
-	SchemeBuilder.Register(&Proxy{}, &ProxyList{})
 }

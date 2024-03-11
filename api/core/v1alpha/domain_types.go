@@ -15,6 +15,8 @@ const (
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 
+// +genclient
+// +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // Domain is the Schema for the domains API.
@@ -131,8 +133,8 @@ func (a *Domain) NewList() runtime.Object {
 
 func (a *Domain) GetGroupVersionResource() schema.GroupVersionResource {
 	return schema.GroupVersionResource{
-		Group:    GroupVersion.Group,
-		Version:  GroupVersion.Version,
+		Group:    SchemeGroupVersion.Group,
+		Version:  SchemeGroupVersion.Version,
 		Resource: "domains",
 	}
 }
@@ -162,8 +164,4 @@ var _ resource.ObjectList = &DomainList{}
 
 func (pl *DomainList) GetListMeta() *metav1.ListMeta {
 	return &pl.ListMeta
-}
-
-func init() {
-	SchemeBuilder.Register(&Domain{}, &DomainList{})
 }

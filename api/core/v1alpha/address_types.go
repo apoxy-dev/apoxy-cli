@@ -15,6 +15,8 @@ const (
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 
+// +genclient
+// +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // Address is the Schema for the addresses API.
@@ -122,8 +124,8 @@ func (a *Address) NewList() runtime.Object {
 
 func (a *Address) GetGroupVersionResource() schema.GroupVersionResource {
 	return schema.GroupVersionResource{
-		Group:    GroupVersion.Group,
-		Version:  GroupVersion.Version,
+		Group:    SchemeGroupVersion.Group,
+		Version:  SchemeGroupVersion.Version,
 		Resource: "addresses",
 	}
 }
@@ -153,8 +155,4 @@ var _ resource.ObjectList = &AddressList{}
 
 func (pl *AddressList) GetListMeta() *metav1.ListMeta {
 	return &pl.ListMeta
-}
-
-func init() {
-	SchemeBuilder.Register(&Address{}, &AddressList{})
 }
