@@ -21,11 +21,11 @@ type TunnelNode struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   NodeSpec   `json:"spec,omitempty"`
-	Status NodeStatus `json:"status,omitempty"`
+	Spec   TunnelNodeSpec   `json:"spec,omitempty"`
+	Status TunnelNodeStatus `json:"status,omitempty"`
 }
 
-type NodeSpec struct {
+type TunnelNodeSpec struct {
 	// Public key of the node.
 	PubKey string `json:"pubKey,omitempty"`
 
@@ -78,7 +78,7 @@ type PeerStatus struct {
 	Phase PeerPhase `json:"status,omitempty"`
 }
 
-type NodeStatus struct {
+type TunnelNodeStatus struct {
 	// Phase of the node.
 	Phase NodePhase `json:"phase,omitempty"`
 
@@ -86,13 +86,13 @@ type NodeStatus struct {
 	PeerStatuses []PeerStatus `json:"peerStatuses,omitempty"`
 }
 
-var _ resource.StatusSubResource = &NodeStatus{}
+var _ resource.StatusSubResource = &TunnelNodeStatus{}
 
-func (ps *NodeStatus) SubResourceName() string {
+func (ps *TunnelNodeStatus) SubResourceName() string {
 	return "status"
 }
 
-func (ps *NodeStatus) CopyTo(parent resource.ObjectWithStatusSubResource) {
+func (ps *TunnelNodeStatus) CopyTo(parent resource.ObjectWithStatusSubResource) {
 	parent.(*TunnelNode).Status = *ps
 }
 
