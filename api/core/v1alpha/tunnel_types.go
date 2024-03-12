@@ -75,7 +75,7 @@ type PeerStatus struct {
 	Address string `json:"address,omitempty"`
 
 	// Phase of the peer.
-	Phase PeerPhase `json:"status,omitempty"`
+	Phase PeerPhase `json:"phase,omitempty"`
 }
 
 type TunnelNodeStatus struct {
@@ -123,7 +123,7 @@ func (p *TunnelNode) GetGroupVersionResource() schema.GroupVersionResource {
 	return schema.GroupVersionResource{
 		Group:    SchemeGroupVersion.Group,
 		Version:  SchemeGroupVersion.Version,
-		Resource: "proxies",
+		Resource: "tunnelnodes",
 	}
 }
 
