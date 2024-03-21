@@ -54,6 +54,8 @@ func tcpHandler(ctx context.Context, ns *stack.Stack, nicID tcpip.NICID) func(re
 		fmt.Printf("TCP connection %v:%d -> %v:%d\n", addrFromNetstackIP(epID.LocalAddress), epID.LocalPort, addrFromNetstackIP(epID.RemoteAddress), epID.RemotePort)
 
 		// TODO(dsky): Only do this if the route is not already in the routing table.
+		// TODO(dsky): Also we should only handle packets addressed to the pre-configured (IPv6)
+		// address (the .InternalAddress()).
 		localIP := addrFromNetstackIP(epID.LocalAddress)
 		pa := tcpip.ProtocolAddress{
 			AddressWithPrefix: tcpip.AddrFromSlice(localIP.AsSlice()).WithPrefix(),
@@ -218,10 +220,12 @@ func (tun *netTun) BatchSize() int    { return 1 }
 var _ tun.Device = (*netTun)(nil)
 
 type Tunnel struct {
-	ipstack    *stack.Stack
-	tundev     *netTun
-	wgdev      *device.Device
-	publicAddr netip.AddrPort
+	ipstack      *stack.Stack
+	tundev       *netTun
+	wgdev        *device.Device
+	wgKey        wgtypes.Key
+	publicAddr   netip.AddrPort
+	internalAddr netip.Addr
 }
 
 // CreateTunnel creates a new WireGuard device (userspace).
@@ -318,19 +322,22 @@ func CreateTunnel(ctx context.Context) (*Tunnel, error) {
 		return nil, fmt.Errorf("could not parse external address: %v", err)
 	}
 
+	pkey, err := wgtypes.GeneratePrivateKey()
+	if err != nil {
+		return nil, fmt.Errorf("could not generate private key: %v", err)
+	}
+
 	wgDev := device.NewDevice(tunDev, conn.NewDefaultBind(), device.NewLogger(device.LogLevelVerbose, ""))
-	wgDev.IpcSet(`private_key=003ed5d73b55806c30de3f8a7bdab38af13539220533055e635690b8b87ad641
+	wgDev.IpcSet(fmt.Sprintf(`private_key=%s
 listen_port=58120
-public_key=f928d4f6c1b86c12f2562c10b07c555c5c57fd00f59e90c8d8d88767271cbf7c
-allowed_ip=192.168.4.28/32
-persistent_keepalive_interval=25
-`)
+`, pkey.PublicKey().String()))
 	wgDev.Up()
 
 	return &Tunnel{
 		ipstack:    ipstack,
 		tundev:     tunDev,
 		wgdev:      wgDev,
+		wgKey:      pkey,
 		publicAddr: publicAddr,
 	}, nil
 }
@@ -357,12 +364,23 @@ func (t *Tunnel) AddPeer(peer *wgtypes.Peer) error {
 	))
 }
 
+func (t *Tunnel) PubKey() wgtypes.Key {
+	return t.wgKey.PublicKey()
+}
+
+func (t *Tunnel) ExternalAddress() netip.AddrPort {
+	return t.publicAddr
+}
+
+func (t *Tunnel) InternalAddress() netip.Addr {
+	return t.internalAddr
+}
+
 func (t *Tunnel) RemovePeer(peer *wgtypes.Peer) error {
 	return t.wgdev.IpcSet(fmt.Sprintf(`remove=%s`, peer.PublicKey.String()))
 }
 
 func (t *Tunnel) Close() {
 	t.wgdev.Close()
-	t.tundev.Close()
 	t.ipstack.Close()
 }

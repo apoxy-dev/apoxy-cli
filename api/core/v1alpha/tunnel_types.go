@@ -32,7 +32,7 @@ type TunnelNodeSpec struct {
 	// External address of the node or address of the NAT hole punched.
 	ExternalAddress string `json:"externalAddress,omitempty"`
 
-	// Internal address of the node.
+	// Internal address of the node. Always a /96 IPv6 address.
 	InternalAddress string `json:"internalAddress,omitempty"`
 
 	// CIDRs that the node will be relaying traffic for.

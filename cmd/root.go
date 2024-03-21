@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -29,13 +30,10 @@ Start by creating an account on https://apoxy.dev and logging in with 'apoxy aut
 	DisableAutoGenTag: true,
 }
 
-// Execute adds all child commands to the root command and sets flags appropriately.
+// ExecuteContext executes root command with context.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
-func Execute() {
-	err := rootCmd.Execute()
-	if err != nil {
-		os.Exit(1)
-	}
+func ExecuteContext(ctx context.Context) error {
+	return rootCmd.ExecuteContext(ctx)
 }
 
 func init() {
