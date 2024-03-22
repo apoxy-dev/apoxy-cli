@@ -8,9 +8,10 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/getsentry/sentry-go"
+	"github.com/google/uuid"
 	"github.com/pkg/browser"
 	"golang.org/x/exp/slog"
-	"github.com/getsentry/sentry-go"
 
 	"github.com/apoxy-dev/apoxy-cli/rest"
 	"github.com/apoxy-dev/apoxy-cli/web"
@@ -18,7 +19,7 @@ import (
 
 type authContext struct {
 	APIKey    string
-	ProjectID string
+	ProjectID uuid.UUID
 }
 
 type Authenticator struct {
@@ -59,7 +60,12 @@ func (a *Authenticator) handler(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("API key received", "APIKey", key, "ProjectID", projectID)
 	go func() {
 		time.Sleep(2 * time.Second)
-		a.authCh <- authContext{APIKey: key, ProjectID: projectID}
+		pUUID, err := uuid.Parse(projectID)
+		if err != nil {
+			slog.Error("Failed to parse project ID", "error", err)
+			return
+		}
+		a.authCh <- authContext{APIKey: key, ProjectID: pUUID}
 	}()
 	fmt.Fprintf(w, web.LoginOKHTML)
 }

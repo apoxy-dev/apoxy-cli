@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"os"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -30,16 +31,23 @@ var tunnelCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cmd.SilenceUsage = true
 
-		t, err := wg.CreateTunnel(cmd.Context())
+		c, err := defaultAPIClient()
+		if err != nil {
+			return fmt.Errorf("unable to create API client: %w", err)
+		}
+
+		// TODO(dsky): Allow the user to specify the endpoint.
+		host, err := os.Hostname()
+		if err != nil {
+			return fmt.Errorf("unable to get hostname: %w", err)
+		}
+
+		t, err := wg.CreateTunnel(cmd.Context(), c.ProjectID, host)
 		if err != nil {
 			return fmt.Errorf("unable to create tunnel: %w", err)
 		}
 		defer t.Close()
 
-		c, err := defaultAPIClient()
-		if err != nil {
-			return fmt.Errorf("unable to create API client: %w", err)
-		}
 		factory := informers.NewSharedInformerFactory(c, resyncPeriod)
 		tunnelInformer := factory.Core().V1alpha().TunnelNodes().Informer()
 		proxyPeers := make(map[string]*wgtypes.Peer)
@@ -116,7 +124,7 @@ var tunnelCmd = &cobra.Command{
 			cmd.Context(),
 			&corev1alpha.TunnelNode{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "tunnel",
+					Name: host,
 				},
 				Spec: corev1alpha.TunnelNodeSpec{
 					PubKey:          t.PubKey().String(),
@@ -138,7 +146,7 @@ var tunnelCmd = &cobra.Command{
 		dCtx := context.Background() // Use a new context to ensure the tunnel is closed.
 		if err := c.CoreV1alpha().TunnelNodes().Delete(
 			dCtx,
-			"tunnel",
+			host,
 			metav1.DeleteOptions{},
 		); err != nil {
 			return fmt.Errorf("unable to delete TunnelNode: %w", err)

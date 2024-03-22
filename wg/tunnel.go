@@ -13,6 +13,7 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/google/uuid"
 	"golang.zx2c4.com/wireguard/conn"
 	"golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/tun"
@@ -225,11 +226,11 @@ type Tunnel struct {
 	wgdev        *device.Device
 	wgKey        wgtypes.Key
 	publicAddr   netip.AddrPort
-	internalAddr netip.Addr
+	internalAddr netip.Prefix
 }
 
 // CreateTunnel creates a new WireGuard device (userspace).
-func CreateTunnel(ctx context.Context) (*Tunnel, error) {
+func CreateTunnel(ctx context.Context, projID uuid.UUID, endpoint string) (*Tunnel, error) {
 	ipstack := stack.New(stack.Options{
 		NetworkProtocols: []stack.NetworkProtocolFactory{
 			ipv4.NewProtocol,
@@ -334,11 +335,12 @@ listen_port=58120
 	wgDev.Up()
 
 	return &Tunnel{
-		ipstack:    ipstack,
-		tundev:     tunDev,
-		wgdev:      wgDev,
-		wgKey:      pkey,
-		publicAddr: publicAddr,
+		ipstack:      ipstack,
+		tundev:       tunDev,
+		wgdev:        wgDev,
+		wgKey:        pkey,
+		publicAddr:   publicAddr,
+		internalAddr: NewApoxy4To6Prefix(projID, endpoint),
 	}, nil
 }
 
@@ -372,7 +374,7 @@ func (t *Tunnel) ExternalAddress() netip.AddrPort {
 	return t.publicAddr
 }
 
-func (t *Tunnel) InternalAddress() netip.Addr {
+func (t *Tunnel) InternalAddress() netip.Prefix {
 	return t.internalAddr
 }
 

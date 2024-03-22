@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/google/uuid"
 	"golang.org/x/exp/slog"
 	"gopkg.in/yaml.v3"
 )
@@ -25,7 +26,7 @@ type Config struct {
 	// The API key to use for authentication.
 	APIKey string `yaml:"api_key,omitempty"`
 	// The project ID to use for authentication.
-	ProjectID string `yaml:"project_id,omitempty"`
+	ProjectID uuid.UUID `yaml:"project_id,omitempty"`
 	// Whether to enable verbose logging.
 	Verbose bool `yaml:"verbose,omitempty"`
 	// The base URL for API requests.

@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/google/uuid"
 	"k8s.io/client-go/rest"
 
 	"github.com/apoxy-dev/apoxy-cli/build"
@@ -28,13 +29,13 @@ func addSubdomain(baseURL, subdomain string) (*url.URL, error) {
 type headerTransport struct {
 	roundTripper http.RoundTripper
 	apiKey       string
-	projectID    string
+	projectID    uuid.UUID
 	host         string
 }
 
 func (t *headerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	req.Header.Set("X-Apoxy-API-Key", t.apiKey)
-	req.Header.Set("X-Apoxy-Project-Id", t.projectID)
+	req.Header.Set("X-Apoxy-Project-Id", t.projectID.String())
 	req.Header.Set("User-Agent", build.UserAgent())
 	if t.host != "" {
 		req.Host = t.host
@@ -42,8 +43,8 @@ func (t *headerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	return t.roundTripper.RoundTrip(req)
 }
 
-func newA3YRESTConfig(baseURL, baseHost, apiKey, projectID string) (*rest.Config, error) {
-	url, err := addSubdomain(baseURL, projectID)
+func newA3YRESTConfig(baseURL, baseHost, apiKey string, projectID uuid.UUID) (*rest.Config, error) {
+	url, err := addSubdomain(baseURL, projectID.String())
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +56,7 @@ func newA3YRESTConfig(baseURL, baseHost, apiKey, projectID string) (*rest.Config
 		config.Host = baseURL
 		config.TLSClientConfig = rest.TLSClientConfig{
 			Insecure:   true,
-			ServerName: fmt.Sprintf("%s.%s", projectID, baseHost),
+			ServerName: fmt.Sprintf("%v.%s", projectID, baseHost),
 		}
 	}
 	config.WrapTransport = func(rt http.RoundTripper) http.RoundTripper {
@@ -65,7 +66,7 @@ func newA3YRESTConfig(baseURL, baseHost, apiKey, projectID string) (*rest.Config
 			projectID:    projectID,
 		}
 		if baseHost != "" {
-			ht.host = fmt.Sprintf("%s.%s", projectID, baseHost)
+			ht.host = fmt.Sprintf("%v.%s", projectID, baseHost)
 		}
 		return ht
 	}

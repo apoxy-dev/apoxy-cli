@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/google/uuid"
+
 	"github.com/apoxy-dev/apoxy-cli/build"
 	"github.com/apoxy-dev/apoxy-cli/client/versioned"
 )
@@ -17,12 +19,12 @@ type APIClient struct {
 	BaseURL    string
 	BaseHost   string
 	APIKey     string
-	ProjectID  string
+	ProjectID  uuid.UUID
 	HTTPClient *http.Client
 }
 
 // NewAPIClient creates a new instance of the APIClient.
-func NewAPIClient(baseURL, baseHost, apiKey, projectID string) (*APIClient, error) {
+func NewAPIClient(baseURL, baseHost, apiKey string, projectID uuid.UUID) (*APIClient, error) {
 	tlsCfg := &tls.Config{}
 	if baseHost != "" {
 		tlsCfg.InsecureSkipVerify = true
@@ -60,7 +62,7 @@ func (c *APIClient) SendRequest(method, path string, body []byte) (*http.Respons
 
 	// Set headers
 	req.Header.Set("X-Apoxy-API-Key", c.APIKey)
-	req.Header.Set("X-Apoxy-Project-Id", c.ProjectID)
+	req.Header.Set("X-Apoxy-Project-Id", c.ProjectID.String())
 	req.Header.Set("User-Agent", build.UserAgent())
 	if c.BaseHost != "" {
 		req.Host = c.BaseHost
