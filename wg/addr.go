@@ -37,7 +37,7 @@ func NewApoxy4To6Prefix(orgID uuid.UUID, endpoint string) netip.Prefix {
 	// fnv hash of the orgID and endpoint
 	o := fnv.New32()
 	o.Write(orgID[:])
-	copy(addr[8:], o.Sum(nil))
+	copy(addr[6:], o.Sum(nil))
 
 	e := fnv.New32()
 	e.Write([]byte(endpoint))
@@ -45,8 +45,8 @@ func NewApoxy4To6Prefix(orgID uuid.UUID, endpoint string) netip.Prefix {
 	// http://www.isthe.com/chongo/tech/comp/fnv/#xor-fold
 	mask := uint32(0xffff)
 	h := e.Sum32()>>16 ^ e.Sum32()&mask
-	addr[12] = byte(h >> 8)
-	addr[13] = byte(h)
+	addr[10] = byte(h >> 8)
+	addr[11] = byte(h)
 
 	return netip.PrefixFrom(netip.AddrFrom16(addr), 96)
 }
