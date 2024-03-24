@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"net"
 	"net/netip"
@@ -21,6 +22,13 @@ import (
 const (
 	resyncPeriod = 10 * time.Second
 )
+
+type tunnelPeer struct {
+	PubKeyHex                   string
+	Endpoint                    netip.AddrPort
+	AllowedIPs                  []net.IPNet
+	PersistentKeepaliveInterval time.Duration
+}
 
 // tunnelCmd implements the `tunnel` command that creates a secure tunnel
 // to the remote Apoxy Edge fabric.
@@ -50,7 +58,7 @@ var tunnelCmd = &cobra.Command{
 
 		factory := informers.NewSharedInformerFactory(c, resyncPeriod)
 		tunnelInformer := factory.Core().V1alpha().TunnelNodes().Informer()
-		proxyPeers := make(map[string]*wgtypes.Peer)
+		proxyPeers := make(map[string]*tunnelPeer)
 		tunnelInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
 				tunnel, ok := obj.(*corev1alpha.TunnelNode)
@@ -67,28 +75,45 @@ var tunnelCmd = &cobra.Command{
 				fmt.Printf("Tunnel %s updated\n", newTunnel.Name)
 
 				// Create a new peer for the tunnel.
-				newPeers := make(map[string]*wgtypes.Peer)
+				newPeers := make(map[string]*tunnelPeer)
 				for _, p := range newTunnel.Status.PeerStatuses {
 					if _, ok := proxyPeers[p.PubKey]; !ok {
-						addr, err := netip.ParseAddrPort(p.Address)
-						if err != nil {
-							fmt.Printf("Failed to parse peer address: %v", err)
-							continue
-						}
 						pubKey, err := wgtypes.ParseKey(p.PubKey)
 						if err != nil {
 							fmt.Printf("Failed to parse peer public key: %v", err)
 							continue
 						}
-						peer := &wgtypes.Peer{
-							PublicKey: pubKey,
-							Endpoint: &net.UDPAddr{
-								IP:   addr.Addr().AsSlice(),
-								Port: int(addr.Port()),
+						extAddrPort, err := netip.ParseAddrPort(p.ExternalAddress)
+						if err != nil {
+							fmt.Printf("Failed to parse peer address: %v", err)
+							continue
+						}
+						intAddr, err := netip.ParseAddr(p.InternalAddress)
+						if err != nil {
+							fmt.Printf("Failed to parse peer address: %v", err)
+							continue
+						}
+						if !intAddr.Is6() {
+							fmt.Printf("Internal address must be an IPv6 address")
+							continue
+						}
+						peer := &tunnelPeer{
+							PubKeyHex: hex.EncodeToString(pubKey[:]),
+							Endpoint:  extAddrPort,
+							AllowedIPs: []net.IPNet{
+								{
+									IP:   intAddr.AsSlice(),
+									Mask: net.CIDRMask(128, 128),
+								},
 							},
 							PersistentKeepaliveInterval: 15 * time.Second,
 						}
-						if err := t.AddPeer(peer); err != nil {
+						if err := t.AddPeer(
+							peer.PubKeyHex,
+							peer.Endpoint,
+							peer.AllowedIPs,
+							peer.PersistentKeepaliveInterval,
+						); err != nil {
 							fmt.Printf("Failed to add peer: %v", err)
 							continue
 						}
@@ -98,7 +123,7 @@ var tunnelCmd = &cobra.Command{
 				}
 				// Remove any peers that are no longer present.
 				for _, p := range proxyPeers {
-					if err := t.RemovePeer(p); err != nil {
+					if err := t.RemovePeer(p.PubKeyHex); err != nil {
 						fmt.Printf("Failed to remove peer: %v", err)
 					}
 				}

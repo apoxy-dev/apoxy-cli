@@ -4,6 +4,8 @@ package wg
 
 import (
 	"context"
+	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -12,6 +14,7 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/google/uuid"
 	"golang.zx2c4.com/wireguard/conn"
@@ -49,7 +52,12 @@ func addrFromNetstackIP(ip tcpip.Address) netip.Addr {
 	return netip.Addr{}
 }
 
-func tcpHandler(ctx context.Context, ns *stack.Stack, nicID tcpip.NICID) func(req *tcp.ForwarderRequest) {
+func tcpHandler(
+	ctx context.Context,
+	ns *stack.Stack,
+	nicID tcpip.NICID,
+	ip6to4 netip.Prefix,
+) func(req *tcp.ForwarderRequest) {
 	return func(req *tcp.ForwarderRequest) {
 		epID := req.ID()
 		fmt.Printf("TCP connection %v:%d -> %v:%d\n", addrFromNetstackIP(epID.LocalAddress), epID.LocalPort, addrFromNetstackIP(epID.RemoteAddress), epID.RemotePort)
@@ -108,8 +116,15 @@ func tcpHandler(ctx context.Context, ns *stack.Stack, nicID tcpip.NICID) func(re
 			cancel()
 		}()
 
+		dstIPv4 := netip.AddrFrom4([4]byte{127, 0, 0, 1})
+		if localIP.Is6() && ip6to4.Contains(localIP) {
+			// If the local IP is in the 6to4 range, extract last 32 bits and use as IPv4 address.
+			dstIPv4 = netip.AddrFrom4([4]byte{localIP.As16()[12], localIP.As16()[13], localIP.As16()[14], localIP.As16()[15]})
+		}
+
+		fmt.Printf("Dialing server %v:%d\n", dstIPv4, epID.LocalPort)
 		var d net.Dialer
-		fwdC, dErr := d.DialContext(fwdCtx, "tcp", fmt.Sprintf(":%d", epID.LocalPort))
+		fwdC, dErr := d.DialContext(fwdCtx, "tcp", fmt.Sprintf("%v:%d", dstIPv4, epID.LocalPort))
 		if dErr != nil {
 			fmt.Printf("Failed to dial local server: %v\n", err)
 			return
@@ -286,11 +301,12 @@ func CreateTunnel(ctx context.Context, projID uuid.UUID, endpoint string) (*Tunn
 		},
 	})
 
+	ip6to4 := NewApoxy4To6Prefix(projID, endpoint)
 	tcpForwarder := tcp.NewForwarder(
 		ipstack,
 		0,     /* rcvWnd (0 - default) */
 		65535, /* maxInFlight */
-		tcpHandler(ctx, ipstack, nicID),
+		tcpHandler(ctx, ipstack, nicID, ip6to4),
 	)
 	ipstack.SetTransportProtocolHandler(tcp.ProtocolNumber, tcpForwarder.HandlePacket)
 
@@ -327,11 +343,12 @@ func CreateTunnel(ctx context.Context, projID uuid.UUID, endpoint string) (*Tunn
 	if err != nil {
 		return nil, fmt.Errorf("could not generate private key: %v", err)
 	}
+	pkeyHex := hex.EncodeToString(pkey[:])
 
 	wgDev := device.NewDevice(tunDev, conn.NewDefaultBind(), device.NewLogger(device.LogLevelVerbose, ""))
 	wgDev.IpcSet(fmt.Sprintf(`private_key=%s
 listen_port=58120
-`, pkey.PublicKey().String()))
+`, pkeyHex))
 	wgDev.Up()
 
 	return &Tunnel{
@@ -340,30 +357,49 @@ listen_port=58120
 		wgdev:        wgDev,
 		wgKey:        pkey,
 		publicAddr:   publicAddr,
-		internalAddr: NewApoxy4To6Prefix(projID, endpoint),
+		internalAddr: ip6to4,
 	}, nil
 }
 
 func allowedIPsToString(allowedIPs []net.IPNet) string {
 	var sb strings.Builder
-	for _, ipNet := range allowedIPs {
+	for i, ipNet := range allowedIPs {
 		sb.WriteString(ipNet.String())
-		sb.WriteRune(',')
+		if i < len(allowedIPs)-1 {
+			sb.WriteRune(',')
+		}
 	}
 	return sb.String()
 }
 
-func (t *Tunnel) AddPeer(peer *wgtypes.Peer) error {
-	return t.wgdev.IpcSet(fmt.Sprintf(`public_key=%s
-		endpoint=%s
-		allowed_ip=%s
-		persistent_keepalive_interval=%d
-		`,
-		peer.PublicKey.String(),
-		peer.Endpoint.String(),
-		allowedIPsToString(peer.AllowedIPs),
-		peer.PersistentKeepaliveInterval,
-	))
+func (t *Tunnel) AddPeer(
+	pubKeyHex string,
+	endpoint netip.AddrPort,
+	allowedIPs []net.IPNet,
+	persistentKeepaliveInterval time.Duration,
+) error {
+	if pubKeyHex == "" {
+		return errors.New("public key is required")
+	}
+	if len(allowedIPs) == 0 {
+		return errors.New("allowed IPs are required")
+	}
+
+	peer := fmt.Sprintf(`public_key=%s
+allowed_ip=%s`,
+		pubKeyHex,
+		allowedIPsToString(allowedIPs),
+	)
+	if endpoint.IsValid() {
+		peer += fmt.Sprintf(`
+endpoint=%s`, endpoint)
+	}
+	if persistentKeepaliveInterval > 0 {
+		peer += fmt.Sprintf(`
+persistent_keepalive_interval=%d`, int(persistentKeepaliveInterval.Seconds()))
+	}
+
+	return t.wgdev.IpcSet(peer)
 }
 
 func (t *Tunnel) PubKey() wgtypes.Key {
@@ -378,8 +414,8 @@ func (t *Tunnel) InternalAddress() netip.Prefix {
 	return t.internalAddr
 }
 
-func (t *Tunnel) RemovePeer(peer *wgtypes.Peer) error {
-	return t.wgdev.IpcSet(fmt.Sprintf(`remove=%s`, peer.PublicKey.String()))
+func (t *Tunnel) RemovePeer(pubKeyHex string) error {
+	return t.wgdev.IpcSet(fmt.Sprintf(`remove=%s`, pubKeyHex))
 }
 
 func (t *Tunnel) Close() {

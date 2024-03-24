@@ -71,8 +71,14 @@ type PeerStatus struct {
 	// Public key of the peer.
 	PubKey string `json:"pubKey,omitempty"`
 
-	// Address of the peer.
-	Address string `json:"address,omitempty"`
+	// ExternalAddress of the peer.
+	// This is the address of the peer that is directly accessible
+	// via host network.
+	ExternalAddress string `json:"externalAddress,omitempty"`
+
+	// InternalAddress of the peer.
+	// This is the address of the peer on the tunnel overlay network.
+	InternalAddress string `json:"internalAddress,omitempty"`
 
 	// Phase of the peer.
 	Phase PeerPhase `json:"phase,omitempty"`
