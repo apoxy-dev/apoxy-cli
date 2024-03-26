@@ -32,7 +32,7 @@ type TunnelNodeSpec struct {
 	// External address of the node or address of the NAT hole punched.
 	ExternalAddress string `json:"externalAddress,omitempty"`
 
-	// Internal address of the node.
+	// Internal address of the node. Always a /96 IPv6 address.
 	InternalAddress string `json:"internalAddress,omitempty"`
 
 	// CIDRs that the node will be relaying traffic for.
@@ -71,8 +71,14 @@ type PeerStatus struct {
 	// Public key of the peer.
 	PubKey string `json:"pubKey,omitempty"`
 
-	// Address of the peer.
-	Address string `json:"address,omitempty"`
+	// ExternalAddress of the peer.
+	// This is the address of the peer that is directly accessible
+	// via host network.
+	ExternalAddress string `json:"externalAddress,omitempty"`
+
+	// InternalAddress of the peer.
+	// This is the address of the peer on the tunnel overlay network.
+	InternalAddress string `json:"internalAddress,omitempty"`
 
 	// Phase of the peer.
 	Phase PeerPhase `json:"phase,omitempty"`

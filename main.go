@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,7 +16,11 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/getsentry/sentry-go"
@@ -33,14 +37,20 @@ func main() {
 	if err != nil {
 		log.Fatalf("sentry.Init: %s", err)
 	}
-	defer func() {
-		if err := recover(); err != nil {
-			sentry.CurrentHub().Recover(err)
-			sentry.Flush(5 * time.Second)
-			log.Printf("panic: %v", err)
-		}
-	}()
 	defer sentry.Flush(5 * time.Second)
 
-	cmd.Execute()
+	ctx, cancel := context.WithCancel(context.Background())
+	// Intercept SIGINT and SIGTERM to ensure we clean up before exiting.
+	// This is especially important for long-running commands.
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-sigs
+		cancel()
+	}()
+
+	if err := cmd.ExecuteContext(ctx); err != nil {
+		log.Fatalf("Error: %s", err)
+		os.Exit(1)
+	}
 }
