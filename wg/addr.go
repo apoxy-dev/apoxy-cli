@@ -9,8 +9,13 @@ import (
 )
 
 const (
+	// Addresses on ApoxyNet overlay follow this format:
+	//   fd61:706f:7879:oooo:oooo:eeee:a.b.c.d/128
+	// where:
+	//  oooo: organization ID fnv hash
+	//  eeee: endpoint name fnv hash
+	//  a.b.c.d: IPv4 address downstream of the tunnel node endpoint
 	apoxyULAPrefix = "fd61:706f:7879::/48"
-	//addr           = "fd61:706f:7879:oooo:oooo:eeee:127.0.0.1/128"
 )
 
 var (
