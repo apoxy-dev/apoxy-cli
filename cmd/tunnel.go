@@ -9,6 +9,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/goombaio/namegenerator"
 	"github.com/spf13/cobra"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -22,6 +23,70 @@ import (
 const (
 	resyncPeriod = 10 * time.Second
 )
+
+const demoProxyConfigTmpl = `
+admin:
+  address:
+    socket_address: { address: 127.0.0.1, port_value: 9901 }
+
+static_resources:
+  listeners:
+  - name: listener_0
+    address:
+      socket_address: { address: 0.0.0.0, port_value: 10000 }
+    filter_chains:
+    - filters:
+      - name: envoy.filters.network.http_connection_manager
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+          stat_prefix: ingress_http
+          codec_type: AUTO
+          access_log:
+          - name: envoy.access_loggers.file
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.access_loggers.file.v3.FileAccessLog
+              path: /var/log/accesslogs
+          route_config:
+            name: local_route
+            virtual_hosts:
+            - name: local_service
+              domains: ["*"]
+              routes:
+              - match: { prefix: "/" }
+                route:
+                  cluster: some_service
+                  auto_host_rewrite: true
+          http_filters:
+          - name: envoy.filters.http.tap
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.tap.v3.Tap
+              common_config:
+                static_config:
+                  match_config:
+                    any_match: true
+                  output_config:
+                    sinks:
+                      - format: PROTO_BINARY
+                        file_per_tap:
+                          path_prefix: /var/log/taps/
+          - name: envoy.filters.http.router
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+  clusters:
+  - name: some_service
+    connect_timeout: 0.25s
+    type: STATIC
+    dns_lookup_family: V4_ONLY
+    lb_policy: ROUND_ROBIN
+    load_assignment:
+      cluster_name: some_service
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: "%s"
+                port_value: %d`
 
 type tunnelPeer struct {
 	PubKeyHex                   string
@@ -37,6 +102,21 @@ var tunnelCmd = &cobra.Command{
 	Short: "Create a secure tunnel to the remote Apoxy Edge fabric",
 	Long:  "Create a secure tunnel to the remote Apoxy Edge fabric.",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		isDemo, err := cmd.Flags().GetBool("demo")
+		if err != nil {
+			return fmt.Errorf("unable to get demo flag: %w", err)
+		}
+		var port int
+		if isDemo {
+			var err error
+			port, err = cmd.Flags().GetInt("port")
+			if err != nil {
+				return fmt.Errorf("unable to get port flag: %w", err)
+			}
+			if port == 0 {
+				return fmt.Errorf("port must be specified in demo mode")
+			}
+		}
 		cmd.SilenceUsage = true
 
 		c, err := defaultAPIClient()
@@ -55,6 +135,40 @@ var tunnelCmd = &cobra.Command{
 			return fmt.Errorf("unable to create tunnel: %w", err)
 		}
 		defer t.Close()
+
+		if isDemo {
+			pName := namegenerator.NewNameGenerator(time.Now().UTC().UnixNano()).Generate()
+
+			// 127.0.0.1 ipv4 in ipv6.
+			addr := t.InternalAddress().Addr().As16()
+			addr[12] = 127
+			addr[13] = 0
+			addr[14] = 0
+			addr[15] = 1
+
+			_, err := c.CoreV1alpha().Proxies().Create(
+				cmd.Context(),
+				&corev1alpha.Proxy{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: pName,
+						Labels: map[string]string{
+							"apoxy.dev/demo": "true",
+						},
+					},
+					Spec: corev1alpha.ProxySpec{
+						Type:       corev1alpha.ProxyTypeEnvoy,
+						Provider:   corev1alpha.InfraProviderCloud,
+						ConfigData: fmt.Sprintf(demoProxyConfigTmpl, netip.AddrFrom16(addr).String(), port),
+					},
+				},
+				metav1.CreateOptions{},
+			)
+			if err != nil {
+				return fmt.Errorf("unable to create proxy: %w", err)
+			}
+
+			fmt.Printf("Proxy %s created\n", pName)
+		}
 
 		factory := informers.NewSharedInformerFactory(c, resyncPeriod)
 		tunnelInformer := factory.Core().V1alpha().TunnelNodes().Informer()
@@ -182,5 +296,7 @@ var tunnelCmd = &cobra.Command{
 }
 
 func init() {
+	tunnelCmd.Flags().Bool("demo", false, "Creates a demo Proxy with a single upstream for this tunnel. Requires --port flag.")
+	tunnelCmd.Flags().Int("port", 0, "The port to use for the demo Proxy.")
 	rootCmd.AddCommand(tunnelCmd)
 }
