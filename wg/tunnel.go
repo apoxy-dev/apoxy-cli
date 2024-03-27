@@ -320,7 +320,7 @@ func CreateTunnel(ctx context.Context, projID uuid.UUID, endpoint string) (*Tunn
 	tunDev.ep.AddNotify(tunDev)
 	tunDev.events <- tun.EventUp
 
-	extAddr, extPorts, err := trySTUN(58120,
+	extAddr, extPorts, err := TrySTUN(58120,
 		"stun.l.google.com:19302",
 		"stun1.l.google.com:19302",
 		"stun2.l.google.com:19302")

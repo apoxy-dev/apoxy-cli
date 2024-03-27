@@ -14,7 +14,9 @@ const (
 	stunTimeout = 5 * time.Second
 )
 
-func trySTUN(srcPort int, addrs ...string) (net.IP, []int, error) {
+// TrySTUN tries to resolve the external IP address and port of the host
+// by sending a STUN request to the specified STUN servers.
+func TrySTUN(srcPort int, addrs ...string) (net.IP, []int, error) {
 	c, err := net.ListenUDP("udp4", &net.UDPAddr{Port: srcPort})
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to listen on UDP port: %w", err)
