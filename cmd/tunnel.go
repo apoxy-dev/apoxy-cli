@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"html/template"
 	"net"
 	"net/netip"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/goombaio/namegenerator"
@@ -24,7 +26,7 @@ const (
 	resyncPeriod = 10 * time.Second
 )
 
-const demoProxyConfigTmpl = `
+var demoProxyConfigTmpl = template.Must(template.New("demoProxyConfig").Parse(`
 admin:
   address:
     socket_address: { address: 127.0.0.1, port_value: 9901 }
@@ -33,7 +35,7 @@ static_resources:
   listeners:
   - name: listener_0
     address:
-      socket_address: { address: 0.0.0.0, port_value: 10000 }
+      socket_address: { address: 0.0.0.0, port_value: {{ .Port }} }
     filter_chains:
     - filters:
       - name: envoy.filters.network.http_connection_manager
@@ -85,8 +87,8 @@ static_resources:
         - endpoint:
             address:
               socket_address:
-                address: "%s"
-                port_value: %d`
+                address: "{{ .Addr }}"
+                port_value: {{ .Port }}`))
 
 type tunnelPeer struct {
 	PubKeyHex                   string
@@ -136,6 +138,8 @@ var tunnelCmd = &cobra.Command{
 		}
 		defer t.Close()
 
+		factory := informers.NewSharedInformerFactory(c, resyncPeriod)
+
 		if isDemo {
 			pName := namegenerator.NewNameGenerator(time.Now().UTC().UnixNano()).Generate()
 
@@ -145,6 +149,14 @@ var tunnelCmd = &cobra.Command{
 			addr[13] = 0
 			addr[14] = 0
 			addr[15] = 1
+
+			proxyCfg := &strings.Builder{}
+			if err := demoProxyConfigTmpl.Execute(proxyCfg, map[string]interface{}{
+				"Addr": netip.AddrFrom16(addr).String(),
+				"Port": port,
+			}); err != nil {
+				return fmt.Errorf("unable to execute proxy config template: %w", err)
+			}
 
 			_, err := c.CoreV1alpha().Proxies().Create(
 				cmd.Context(),
@@ -158,7 +170,7 @@ var tunnelCmd = &cobra.Command{
 					Spec: corev1alpha.ProxySpec{
 						Type:       corev1alpha.ProxyTypeEnvoy,
 						Provider:   corev1alpha.InfraProviderCloud,
-						ConfigData: fmt.Sprintf(demoProxyConfigTmpl, netip.AddrFrom16(addr).String(), port),
+						ConfigData: proxyCfg.String(),
 					},
 				},
 				metav1.CreateOptions{},
@@ -170,7 +182,20 @@ var tunnelCmd = &cobra.Command{
 			fmt.Printf("Proxy %s created\n", pName)
 		}
 
-		factory := informers.NewSharedInformerFactory(c, resyncPeriod)
+		proxyInformer := factory.Core().V1alpha().Proxies().Informer()
+		proxyInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+			UpdateFunc: func(oldObj, newObj interface{}) {
+				newProxy, ok := newObj.(*corev1alpha.Proxy)
+				if !ok {
+					return
+				}
+				if newProxy.Status.Phase == corev1alpha.ProxyPhaseRunning &&
+					newProxy.Status.Address != "" {
+					fmt.Printf("Proxy %s is ready at %s\n", newProxy.Name, newProxy.Status.Address)
+				}
+			},
+		})
+
 		tunnelInformer := factory.Core().V1alpha().TunnelNodes().Informer()
 		proxyPeers := make(map[string]*tunnelPeer)
 		tunnelInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
