@@ -19,6 +19,7 @@ import (
 
 	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
 	"github.com/apoxy-dev/apoxy-cli/client/informers"
+	"github.com/apoxy-dev/apoxy-cli/client/versioned"
 	"github.com/apoxy-dev/apoxy-cli/wg"
 )
 
@@ -97,6 +98,73 @@ type tunnelPeer struct {
 	PersistentKeepaliveInterval time.Duration
 }
 
+func createDemoProxy(
+	ctx context.Context,
+	c versioned.Interface,
+	informerFactory informers.SharedInformerFactory,
+	intAddr netip.Addr, port int,
+) (error, func()) {
+	pName := namegenerator.NewNameGenerator(time.Now().UTC().UnixNano()).Generate()
+
+	// 127.0.0.1 ipv4 in ipv6.
+	addr := intAddr.As16()
+	addr[12] = 127
+	addr[13] = 0
+	addr[14] = 0
+	addr[15] = 1
+
+	proxyCfg := &strings.Builder{}
+	if err := demoProxyConfigTmpl.Execute(proxyCfg, map[string]interface{}{
+		"Addr": netip.AddrFrom16(addr).String(),
+		"Port": port,
+	}); err != nil {
+		return fmt.Errorf("unable to execute proxy config template: %w", err), nil
+	}
+
+	_, err := c.CoreV1alpha().Proxies().Create(
+		ctx,
+		&corev1alpha.Proxy{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: pName,
+				Labels: map[string]string{
+					"apoxy.dev/demo": "true",
+				},
+			},
+			Spec: corev1alpha.ProxySpec{
+				Type:       corev1alpha.ProxyTypeEnvoy,
+				Provider:   corev1alpha.InfraProviderCloud,
+				ConfigData: proxyCfg.String(),
+			},
+		},
+		metav1.CreateOptions{},
+	)
+	if err != nil {
+		return fmt.Errorf("unable to create proxy: %w", err), nil
+	}
+
+	fmt.Printf("Proxy %s created\n", pName)
+
+	proxyInformer := informerFactory.Core().V1alpha().Proxies().Informer()
+	proxyInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			newProxy, ok := newObj.(*corev1alpha.Proxy)
+			if !ok {
+				return
+			}
+			if newProxy.ObjectMeta.Name == pName &&
+				newProxy.Status.Phase == corev1alpha.ProxyPhaseRunning &&
+				newProxy.Status.Address != "" {
+				fmt.Printf("Proxy %s is ready at %s:%d\n", newProxy.Name, newProxy.Status.Address, port)
+			}
+		},
+	})
+
+	return nil, func() {
+		ctx := context.Background()
+		c.CoreV1alpha().Proxies().Delete(ctx, pName, metav1.DeleteOptions{})
+	}
+}
+
 // tunnelCmd implements the `tunnel` command that creates a secure tunnel
 // to the remote Apoxy Edge fabric.
 var tunnelCmd = &cobra.Command{
@@ -141,60 +209,12 @@ var tunnelCmd = &cobra.Command{
 		factory := informers.NewSharedInformerFactory(c, resyncPeriod)
 
 		if isDemo {
-			pName := namegenerator.NewNameGenerator(time.Now().UTC().UnixNano()).Generate()
-
-			// 127.0.0.1 ipv4 in ipv6.
-			addr := t.InternalAddress().Addr().As16()
-			addr[12] = 127
-			addr[13] = 0
-			addr[14] = 0
-			addr[15] = 1
-
-			proxyCfg := &strings.Builder{}
-			if err := demoProxyConfigTmpl.Execute(proxyCfg, map[string]interface{}{
-				"Addr": netip.AddrFrom16(addr).String(),
-				"Port": port,
-			}); err != nil {
-				return fmt.Errorf("unable to execute proxy config template: %w", err)
-			}
-
-			_, err := c.CoreV1alpha().Proxies().Create(
-				cmd.Context(),
-				&corev1alpha.Proxy{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: pName,
-						Labels: map[string]string{
-							"apoxy.dev/demo": "true",
-						},
-					},
-					Spec: corev1alpha.ProxySpec{
-						Type:       corev1alpha.ProxyTypeEnvoy,
-						Provider:   corev1alpha.InfraProviderCloud,
-						ConfigData: proxyCfg.String(),
-					},
-				},
-				metav1.CreateOptions{},
-			)
+			err, cleanup := createDemoProxy(cmd.Context(), c, factory, t.InternalAddress().Addr(), port)
 			if err != nil {
-				return fmt.Errorf("unable to create proxy: %w", err)
+				return fmt.Errorf("unable to create demo proxy: %w", err)
 			}
-
-			fmt.Printf("Proxy %s created\n", pName)
+			defer cleanup()
 		}
-
-		proxyInformer := factory.Core().V1alpha().Proxies().Informer()
-		proxyInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-			UpdateFunc: func(oldObj, newObj interface{}) {
-				newProxy, ok := newObj.(*corev1alpha.Proxy)
-				if !ok {
-					return
-				}
-				if newProxy.Status.Phase == corev1alpha.ProxyPhaseRunning &&
-					newProxy.Status.Address != "" {
-					fmt.Printf("Proxy %s is ready at %s\n", newProxy.Name, newProxy.Status.Address)
-				}
-			},
-		})
 
 		tunnelInformer := factory.Core().V1alpha().TunnelNodes().Informer()
 		proxyPeers := make(map[string]*tunnelPeer)
