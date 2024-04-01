@@ -36,7 +36,6 @@ import (
 )
 
 const (
-	tunName    = "utun7"
 	defaultMTU = 1420
 )
 

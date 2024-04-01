@@ -257,6 +257,7 @@ var tunnelCmd = &cobra.Command{
 							continue
 						}
 						newPeers[p.PubKey] = peer
+					} else {
 						delete(proxyPeers, p.PubKey)
 					}
 				}
