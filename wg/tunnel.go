@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/netip"
 	"os"
@@ -59,7 +60,11 @@ func tcpHandler(
 ) func(req *tcp.ForwarderRequest) {
 	return func(req *tcp.ForwarderRequest) {
 		epID := req.ID()
-		fmt.Printf("TCP connection %v:%d -> %v:%d\n", addrFromNetstackIP(epID.LocalAddress), epID.LocalPort, addrFromNetstackIP(epID.RemoteAddress), epID.RemotePort)
+		slog.Debug(fmt.Sprintf("TCP connection %v:%d -> %v:%d",
+			addrFromNetstackIP(epID.LocalAddress),
+			epID.LocalPort,
+			addrFromNetstackIP(epID.RemoteAddress),
+			epID.RemotePort))
 
 		// TODO(dsky): Only do this if the route is not already in the routing table.
 		// TODO(dsky): Also we should only handle packets addressed to the pre-configured (IPv6)
@@ -80,7 +85,7 @@ func tcpHandler(
 		var wq waiter.Queue
 		ep, err := req.CreateEndpoint(&wq)
 		if err != nil {
-			fmt.Printf("Failed to create endpoint: %v\n", err)
+			slog.Error("Failed to create endpoint", "error", err)
 			req.Complete(true /* send RST */)
 			return
 		}
@@ -92,10 +97,10 @@ func tcpHandler(
 		c := gonet.NewTCPConn(&wq, ep)
 		defer c.Close()
 
-		fmt.Printf("Forwarding TCP connection %v:%d -> 127.0.0.1:%d\n",
+		slog.Debug(fmt.Sprintf("Forwarding TCP connection %v:%d -> 127.0.0.1:%d\n",
 			addrFromNetstackIP(epID.RemoteAddress),
 			epID.RemotePort,
-			epID.LocalPort)
+			epID.LocalPort))
 
 		fwdCtx, cancel := context.WithCancel(ctx)
 		defer cancel()
@@ -110,7 +115,7 @@ func tcpHandler(
 			select {
 			case <-done:
 			case <-notifyCh:
-				fmt.Printf("Event received, closing connection\n")
+				slog.Debug("Event received, closing connection")
 			}
 			cancel()
 		}()
@@ -121,11 +126,11 @@ func tcpHandler(
 			dstIPv4 = netip.AddrFrom4([4]byte{localIP.As16()[12], localIP.As16()[13], localIP.As16()[14], localIP.As16()[15]})
 		}
 
-		fmt.Printf("Dialing server %v:%d\n", dstIPv4, epID.LocalPort)
+		slog.Debug("Dialing backend", "address", fmt.Sprintf("%v:%d", dstIPv4, epID.LocalPort))
 		var d net.Dialer
 		fwdC, dErr := d.DialContext(fwdCtx, "tcp", fmt.Sprintf("%v:%d", dstIPv4, epID.LocalPort))
 		if dErr != nil {
-			fmt.Printf("Failed to dial local server: %v\n", err)
+			slog.Error("Failed to dial local server", "error", dErr)
 			return
 		}
 		defer fwdC.Close()
@@ -135,18 +140,21 @@ func tcpHandler(
 		go func() {
 			defer wg.Done()
 			if _, err := io.Copy(c, fwdC); err != nil {
-				fmt.Printf("Failed to copy from netstack to local server: %v\n", err)
+				slog.Error("Failed to copy from netstack to local server", "error", err)
 			}
 		}()
 		go func() {
 			defer wg.Done()
 			if _, err := io.Copy(fwdC, c); err != nil {
-				fmt.Printf("Failed to copy from local server to netstack: %v\n", err)
+				slog.Info("Failed to copy from local server to netstack", "error", err)
 			}
 		}()
 		wg.Wait()
 
-		fmt.Printf("Closing TCP connection %v:%d -> 127.0.0.1:%d\n", addrFromNetstackIP(epID.RemoteAddress), epID.RemotePort, epID.LocalPort)
+		slog.Debug(fmt.Sprintf("Closing TCP connection %v:%d -> 127.0.0.1:%d\n",
+			addrFromNetstackIP(epID.RemoteAddress),
+			epID.RemotePort,
+			epID.LocalPort))
 	}
 }
 
@@ -244,7 +252,12 @@ type Tunnel struct {
 }
 
 // CreateTunnel creates a new WireGuard device (userspace).
-func CreateTunnel(ctx context.Context, projID uuid.UUID, endpoint string) (*Tunnel, error) {
+func CreateTunnel(
+	ctx context.Context,
+	projectID uuid.UUID,
+	endpoint string,
+	verbose bool,
+) (*Tunnel, error) {
 	ipstack := stack.New(stack.Options{
 		NetworkProtocols: []stack.NetworkProtocolFactory{
 			ipv4.NewProtocol,
@@ -300,7 +313,7 @@ func CreateTunnel(ctx context.Context, projID uuid.UUID, endpoint string) (*Tunn
 		},
 	})
 
-	ip6to4 := NewApoxy4To6Prefix(projID, endpoint)
+	ip6to4 := NewApoxy4To6Prefix(projectID, endpoint)
 	tcpForwarder := tcp.NewForwarder(
 		ipstack,
 		0,     /* rcvWnd (0 - default) */
@@ -332,7 +345,7 @@ func CreateTunnel(ctx context.Context, projID uuid.UUID, endpoint string) (*Tunn
 			return nil, fmt.Errorf("external port mapping was not stable: %v", extPorts)
 		}
 	}
-	fmt.Printf("External address: %v:%d\n", extAddr, extPorts[0])
+	slog.Debug(fmt.Sprintf("External address: %v:%d\n", extAddr, extPorts[0]))
 	publicAddr, err := netip.ParseAddrPort(fmt.Sprintf("%v:%d", extAddr, extPorts[0]))
 	if err != nil {
 		return nil, fmt.Errorf("could not parse external address: %v", err)
@@ -344,7 +357,18 @@ func CreateTunnel(ctx context.Context, projID uuid.UUID, endpoint string) (*Tunn
 	}
 	pkeyHex := hex.EncodeToString(pkey[:])
 
-	wgDev := device.NewDevice(tunDev, conn.NewDefaultBind(), device.NewLogger(device.LogLevelVerbose, ""))
+	devLogger := &device.Logger{
+		Verbosef: func(format string, args ...interface{}) {
+			if verbose {
+				slog.Debug(fmt.Sprintf(format, args...))
+			}
+		},
+		Errorf: func(format string, args ...interface{}) {
+			slog.Error(fmt.Sprintf(format, args...))
+		},
+	}
+
+	wgDev := device.NewDevice(tunDev, conn.NewDefaultBind(), devLogger)
 	wgDev.IpcSet(fmt.Sprintf(`private_key=%s
 listen_port=58120
 `, pkeyHex))

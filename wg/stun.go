@@ -2,7 +2,7 @@ package wg
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"net"
 	"sync"
 	"time"
@@ -26,7 +26,7 @@ func TrySTUN(srcPort int, addrs ...string) (net.IP, []int, error) {
 	}
 	defer c.Close()
 
-	log.Printf("Resolving STUN server %s\n", addrs[0])
+	slog.Debug("Resolving STUN server", "addrs", addrs)
 
 	wg := sync.WaitGroup{}
 	pCh := make(chan int)
@@ -37,16 +37,16 @@ func TrySTUN(srcPort int, addrs ...string) (net.IP, []int, error) {
 		go func(server string) {
 			defer wg.Done()
 
-			log.Printf("Resolving STUN server %s", server)
+			slog.Debug("Resolving STUN server", "addr", server)
 
 			addr, port, err := resolve(c, server)
 			if err != nil {
-				log.Printf("failed to resolve STUN server: %v", err)
+				slog.Error("failed to resolve STUN server", "addr", server, "err", err)
 				return
 			}
 			mu.Lock()
 			if extAddr != nil && !extAddr.Equal(addr) {
-				log.Printf("STUN server %s returned different IP address: %s", server, addr)
+				slog.Error("STUN server returned different external address", "addr", server, "extAddr", extAddr, "newAddr", addr)
 				mu.Unlock()
 				return
 			}
@@ -103,7 +103,7 @@ func resolve(conn *net.UDPConn, addr string) (net.IP, int, error) {
 		return nil, 0, fmt.Errorf("failed to get XOR-MAPPED-ADDRESS from STUN server message: %w", err)
 	}
 
-	log.Printf("STUN server %s returned IP address: %v\n", addr, xorAddr)
+	slog.Debug("STUN server returned IP address", "addr", addr, "ip", xorAddr.IP, "port", xorAddr.Port)
 
 	return xorAddr.IP, xorAddr.Port, nil
 }

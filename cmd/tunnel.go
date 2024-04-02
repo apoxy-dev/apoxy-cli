@@ -5,10 +5,12 @@ import (
 	"encoding/hex"
 	"fmt"
 	"html/template"
+	"log/slog"
 	"net"
 	"net/netip"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/goombaio/namegenerator"
@@ -20,6 +22,7 @@ import (
 	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
 	"github.com/apoxy-dev/apoxy-cli/client/informers"
 	"github.com/apoxy-dev/apoxy-cli/client/versioned"
+	"github.com/apoxy-dev/apoxy-cli/config"
 	"github.com/apoxy-dev/apoxy-cli/wg"
 )
 
@@ -98,13 +101,23 @@ type tunnelPeer struct {
 	PersistentKeepaliveInterval time.Duration
 }
 
+var (
+	printDemoProxyStatusOnce sync.Once
+)
+
 func createDemoProxy(
 	ctx context.Context,
 	c versioned.Interface,
-	informerFactory informers.SharedInformerFactory,
 	intAddr netip.Addr, port int,
 ) (error, func()) {
 	pName := namegenerator.NewNameGenerator(time.Now().UTC().UnixNano()).Generate()
+	factory := informers.NewSharedInformerFactoryWithOptions(
+		c,
+		resyncPeriod,
+		informers.WithTweakListOptions(func(opts *metav1.ListOptions) {
+			opts.FieldSelector = "metadata.name=" + pName
+		}),
+	)
 
 	// 127.0.0.1 ipv4 in ipv6.
 	addr := intAddr.As16()
@@ -120,6 +133,8 @@ func createDemoProxy(
 	}); err != nil {
 		return fmt.Errorf("unable to execute proxy config template: %w", err), nil
 	}
+
+	fmt.Printf("Creating demo proxy %s with port %d...\n", pName, port)
 
 	_, err := c.CoreV1alpha().Proxies().Create(
 		ctx,
@@ -142,9 +157,7 @@ func createDemoProxy(
 		return fmt.Errorf("unable to create proxy: %w", err), nil
 	}
 
-	fmt.Printf("Proxy %s created\n", pName)
-
-	proxyInformer := informerFactory.Core().V1alpha().Proxies().Informer()
+	proxyInformer := factory.Core().V1alpha().Proxies().Informer()
 	proxyInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			newProxy, ok := newObj.(*corev1alpha.Proxy)
@@ -154,13 +167,18 @@ func createDemoProxy(
 			if newProxy.ObjectMeta.Name == pName &&
 				newProxy.Status.Phase == corev1alpha.ProxyPhaseRunning &&
 				newProxy.Status.Address != "" {
-				fmt.Printf("Proxy %s is ready at %s:%d\n", newProxy.Name, newProxy.Status.Address, port)
+				printDemoProxyStatusOnce.Do(func() {
+					fmt.Printf("Proxy %s is ready at %s:%d\n", newProxy.Name, newProxy.Status.Address, port)
+				})
 			}
 		},
 	})
+	factory.Start(ctx.Done()) // Must be called after new informers are added.
+	factory.WaitForCacheSync(ctx.Done())
 
 	return nil, func() {
 		ctx := context.Background()
+		fmt.Printf("Deleting demo proxy %s...\n", pName)
 		c.CoreV1alpha().Proxies().Delete(ctx, pName, metav1.DeleteOptions{})
 	}
 }
@@ -189,6 +207,11 @@ var tunnelCmd = &cobra.Command{
 		}
 		cmd.SilenceUsage = true
 
+		cfg, err := config.Load()
+		if err != nil {
+			return fmt.Errorf("unable to load config: %w", err)
+		}
+
 		c, err := defaultAPIClient()
 		if err != nil {
 			return fmt.Errorf("unable to create API client: %w", err)
@@ -200,38 +223,37 @@ var tunnelCmd = &cobra.Command{
 			return fmt.Errorf("unable to get hostname: %w", err)
 		}
 
-		t, err := wg.CreateTunnel(cmd.Context(), c.ProjectID, host)
+		t, err := wg.CreateTunnel(cmd.Context(), c.ProjectID, host, cfg.Verbose)
 		if err != nil {
 			return fmt.Errorf("unable to create tunnel: %w", err)
 		}
 		defer t.Close()
 
-		factory := informers.NewSharedInformerFactory(c, resyncPeriod)
-
 		if isDemo {
-			err, cleanup := createDemoProxy(cmd.Context(), c, factory, t.InternalAddress().Addr(), port)
+			err, cleanup := createDemoProxy(cmd.Context(), c, t.InternalAddress().Addr(), port)
 			if err != nil {
 				return fmt.Errorf("unable to create demo proxy: %w", err)
 			}
 			defer cleanup()
 		}
 
+		factory := informers.NewSharedInformerFactoryWithOptions(
+			c,
+			resyncPeriod,
+			informers.WithTweakListOptions(func(opts *metav1.ListOptions) {
+				opts.FieldSelector = "metadata.name=" + host
+			}),
+		)
 		tunnelInformer := factory.Core().V1alpha().TunnelNodes().Informer()
 		proxyPeers := make(map[string]*tunnelPeer)
+		doneCh := make(chan struct{})
 		tunnelInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-			AddFunc: func(obj interface{}) {
-				tunnel, ok := obj.(*corev1alpha.TunnelNode)
-				if !ok {
-					return
-				}
-				fmt.Printf("Tunnel %s added\n", tunnel.Name)
-			},
 			UpdateFunc: func(oldObj, newObj interface{}) {
 				newTunnel, ok := newObj.(*corev1alpha.TunnelNode)
 				if !ok {
 					return
 				}
-				fmt.Printf("Tunnel %s updated\n", newTunnel.Name)
+				slog.Debug("Tunnel updated", "tunnel", newTunnel.Name)
 
 				// Create a new peer for the tunnel.
 				newPeers := make(map[string]*tunnelPeer)
@@ -239,21 +261,21 @@ var tunnelCmd = &cobra.Command{
 					if _, ok := proxyPeers[p.PubKey]; !ok {
 						pubKey, err := wgtypes.ParseKey(p.PubKey)
 						if err != nil {
-							fmt.Printf("Failed to parse peer public key: %v", err)
+							slog.Error("Failed to parse peer public key", "err", err)
 							continue
 						}
 						extAddrPort, err := netip.ParseAddrPort(p.ExternalAddress)
 						if err != nil {
-							fmt.Printf("Failed to parse peer address: %v", err)
+							slog.Error("Failed to parse peer address", "err", err)
 							continue
 						}
 						intAddr, err := netip.ParseAddr(p.InternalAddress)
 						if err != nil {
-							fmt.Printf("Failed to parse peer address: %v", err)
+							slog.Error("Failed to parse peer address", "err", err)
 							continue
 						}
 						if !intAddr.Is6() {
-							fmt.Printf("Internal address must be an IPv6 address")
+							slog.Error("Internal address must be an IPv6 address")
 							continue
 						}
 						peer := &tunnelPeer{
@@ -267,13 +289,16 @@ var tunnelCmd = &cobra.Command{
 							},
 							PersistentKeepaliveInterval: 15 * time.Second,
 						}
+
+						slog.Debug("Adding peer", "peer", peer)
+
 						if err := t.AddPeer(
 							peer.PubKeyHex,
 							peer.Endpoint,
 							peer.AllowedIPs,
 							peer.PersistentKeepaliveInterval,
 						); err != nil {
-							fmt.Printf("Failed to add peer: %v", err)
+							slog.Error("Failed to add peer", "err", err)
 							continue
 						}
 						newPeers[p.PubKey] = peer
@@ -284,17 +309,13 @@ var tunnelCmd = &cobra.Command{
 				// Remove any peers that are no longer present.
 				for _, p := range proxyPeers {
 					if err := t.RemovePeer(p.PubKeyHex); err != nil {
-						fmt.Printf("Failed to remove peer: %v", err)
+						slog.Error("Failed to remove peer", "err", err)
 					}
 				}
 				proxyPeers = newPeers
 			},
 			DeleteFunc: func(obj interface{}) {
-				tunnel, ok := obj.(*corev1alpha.TunnelNode)
-				if !ok {
-					return
-				}
-				fmt.Printf("Tunnel %s deleted\n", tunnel.Name)
+				doneCh <- struct{}{}
 			},
 		})
 		factory.Start(cmd.Context().Done()) // Must be called after new informers are added.
@@ -327,7 +348,7 @@ var tunnelCmd = &cobra.Command{
 		}
 
 		<-cmd.Context().Done()
-		fmt.Printf("Shutting down...\n")
+		fmt.Printf("Cleaning up tunnel...\n")
 		dCtx := context.Background() // Use a new context to ensure the tunnel is closed.
 		if err := c.CoreV1alpha().TunnelNodes().Delete(
 			dCtx,
