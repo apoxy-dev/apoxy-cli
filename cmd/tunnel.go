@@ -47,6 +47,8 @@ static_resources:
           "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
           stat_prefix: ingress_http
           codec_type: AUTO
+          upgrade_configs:
+          - upgrade_type: websocket
           access_log:
           - name: envoy.access_loggers.file
             typed_config:
@@ -80,7 +82,7 @@ static_resources:
               "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
   clusters:
   - name: some_service
-    connect_timeout: 0.25s
+    connect_timeout: 2s
     type: STATIC
     dns_lookup_family: V4_ONLY
     lb_policy: ROUND_ROBIN
