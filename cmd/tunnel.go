@@ -19,6 +19,7 @@ import (
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/retry"
 
 	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
 	"github.com/apoxy-dev/apoxy-cli/client/informers"
@@ -186,6 +187,57 @@ func createDemoProxy(
 	}
 }
 
+func createTunnelObj(
+	ctx context.Context,
+	c versioned.Interface,
+	name string,
+	wgTun *wg.Tunnel,
+) error {
+	tunn := &corev1alpha.TunnelNode{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+		Spec: corev1alpha.TunnelNodeSpec{
+			PubKey:          wgTun.PubKey().String(),
+			ExternalAddress: wgTun.ExternalAddress().String(),
+			InternalAddress: wgTun.InternalAddress().String(),
+		},
+		Status: corev1alpha.TunnelNodeStatus{
+			Phase: corev1alpha.NodePhasePending,
+		},
+	}
+	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		_, err := c.CoreV1alpha().TunnelNodes().Create(ctx, tunn, metav1.CreateOptions{})
+		if err != nil {
+			if kerrors.IsAlreadyExists(err) {
+				fmt.Printf("TunnelNode %s already exists\n", name)
+				fmt.Printf("Overwrite? (y/n): ")
+				var response string
+				if _, err := fmt.Scanln(&response); err != nil {
+					return fmt.Errorf("unable to read response: %w", err)
+				}
+				if response != "y" {
+					fmt.Printf("Aborting\n")
+					return nil
+				}
+
+				oldTunn, err := c.CoreV1alpha().TunnelNodes().Get(ctx, name, metav1.GetOptions{})
+				if err != nil {
+					return fmt.Errorf("unable to get TunnelNode: %w", err)
+				}
+				tunn.ResourceVersion = oldTunn.ResourceVersion
+
+				if _, err := c.CoreV1alpha().TunnelNodes().Update(ctx, tunn, metav1.UpdateOptions{}); err != nil {
+					return fmt.Errorf("unable to update TunnelNode: %w", err)
+				}
+			} else {
+				return fmt.Errorf("unable to create TunnelNode: %w", err)
+			}
+		}
+		return nil
+	})
+}
+
 // tunnelCmd implements the `tunnel` command that creates a secure tunnel
 // to the remote Apoxy Edge fabric.
 var tunnelCmd = &cobra.Command{
@@ -329,38 +381,8 @@ var tunnelCmd = &cobra.Command{
 			}
 		}
 
-		tunn := &corev1alpha.TunnelNode{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: host,
-			},
-			Spec: corev1alpha.TunnelNodeSpec{
-				PubKey:          t.PubKey().String(),
-				ExternalAddress: t.ExternalAddress().String(),
-				InternalAddress: t.InternalAddress().String(),
-			},
-			Status: corev1alpha.TunnelNodeStatus{
-				Phase: corev1alpha.NodePhasePending,
-			},
-		}
-		_, err = c.CoreV1alpha().TunnelNodes().Create(cmd.Context(), tunn, metav1.CreateOptions{})
-		if err != nil {
-			if kerrors.IsAlreadyExists(err) {
-				fmt.Printf("TunnelNode %s already exists\n", host)
-				fmt.Printf("Overwrite? (y/n): ")
-				var response string
-				if _, err := fmt.Scanln(&response); err != nil {
-					return fmt.Errorf("unable to read response: %w", err)
-				}
-				if response != "y" {
-					fmt.Printf("Aborting\n")
-					return nil
-				}
-				if _, err := c.CoreV1alpha().TunnelNodes().Update(cmd.Context(), tunn, metav1.UpdateOptions{}); err != nil {
-					return fmt.Errorf("unable to update TunnelNode: %w", err)
-				}
-			} else {
-				return fmt.Errorf("unable to create TunnelNode: %w", err)
-			}
+		if err := createTunnelObj(cmd.Context(), c, host, t); err != nil {
+			return fmt.Errorf("unable to create TunnelNode: %w", err)
 		}
 
 		<-cmd.Context().Done()

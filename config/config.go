@@ -65,6 +65,7 @@ func Load() (*Config, error) {
 		slog.Debug("Verbose logging enabled")
 	} else {
 		klog.SetOutput(ioutil.Discard)
+		klog.LogToStderr(false)
 	}
 
 	return cfg, nil
