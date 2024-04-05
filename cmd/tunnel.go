@@ -16,6 +16,7 @@ import (
 	"github.com/goombaio/namegenerator"
 	"github.com/spf13/cobra"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 
@@ -328,29 +329,42 @@ var tunnelCmd = &cobra.Command{
 			}
 		}
 
-		_, err = c.CoreV1alpha().TunnelNodes().Create(
-			cmd.Context(),
-			&corev1alpha.TunnelNode{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: host,
-				},
-				Spec: corev1alpha.TunnelNodeSpec{
-					PubKey:          t.PubKey().String(),
-					ExternalAddress: t.ExternalAddress().String(),
-					InternalAddress: t.InternalAddress().String(),
-				},
-				Status: corev1alpha.TunnelNodeStatus{
-					Phase: corev1alpha.NodePhasePending,
-				},
+		tunn := &corev1alpha.TunnelNode{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: host,
 			},
-			metav1.CreateOptions{},
-		)
+			Spec: corev1alpha.TunnelNodeSpec{
+				PubKey:          t.PubKey().String(),
+				ExternalAddress: t.ExternalAddress().String(),
+				InternalAddress: t.InternalAddress().String(),
+			},
+			Status: corev1alpha.TunnelNodeStatus{
+				Phase: corev1alpha.NodePhasePending,
+			},
+		}
+		_, err = c.CoreV1alpha().TunnelNodes().Create(cmd.Context(), tunn, metav1.CreateOptions{})
 		if err != nil {
-			return fmt.Errorf("unable to create TunnelNode: %w", err)
+			if kerrors.IsAlreadyExists(err) {
+				fmt.Printf("TunnelNode %s already exists\n", host)
+				fmt.Printf("Overwrite? (y/n): ")
+				var response string
+				if _, err := fmt.Scanln(&response); err != nil {
+					return fmt.Errorf("unable to read response: %w", err)
+				}
+				if response != "y" {
+					fmt.Printf("Aborting\n")
+					return nil
+				}
+				if _, err := c.CoreV1alpha().TunnelNodes().Update(cmd.Context(), tunn, metav1.UpdateOptions{}); err != nil {
+					return fmt.Errorf("unable to update TunnelNode: %w", err)
+				}
+			} else {
+				return fmt.Errorf("unable to create TunnelNode: %w", err)
+			}
 		}
 
 		<-cmd.Context().Done()
-		fmt.Printf("Cleaning up tunnel...\n")
+		fmt.Printf("\nCleaning up tunnel...\n")
 		dCtx := context.Background() // Use a new context to ensure the tunnel is closed.
 		if err := c.CoreV1alpha().TunnelNodes().Delete(
 			dCtx,

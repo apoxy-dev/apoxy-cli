@@ -3,12 +3,13 @@ package config
 import (
 	"fmt"
 	"io/ioutil"
+	"log/slog"
 	"os"
 	"path/filepath"
 
 	"github.com/google/uuid"
-	"golang.org/x/exp/slog"
 	"gopkg.in/yaml.v3"
+	"k8s.io/klog/v2"
 )
 
 var (
@@ -60,7 +61,10 @@ func Load() (*Config, error) {
 	if Verbose || cfg.Verbose {
 		logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
 		slog.SetDefault(logger)
+		klog.SetSlogLogger(logger)
 		slog.Debug("Verbose logging enabled")
+	} else {
+		klog.SetOutput(ioutil.Discard)
 	}
 
 	return cfg, nil
