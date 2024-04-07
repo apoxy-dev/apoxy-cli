@@ -438,7 +438,10 @@ func (t *Tunnel) InternalAddress() netip.Prefix {
 }
 
 func (t *Tunnel) RemovePeer(pubKeyHex string) error {
-	return t.wgdev.IpcSet(fmt.Sprintf(`remove=%s`, pubKeyHex))
+	buf := &strings.Builder{}
+	buf.WriteString(fmt.Sprintf("public_key=%s\n", pubKeyHex))
+	buf.WriteString("remove=true\n")
+	return t.wgdev.IpcSet(buf.String())
 }
 
 func (t *Tunnel) Close() {
