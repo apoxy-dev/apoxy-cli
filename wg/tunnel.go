@@ -85,7 +85,13 @@ func tcpHandler(
 		var wq waiter.Queue
 		ep, err := req.CreateEndpoint(&wq)
 		if err != nil {
-			slog.Error("Failed to create endpoint", "error", err)
+			slog.Error("Failed to create overlay TCP endpoint",
+				"error", err,
+				"srcIP", epID.LocalAddress,
+				"srcPort", epID.LocalPort,
+				"dstIP", epID.RemoteAddress,
+				"dstPort", epID.RemotePort,
+			)
 			req.Complete(true /* send RST */)
 			return
 		}
@@ -140,13 +146,13 @@ func tcpHandler(
 		go func() {
 			defer wg.Done()
 			if _, err := io.Copy(c, fwdC); err != nil {
-				slog.Error("Failed to copy from netstack to local server", "error", err)
+				slog.Debug("Failed to copy from netstack to local server", "error", err)
 			}
 		}()
 		go func() {
 			defer wg.Done()
 			if _, err := io.Copy(fwdC, c); err != nil {
-				slog.Info("Failed to copy from local server to netstack", "error", err)
+				slog.Debug("Failed to copy from local server to netstack", "error", err)
 			}
 		}()
 		wg.Wait()
