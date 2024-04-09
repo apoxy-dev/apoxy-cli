@@ -37,7 +37,7 @@ import (
 )
 
 const (
-	defaultMTU = 1420
+	defaultMTU = 1400
 )
 
 func addrFromNetstackIP(ip tcpip.Address) netip.Addr {
