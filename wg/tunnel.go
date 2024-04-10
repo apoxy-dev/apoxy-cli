@@ -103,7 +103,7 @@ func tcpHandler(
 		c := gonet.NewTCPConn(&wq, ep)
 		defer c.Close()
 
-		slog.Debug(fmt.Sprintf("Forwarding TCP connection %v:%d -> 127.0.0.1:%d\n",
+		slog.Debug(fmt.Sprintf("Forwarding TCP connection %v:%d -> 127.0.0.1:%d",
 			addrFromNetstackIP(epID.RemoteAddress),
 			epID.RemotePort,
 			epID.LocalPort))
@@ -155,7 +155,7 @@ func tcpHandler(
 			slog.Debug("Connection closed with error", "error", err)
 		}
 
-		slog.Debug(fmt.Sprintf("Closing TCP connection %v:%d -> 127.0.0.1:%d\n",
+		slog.Debug(fmt.Sprintf("Closing TCP connection %v:%d -> 127.0.0.1:%d",
 			addrFromNetstackIP(epID.RemoteAddress),
 			epID.RemotePort,
 			epID.LocalPort))
@@ -349,7 +349,7 @@ func CreateTunnel(
 			return nil, fmt.Errorf("external port mapping was not stable: %v", extPorts)
 		}
 	}
-	slog.Debug(fmt.Sprintf("External address: %v:%d\n", extAddr, extPorts[0]))
+	slog.Debug(fmt.Sprintf("External address: %v:%d", extAddr, extPorts[0]))
 	publicAddr, err := netip.ParseAddrPort(fmt.Sprintf("%v:%d", extAddr, extPorts[0]))
 	if err != nil {
 		return nil, fmt.Errorf("could not parse external address: %v", err)
@@ -444,7 +444,7 @@ func (t *Tunnel) InternalAddress() netip.Prefix {
 func (t *Tunnel) RemovePeer(pubKeyHex string) error {
 	buf := &strings.Builder{}
 	buf.WriteString(fmt.Sprintf("public_key=%s\n", pubKeyHex))
-	buf.WriteString("remove=true\n")
+	buf.WriteString("remove=true")
 	return t.wgdev.IpcSet(buf.String())
 }
 
