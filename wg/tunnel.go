@@ -13,7 +13,6 @@ import (
 	"net/netip"
 	"os"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
 
@@ -83,16 +82,16 @@ func tcpHandler(
 		})
 
 		var wq waiter.Queue
-		ep, err := req.CreateEndpoint(&wq)
-		if err != nil {
+		ep, tcpipErr := req.CreateEndpoint(&wq)
+		if tcpipErr != nil {
 			slog.Error("Failed to create overlay TCP endpoint",
-				"error", err,
+				"error", tcpipErr,
 				"srcIP", epID.LocalAddress,
 				"srcPort", epID.LocalPort,
 				"dstIP", epID.RemoteAddress,
 				"dstPort", epID.RemotePort,
 			)
-			req.Complete(true /* send RST */)
+			req.Complete(true) // send RST
 			return
 		}
 		req.Complete(false)
@@ -138,25 +137,24 @@ func tcpHandler(
 		fwdC, dErr := d.DialContext(fwdCtx, "tcp", fmt.Sprintf("%v:%d", dstIPv4, epID.LocalPort))
 		if dErr != nil {
 			slog.Error("Failed to dial local server", "error", dErr)
+			req.Complete(true) // send RST
 			return
 		}
 		defer fwdC.Close()
 
-		var wg sync.WaitGroup
-		wg.Add(2)
+		connClosed := make(chan error, 2)
 		go func() {
-			defer wg.Done()
-			if _, err := io.Copy(c, fwdC); err != nil {
-				slog.Debug("Failed to copy from netstack to local server", "error", err)
-			}
+			_, err := io.Copy(c, fwdC)
+			connClosed <- err
 		}()
 		go func() {
-			defer wg.Done()
-			if _, err := io.Copy(fwdC, c); err != nil {
-				slog.Debug("Failed to copy from local server to netstack", "error", err)
-			}
+			_, err := io.Copy(fwdC, c)
+			connClosed <- err
 		}()
-		wg.Wait()
+		err := <-connClosed
+		if err != nil {
+			slog.Debug("Connection closed with error", "error", err)
+		}
 
 		slog.Debug(fmt.Sprintf("Closing TCP connection %v:%d -> 127.0.0.1:%d\n",
 			addrFromNetstackIP(epID.RemoteAddress),

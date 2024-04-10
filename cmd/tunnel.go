@@ -89,8 +89,6 @@ static_resources:
     type: STATIC
     dns_lookup_family: V4_ONLY
     lb_policy: ROUND_ROBIN
-    common_http_protocol_options:
-      max_requests_per_connection: 1
     load_assignment:
       cluster_name: some_service
       endpoints:
