@@ -137,7 +137,6 @@ func tcpHandler(
 		fwdC, dErr := d.DialContext(fwdCtx, "tcp", fmt.Sprintf("%v:%d", dstIPv4, epID.LocalPort))
 		if dErr != nil {
 			slog.Error("Failed to dial local server", "error", dErr)
-			req.Complete(true) // send RST
 			return
 		}
 		defer fwdC.Close()
