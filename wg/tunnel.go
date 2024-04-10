@@ -99,6 +99,7 @@ func tcpHandler(
 
 		// Timeout forgotten connections.
 		ep.SocketOptions().SetKeepAlive(true)
+		ep.SocketOptions().SetDelayOption(false)
 
 		c := gonet.NewTCPConn(&wq, ep)
 		defer c.Close()

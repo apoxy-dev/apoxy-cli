@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"html/template"
 	"log/slog"
+	"maps"
 	"net"
 	"net/netip"
 	"os"
@@ -88,6 +89,8 @@ static_resources:
     type: STATIC
     dns_lookup_family: V4_ONLY
     lb_policy: ROUND_ROBIN
+    common_http_protocol_options:
+      max_requests_per_connection: 1
     load_assignment:
       cluster_name: some_service
       endpoints:
@@ -367,7 +370,7 @@ var tunnelCmd = &cobra.Command{
 						slog.Error("Failed to remove peer", "err", err)
 					}
 				}
-				proxyPeers = newPeers
+				proxyPeers = maps.Clone(newPeers)
 			},
 			DeleteFunc: func(obj interface{}) {
 				doneCh <- struct{}{}
