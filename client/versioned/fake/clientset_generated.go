@@ -4,6 +4,8 @@ package fake
 
 import (
 	clientset "github.com/apoxy-dev/apoxy-cli/client/versioned"
+	controllersv1alpha1 "github.com/apoxy-dev/apoxy-cli/client/versioned/typed/controllers/v1alpha1"
+	fakecontrollersv1alpha1 "github.com/apoxy-dev/apoxy-cli/client/versioned/typed/controllers/v1alpha1/fake"
 	corev1alpha "github.com/apoxy-dev/apoxy-cli/client/versioned/typed/core/v1alpha"
 	fakecorev1alpha "github.com/apoxy-dev/apoxy-cli/client/versioned/typed/core/v1alpha/fake"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -62,6 +64,11 @@ var (
 	_ clientset.Interface = &Clientset{}
 	_ testing.FakeClient  = &Clientset{}
 )
+
+// ControllersV1alpha1 retrieves the ControllersV1alpha1Client
+func (c *Clientset) ControllersV1alpha1() controllersv1alpha1.ControllersV1alpha1Interface {
+	return &fakecontrollersv1alpha1.FakeControllersV1alpha1{Fake: &c.Fake}
+}
 
 // CoreV1alpha retrieves the CoreV1alphaClient
 func (c *Clientset) CoreV1alpha() corev1alpha.CoreV1alphaInterface {

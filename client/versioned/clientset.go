@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 
+	controllersv1alpha1 "github.com/apoxy-dev/apoxy-cli/client/versioned/typed/controllers/v1alpha1"
 	corev1alpha "github.com/apoxy-dev/apoxy-cli/client/versioned/typed/core/v1alpha"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
@@ -14,13 +15,20 @@ import (
 
 type Interface interface {
 	Discovery() discovery.DiscoveryInterface
+	ControllersV1alpha1() controllersv1alpha1.ControllersV1alpha1Interface
 	CoreV1alpha() corev1alpha.CoreV1alphaInterface
 }
 
 // Clientset contains the clients for groups.
 type Clientset struct {
 	*discovery.DiscoveryClient
-	coreV1alpha *corev1alpha.CoreV1alphaClient
+	controllersV1alpha1 *controllersv1alpha1.ControllersV1alpha1Client
+	coreV1alpha         *corev1alpha.CoreV1alphaClient
+}
+
+// ControllersV1alpha1 retrieves the ControllersV1alpha1Client
+func (c *Clientset) ControllersV1alpha1() controllersv1alpha1.ControllersV1alpha1Interface {
+	return c.controllersV1alpha1
 }
 
 // CoreV1alpha retrieves the CoreV1alphaClient
@@ -72,6 +80,10 @@ func NewForConfigAndClient(c *rest.Config, httpClient *http.Client) (*Clientset,
 
 	var cs Clientset
 	var err error
+	cs.controllersV1alpha1, err = controllersv1alpha1.NewForConfigAndClient(&configShallowCopy, httpClient)
+	if err != nil {
+		return nil, err
+	}
 	cs.coreV1alpha, err = corev1alpha.NewForConfigAndClient(&configShallowCopy, httpClient)
 	if err != nil {
 		return nil, err
@@ -97,6 +109,7 @@ func NewForConfigOrDie(c *rest.Config) *Clientset {
 // New creates a new Clientset for the given RESTClient.
 func New(c rest.Interface) *Clientset {
 	var cs Clientset
+	cs.controllersV1alpha1 = controllersv1alpha1.New(c)
 	cs.coreV1alpha = corev1alpha.New(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClient(c)

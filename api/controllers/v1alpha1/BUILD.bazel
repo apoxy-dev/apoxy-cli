@@ -1,0 +1,23 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "v1alpha1",
+    srcs = [
+        "doc.go",
+        "generated.register.go",
+        "proxy_types.go",
+        "proxydeployment_types.go",
+        "proxyset_types.go",
+        "zz_generated.deepcopy.go",
+    ],
+    importpath = "github.com/apoxy-dev/apoxy/api/controllers/v1alpha1",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/runtime",
+        "@io_k8s_apimachinery//pkg/runtime/schema",
+        "@io_k8s_apimachinery//pkg/util/intstr",
+        "@io_k8s_apiserver//pkg/registry/rest",
+        "@io_k8s_sigs_apiserver_runtime//pkg/builder/resource",
+    ],
+)
