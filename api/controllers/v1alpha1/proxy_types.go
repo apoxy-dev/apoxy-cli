@@ -44,7 +44,7 @@ type ProxySpec struct {
 	Locations []string `json:"locations,omitempty"`
 
 	// Config is the Starlark configuration for the proxy in the txtar format.
-	Config string `json:"prolarkConfig,omitempty"`
+	Config string `json:"config,omitempty"`
 }
 
 type ProxyPhase string
