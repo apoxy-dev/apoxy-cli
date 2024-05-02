@@ -255,6 +255,22 @@ type Tunnel struct {
 	internalAddr netip.Prefix
 }
 
+func pickUnusedUDP4Port() (int, error) {
+	for i := 0; i < 10; i++ {
+		addr, err := net.ResolveUDPAddr("udp4", "localhost:0")
+		if err != nil {
+			return 0, err
+		}
+		l, err := net.ListenUDP("udp4", addr)
+		if err != nil {
+			return 0, err
+		}
+		defer l.Close()
+		return l.LocalAddr().(*net.UDPAddr).Port, nil
+	}
+	return 0, errors.New("could not find unused UDP port")
+}
+
 // CreateTunnel creates a new WireGuard device (userspace).
 func CreateTunnel(
 	ctx context.Context,
@@ -336,7 +352,12 @@ func CreateTunnel(
 	tunDev.ep.AddNotify(tunDev)
 	tunDev.events <- tun.EventUp
 
-	extAddr, extPorts, err := TrySTUN(58120,
+	listenPort, err := pickUnusedUDP4Port()
+	if err != nil {
+		return nil, fmt.Errorf("could not pick unused UDP port: %v", err)
+	}
+
+	extAddr, extPorts, err := TrySTUN(listenPort,
 		"stun.l.google.com:19302",
 		"stun1.l.google.com:19302",
 		"stun2.l.google.com:19302")
@@ -373,10 +394,15 @@ func CreateTunnel(
 	}
 
 	wgDev := device.NewDevice(tunDev, conn.NewDefaultBind(), devLogger)
-	wgDev.IpcSet(fmt.Sprintf(`private_key=%s
-listen_port=58120
-`, pkeyHex))
-	wgDev.Up()
+	cmd := &strings.Builder{}
+	cmd.WriteString(fmt.Sprintf("private_key=%s\n", pkeyHex))
+	cmd.WriteString(fmt.Sprintf("listen_port=%d\n", listenPort))
+	if err := wgDev.IpcSet(cmd.String()); err != nil {
+		return nil, fmt.Errorf("could not set WireGuard device configuration: %v", err)
+	}
+	if err := wgDev.Up(); err != nil {
+		return nil, fmt.Errorf("could not bring up WireGuard device: %v", err)
+	}
 
 	return &Tunnel{
 		ipstack:      ipstack,
