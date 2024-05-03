@@ -11,6 +11,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
+	"github.com/apoxy-dev/apoxy-cli/cmd/utils"
 	"github.com/apoxy-dev/apoxy-cli/config"
 	"github.com/apoxy-dev/apoxy-cli/pretty"
 	"github.com/apoxy-dev/apoxy-cli/rest"
@@ -54,7 +55,7 @@ func buildProxyRow(r *v1alpha.Proxy, labels bool) []interface{} {
 			r.Status.Phase,
 			r.Status.Address,
 			pretty.SinceString(r.CreationTimestamp.Time),
-			labelsToString(r.Labels),
+			utils.LabelsToString(r.Labels),
 		}
 	}
 	return []interface{}{
@@ -155,9 +156,9 @@ var createProxyCmd = &cobra.Command{
 			if proxyFile != "" {
 				return fmt.Errorf("cannot use --filename with stdin")
 			}
-			proxyConfig, err = readStdInAsString()
+			proxyConfig, err = utils.ReadStdInAsString()
 		} else if proxyFile != "" {
-			proxyConfig, err = readFileAsString(proxyFile)
+			proxyConfig, err = utils.ReadFileAsString(proxyFile)
 		} else {
 			return fmt.Errorf("please provide a configuration via --filename or stdin")
 		}
@@ -174,7 +175,7 @@ var createProxyCmd = &cobra.Command{
 
 		// Parse proxyConfig into a proxy object.
 		proxy := &v1alpha.Proxy{}
-		proxyJSON, err := yamlStringToJSONString(proxyConfig)
+		proxyJSON, err := utils.YAMLToJSON(proxyConfig)
 		if err != nil {
 			// Try assuming that the config is a JSON string?
 			slog.Debug("failed to parse proxy config as yaml - assuming input is JSON", "error", err)

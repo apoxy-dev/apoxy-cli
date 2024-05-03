@@ -10,6 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/apoxy-dev/apoxy-cli/config"
 	"github.com/apoxy-dev/apoxy-cli/pretty"
 	"github.com/apoxy-dev/apoxy-cli/rest"
 )
@@ -160,7 +161,7 @@ and/or date range. By default, logs are streamed in real-time.`,
 
 		cmd.SilenceUsage = true
 
-		c, err := defaultAPIClient()
+		c, err := config.DefaultAPIClient()
 		if err != nil {
 			return err
 		}

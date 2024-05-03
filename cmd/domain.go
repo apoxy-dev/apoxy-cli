@@ -14,6 +14,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
+	"github.com/apoxy-dev/apoxy-cli/cmd/utils"
+	"github.com/apoxy-dev/apoxy-cli/config"
 	"github.com/apoxy-dev/apoxy-cli/pretty"
 	"github.com/apoxy-dev/apoxy-cli/rest"
 )
@@ -63,7 +65,7 @@ func buildDomainRow(r *v1alpha.Domain, labels bool) (res []interface{}) {
 		}
 	}
 	if labels {
-		res = append(res, labelsToString(r.Labels))
+		res = append(res, utils.LabelsToString(r.Labels))
 	}
 	return
 }
@@ -99,7 +101,7 @@ func getOrCreateMagicProxy(ctx context.Context, c *rest.APIClient, name string) 
 }
 
 func GetDomain(ctx context.Context, name string) error {
-	c, err := defaultAPIClient()
+	c, err := config.DefaultAPIClient()
 	if err != nil {
 		return err
 	}
@@ -114,7 +116,7 @@ func GetDomain(ctx context.Context, name string) error {
 var showDomainLabels bool
 
 func ListDomains(ctx context.Context) error {
-	c, err := defaultAPIClient()
+	c, err := config.DefaultAPIClient()
 	if err != nil {
 		return err
 	}
@@ -155,7 +157,7 @@ var getDomainCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cmd.SilenceUsage = true
 		if showProxies {
-			c, err := defaultAPIClient()
+			c, err := config.DefaultAPIClient()
 			if err != nil {
 				return err
 			}
@@ -215,7 +217,7 @@ var createDomainCmd = &cobra.Command{
 			if domainMagic {
 				return fmt.Errorf("cannot use --magic with stdin")
 			}
-			domainConfig, err = readStdInAsString()
+			domainConfig, err = utils.ReadStdInAsString()
 		} else if domainFile != "" {
 			if domainName != "" {
 				return fmt.Errorf("cannot use --name with a file")
@@ -226,7 +228,7 @@ var createDomainCmd = &cobra.Command{
 			if domainMagic {
 				return fmt.Errorf("cannot use --magic with a file")
 			}
-			domainConfig, err = readFileAsString(domainFile)
+			domainConfig, err = utils.ReadFileAsString(domainFile)
 		} else if domainMagic {
 			if domainName == "" {
 				if domainRandomName {
@@ -244,7 +246,7 @@ var createDomainCmd = &cobra.Command{
 
 		cmd.SilenceUsage = true
 
-		c, err := defaultAPIClient()
+		c, err := config.DefaultAPIClient()
 		if err != nil {
 			return err
 		}
@@ -286,7 +288,7 @@ var createDomainCmd = &cobra.Command{
 
 		// Parse domainConfig into a domain object.
 		domain := &v1alpha.Domain{}
-		domainJSON, err := yamlStringToJSONString(domainConfig)
+		domainJSON, err := utils.YAMLToJSON(domainConfig)
 		if err != nil {
 			// Try assuming that the config is a JSON string?
 			slog.Debug("failed to parse domain config as yaml - assuming input is JSON", "error", err)
@@ -312,7 +314,7 @@ var deleteDomainCmd = &cobra.Command{
 	Short: "Delete domain objects",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cmd.SilenceUsage = true
-		c, err := defaultAPIClient()
+		c, err := config.DefaultAPIClient()
 		if err != nil {
 			return err
 		}

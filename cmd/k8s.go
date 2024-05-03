@@ -23,6 +23,8 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/tools/clientcmd"
+
+	"github.com/apoxy-dev/apoxy-cli/config"
 )
 
 var (
@@ -31,7 +33,7 @@ var (
 )
 
 func getYAML() ([]byte, error) {
-	c, err := defaultAPIClient()
+	c, err := config.DefaultAPIClient()
 	if err != nil {
 		return nil, err
 	}
