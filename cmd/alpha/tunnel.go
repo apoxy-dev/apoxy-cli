@@ -1,4 +1,4 @@
-package cmd
+package alpha
 
 import (
 	"context"
@@ -268,7 +268,7 @@ var tunnelCmd = &cobra.Command{
 			return fmt.Errorf("unable to load config: %w", err)
 		}
 
-		c, err := defaultAPIClient()
+		c, err := config.DefaultAPIClient()
 		if err != nil {
 			return fmt.Errorf("unable to create API client: %w", err)
 		}
@@ -404,5 +404,6 @@ var tunnelCmd = &cobra.Command{
 func init() {
 	tunnelCmd.Flags().Bool("demo", false, "Creates a demo Proxy with a single upstream for this tunnel. Requires --port flag.")
 	tunnelCmd.Flags().Int("port", 0, "The port to use for the demo Proxy.")
-	rootCmd.AddCommand(tunnelCmd)
+
+	alphaCmd.AddCommand(tunnelCmd)
 }

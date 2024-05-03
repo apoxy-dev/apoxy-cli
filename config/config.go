@@ -10,6 +10,8 @@ import (
 	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
 	"k8s.io/klog/v2"
+
+	"github.com/apoxy-dev/apoxy-cli/rest"
 )
 
 var (
@@ -98,4 +100,13 @@ func Store(cfg *Config) error {
 		return fmt.Errorf("failed to write YAML file: %v", err)
 	}
 	return nil
+}
+
+// DefaultAPIClient returns a new Apoxy API client.
+func DefaultAPIClient() (*rest.APIClient, error) {
+	cfg, err := Load()
+	if err != nil {
+		return nil, err
+	}
+	return rest.NewAPIClient(cfg.APIBaseURL, cfg.APIBaseHost, cfg.APIKey, cfg.ProjectID)
 }

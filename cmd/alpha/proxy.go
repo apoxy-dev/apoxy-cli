@@ -1,19 +1,32 @@
-package cmd
+package alpha
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slog"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
+	"github.com/apoxy-dev/apoxy-cli/cmd/utils"
+	"github.com/apoxy-dev/apoxy-cli/config"
 	"github.com/apoxy-dev/apoxy-cli/pretty"
 	"github.com/apoxy-dev/apoxy-cli/rest"
 )
+
+var showProxyLabels bool
+
+func labelsToString(labels map[string]string) string {
+	var l []string
+	for k, v := range labels {
+		l = append(l, fmt.Sprintf("%s=%s", k, v))
+	}
+	return strings.Join(l, ",")
+}
 
 func buildAlphaProxyRow(r *v1alpha1.Proxy, labels bool) []interface{} {
 	if labels {
@@ -93,7 +106,7 @@ var alphaProxyCmd = &cobra.Command{
 	Aliases: []string{"p", "proxies"},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cmd.SilenceUsage = true
-		c, err := defaultAPIClient()
+		c, err := config.DefaultAPIClient()
 		if err != nil {
 			return err
 		}
@@ -109,7 +122,7 @@ var getAlphaProxyCmd = &cobra.Command{
 	Args:      cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cmd.SilenceUsage = true
-		c, err := defaultAPIClient()
+		c, err := config.DefaultAPIClient()
 		if err != nil {
 			return err
 		}
@@ -123,13 +136,16 @@ var listAlphaProxyCmd = &cobra.Command{
 	Short: "List proxy objects",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cmd.SilenceUsage = true
-		c, err := defaultAPIClient()
+		c, err := config.DefaultAPIClient()
 		if err != nil {
 			return err
 		}
 		return listAlphaProxies(cmd.Context(), c, metav1.ListOptions{})
 	},
 }
+
+// proxyFile is the file that contains the configuration to create.
+var proxyFile string
 
 // createAlphaProxyCmd represents the create proxy command
 var createAlphaProxyCmd = &cobra.Command{
@@ -145,9 +161,9 @@ var createAlphaProxyCmd = &cobra.Command{
 			if proxyFile != "" {
 				return fmt.Errorf("cannot use --filename with stdin")
 			}
-			proxyConfig, err = readStdInAsString()
+			proxyConfig, err = utils.ReadStdInAsString()
 		} else if proxyFile != "" {
-			proxyConfig, err = readFileAsString(proxyFile)
+			proxyConfig, err = utils.ReadFileAsString(proxyFile)
 		} else {
 			return fmt.Errorf("please provide a configuration via --filename or stdin")
 		}
@@ -157,14 +173,14 @@ var createAlphaProxyCmd = &cobra.Command{
 
 		cmd.SilenceUsage = true
 
-		c, err := defaultAPIClient()
+		c, err := config.DefaultAPIClient()
 		if err != nil {
 			return err
 		}
 
 		// Parse proxyConfig into a proxy object.
 		proxy := &v1alpha1.Proxy{}
-		proxyJSON, err := yamlStringToJSONString(proxyConfig)
+		proxyJSON, err := utils.YAMLToJSON(proxyConfig)
 		if err != nil {
 			// Try assuming that the config is a JSON string?
 			slog.Debug("failed to parse proxy config as yaml - assuming input is JSON", "error", err)
@@ -191,7 +207,7 @@ var deleteAlphaProxyCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cmd.SilenceUsage = true
 
-		c, err := defaultAPIClient()
+		c, err := config.DefaultAPIClient()
 		if err != nil {
 			return err
 		}
@@ -207,14 +223,6 @@ var deleteAlphaProxyCmd = &cobra.Command{
 	},
 }
 
-var alphaCmd = &cobra.Command{
-	Use:   "alpha",
-	Short: "Alpha features",
-	Run: func(cmd *cobra.Command, args []string) {
-		cmd.Help()
-	},
-}
-
 func init() {
 	createAlphaProxyCmd.PersistentFlags().
 		StringVarP(&proxyFile, "filename", "f", "", "The file that contains the configuration to create.")
@@ -224,5 +232,4 @@ func init() {
 
 	alphaProxyCmd.AddCommand(getAlphaProxyCmd, listAlphaProxyCmd, createAlphaProxyCmd, deleteAlphaProxyCmd)
 	alphaCmd.AddCommand(alphaProxyCmd)
-	rootCmd.AddCommand(alphaCmd)
 }

@@ -15,6 +15,7 @@ import (
 	"golang.org/x/exp/slog"
 	"gopkg.in/yaml.v3"
 
+	"github.com/apoxy-dev/apoxy-cli/cmd/alpha"
 	"github.com/apoxy-dev/apoxy-cli/config"
 	"github.com/apoxy-dev/apoxy-cli/rest"
 )
@@ -39,6 +40,8 @@ func ExecuteContext(ctx context.Context) error {
 func init() {
 	rootCmd.PersistentFlags().StringVar(&config.ConfigFile, "config", "", "config file (default is $HOME/.apoxy/config.yaml)")
 	rootCmd.PersistentFlags().BoolVarP(&config.Verbose, "verbose", "v", false, "enable verbose output")
+
+	rootCmd.AddCommand(alpha.Cmd())
 }
 
 // defaultAPIClient returns a new Apoxy API client.

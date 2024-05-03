@@ -11,6 +11,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
+	"github.com/apoxy-dev/apoxy-cli/config"
 	"github.com/apoxy-dev/apoxy-cli/pretty"
 	"github.com/apoxy-dev/apoxy-cli/rest"
 )
@@ -99,7 +100,7 @@ var proxyCmd = &cobra.Command{
 	Aliases: []string{"p", "proxies"},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cmd.SilenceUsage = true
-		c, err := defaultAPIClient()
+		c, err := config.DefaultAPIClient()
 		if err != nil {
 			return err
 		}
@@ -115,7 +116,7 @@ var getProxyCmd = &cobra.Command{
 	Args:      cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cmd.SilenceUsage = true
-		c, err := defaultAPIClient()
+		c, err := config.DefaultAPIClient()
 		if err != nil {
 			return err
 		}
@@ -129,7 +130,7 @@ var listProxyCmd = &cobra.Command{
 	Short: "List proxy objects",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cmd.SilenceUsage = true
-		c, err := defaultAPIClient()
+		c, err := config.DefaultAPIClient()
 		if err != nil {
 			return err
 		}
@@ -166,7 +167,7 @@ var createProxyCmd = &cobra.Command{
 
 		cmd.SilenceUsage = true
 
-		c, err := defaultAPIClient()
+		c, err := config.DefaultAPIClient()
 		if err != nil {
 			return err
 		}
@@ -200,7 +201,7 @@ var deleteProxyCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cmd.SilenceUsage = true
 
-		c, err := defaultAPIClient()
+		c, err := config.DefaultAPIClient()
 		if err != nil {
 			return err
 		}
