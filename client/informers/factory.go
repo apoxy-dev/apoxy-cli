@@ -7,6 +7,7 @@ import (
 	sync "sync"
 	time "time"
 
+	controllers "github.com/apoxy-dev/apoxy-cli/client/informers/controllers"
 	core "github.com/apoxy-dev/apoxy-cli/client/informers/core"
 	internalinterfaces "github.com/apoxy-dev/apoxy-cli/client/informers/internalinterfaces"
 	versioned "github.com/apoxy-dev/apoxy-cli/client/versioned"
@@ -237,7 +238,12 @@ type SharedInformerFactory interface {
 	// client.
 	InformerFor(obj runtime.Object, newFunc internalinterfaces.NewInformerFunc) cache.SharedIndexInformer
 
+	Controllers() controllers.Interface
 	Core() core.Interface
+}
+
+func (f *sharedInformerFactory) Controllers() controllers.Interface {
+	return controllers.New(f, f.namespace, f.tweakListOptions)
 }
 
 func (f *sharedInformerFactory) Core() core.Interface {

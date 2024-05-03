@@ -5,6 +5,7 @@ package informers
 import (
 	"fmt"
 
+	v1alpha1 "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
 	v1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
@@ -36,7 +37,15 @@ func (f *genericInformer) Lister() cache.GenericLister {
 // TODO extend this to unknown resources with a client pool
 func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource) (GenericInformer, error) {
 	switch resource {
-	// Group=core.apoxy.dev, Version=v1alpha
+	// Group=controllers.apoxy.dev, Version=v1alpha1
+	case v1alpha1.SchemeGroupVersion.WithResource("proxies"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Controllers().V1alpha1().Proxies().Informer()}, nil
+	case v1alpha1.SchemeGroupVersion.WithResource("proxydeployments"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Controllers().V1alpha1().ProxyDeployments().Informer()}, nil
+	case v1alpha1.SchemeGroupVersion.WithResource("proxysets"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Controllers().V1alpha1().ProxySets().Informer()}, nil
+
+		// Group=core.apoxy.dev, Version=v1alpha
 	case v1alpha.SchemeGroupVersion.WithResource("addresses"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Core().V1alpha().Addresses().Informer()}, nil
 	case v1alpha.SchemeGroupVersion.WithResource("domains"):

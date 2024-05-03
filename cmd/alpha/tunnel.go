@@ -22,6 +22,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/retry"
 
+	ctrlv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
 	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
 	"github.com/apoxy-dev/apoxy-cli/client/informers"
 	"github.com/apoxy-dev/apoxy-cli/client/versioned"
@@ -141,19 +142,18 @@ func createDemoProxy(
 
 	fmt.Printf("Creating demo proxy %s with port %d...\n", pName, port)
 
-	_, err := c.CoreV1alpha().Proxies().Create(
+	_, err := c.ControllersV1alpha1().Proxies().Create(
 		ctx,
-		&corev1alpha.Proxy{
+		&ctrlv1alpha1.Proxy{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: pName,
 				Labels: map[string]string{
 					"apoxy.dev/demo": "true",
 				},
 			},
-			Spec: corev1alpha.ProxySpec{
-				Type:       corev1alpha.ProxyTypeEnvoy,
-				Provider:   corev1alpha.InfraProviderCloud,
-				ConfigData: proxyCfg.String(),
+			Spec: ctrlv1alpha1.ProxySpec{
+				Provider: ctrlv1alpha1.InfraProviderCloud,
+				Config:   proxyCfg.String(),
 			},
 		},
 		metav1.CreateOptions{},
@@ -162,18 +162,18 @@ func createDemoProxy(
 		return fmt.Errorf("unable to create proxy: %w", err), nil
 	}
 
-	proxyInformer := factory.Core().V1alpha().Proxies().Informer()
+	proxyInformer := factory.Controllers().V1alpha1().Proxies().Informer()
 	proxyInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		UpdateFunc: func(oldObj, newObj interface{}) {
-			newProxy, ok := newObj.(*corev1alpha.Proxy)
+			newProxy, ok := newObj.(*ctrlv1alpha1.Proxy)
 			if !ok {
 				return
 			}
 			if newProxy.ObjectMeta.Name == pName &&
-				newProxy.Status.Phase == corev1alpha.ProxyPhaseRunning &&
-				newProxy.Status.Address != "" {
+				newProxy.Status.Phase == ctrlv1alpha1.ProxyPhaseRunning &&
+				len(newProxy.Status.IPs) > 0 {
 				printDemoProxyStatusOnce.Do(func() {
-					fmt.Printf("Proxy %s is ready at %s:%d\n", newProxy.Name, newProxy.Status.Address, port)
+					fmt.Printf("Proxy %s is ready at %s:%d\n", newProxy.Name, newProxy.Status.IPs[0], port)
 				})
 			}
 		},
@@ -184,7 +184,7 @@ func createDemoProxy(
 	return nil, func() {
 		ctx := context.Background()
 		fmt.Printf("Deleting demo proxy %s...\n", pName)
-		c.CoreV1alpha().Proxies().Delete(ctx, pName, metav1.DeleteOptions{})
+		c.ControllersV1alpha1().Proxies().Delete(ctx, pName, metav1.DeleteOptions{})
 	}
 }
 
