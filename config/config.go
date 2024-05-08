@@ -40,8 +40,13 @@ type Config struct {
 	DashboardURL string `yaml:"dashboard_url,omitempty"`
 }
 
+// ApoxyDir returns the path to the Apoxy configuration directory.
+func ApoxyDir() string {
+	return filepath.Join(os.Getenv("HOME"), ".apoxy")
+}
+
 func getDefaultConfigPath() string {
-	return filepath.Join(os.Getenv("HOME"), ".apoxy", "config.yaml")
+	return filepath.Join(ApoxyDir(), "config.yaml")
 }
 
 func Load() (*Config, error) {

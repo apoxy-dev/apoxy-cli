@@ -13,7 +13,9 @@ var runCmd = &cobra.Command{
 	Use:   "run",
 	Short: "Run Apoxy server locally",
 	Run: func(cmd *cobra.Command, args []string) {
-		if err := apiserver.Run(context.Background()); err != nil {
+		if err := apiserver.Run(
+			context.Background(),
+		); err != nil {
 			log.Fatalf("could not run server: %v", err)
 		}
 	},

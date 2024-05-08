@@ -15,12 +15,15 @@ import (
 	"k8s.io/apiserver/pkg/authorization/authorizerfactory"
 	"k8s.io/apiserver/pkg/features"
 	apiserver "k8s.io/apiserver/pkg/server"
+	apiserveropts "k8s.io/apiserver/pkg/server/options"
 	"k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/rest"
+	netutils "k8s.io/utils/net"
 	"sigs.k8s.io/apiserver-runtime/pkg/builder"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
+	"github.com/apoxy-dev/apoxy-cli/config"
 	"github.com/apoxy-dev/apoxy-cli/internal/apiserver/auth"
 	"github.com/apoxy-dev/apoxy-cli/internal/log"
 
@@ -76,8 +79,9 @@ func newClient() *rest.Config {
 type Option func(*options)
 
 type options struct {
-	enableAuth bool
-	sqlitePath string
+	enableAuth            bool
+	sqlitePath            string
+	certPairName, certDir string
 }
 
 // WithAuth enables authentication.
@@ -95,11 +99,21 @@ func WithSQLitePath(path string) Option {
 	}
 }
 
+// WithCerts sets the certificate pair name and directory.
+func WithCerts(certPairName, certDir string) Option {
+	return func(o *options) {
+		o.certPairName = certPairName
+		o.certDir = certDir
+	}
+}
+
 // defaultOptions returns default options.
 func defaultOptions() *options {
 	return &options{
-		enableAuth: false,
-		sqlitePath: "",
+		enableAuth:   false,
+		sqlitePath:   config.ApoxyDir() + "/apoxy.db",
+		certPairName: "",
+		certDir:      "",
 	}
 }
 
@@ -160,6 +174,17 @@ func Run(
 				o.RecommendedOptions.Admission = nil
 				o.RecommendedOptions.Authentication = nil
 				o.RecommendedOptions.Authorization = nil
+
+				o.RecommendedOptions.SecureServing = &apiserveropts.SecureServingOptionsWithLoopback{
+					SecureServingOptions: &apiserveropts.SecureServingOptions{
+						BindAddress: netutils.ParseIPSloppy("0.0.0.0"),
+						BindPort:    443,
+						ServerCert: apiserveropts.GeneratableKeyCert{
+							PairName:      dOpts.certPairName,
+							CertDirectory: dOpts.certDir,
+						},
+					},
+				}
 
 				// if *enableAuth {
 				//	o.RecommendedOptions.Authentication = options.NewDelegatingAuthenticationOptions()
