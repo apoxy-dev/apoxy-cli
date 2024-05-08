@@ -14,6 +14,8 @@ import (
 	"k8s.io/apiserver/pkg/storage/storagebackend"
 	"k8s.io/apiserver/pkg/util/flowcontrol/request"
 	"sigs.k8s.io/apiserver-runtime/pkg/builder/rest"
+
+	"github.com/apoxy-dev/apoxy-cli/config"
 )
 
 // NewKineStorage creates a new kine storage.
@@ -38,6 +40,7 @@ type kineRESTOptionsGetter struct {
 func (g *kineRESTOptionsGetter) GetRESTOptions(resource schema.GroupResource) (generic.RESTOptions, error) {
 	etcdConfig, err := endpoint.Listen(g.ctx, endpoint.Config{
 		Endpoint: g.dsn,
+		Listener: "unix://" + config.ApoxyDir() + "/kine.sock",
 	})
 	if err != nil {
 		return generic.RESTOptions{}, err
