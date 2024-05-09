@@ -57,6 +57,38 @@ const (
 	ProxyPhaseFailed      ProxyPhase = "Failed"
 )
 
+type ProxyReplicaPhase string
+
+const (
+	ProxyReplicaPhasePending     ProxyReplicaPhase = "Pending"
+	ProxyReplicaPhaseRunning     ProxyReplicaPhase = "Running"
+	ProxyReplicaPhaseTerminating ProxyReplicaPhase = "Terminating"
+	ProxyReplicaPhaseStopped     ProxyReplicaPhase = "Stopped"
+	ProxyReplicaPhaseFailed      ProxyReplicaPhase = "Failed"
+)
+
+// ProxyReplicaStatus defines the status of a proxy replica.
+// This is used to track the status of individual proxy replicas.
+type ProxyReplicaStatus struct {
+	// Name of the replica.
+	Name string `json:"name"`
+
+	// Creation time of the replica.
+	CreatedAt metav1.Time `json:"createdAt"`
+
+	// Location of the replica.
+	// Examples: "global", "europe", "us-west1", etc.
+	// +optional
+	Location string `json:"location"`
+
+	// Phase of the replica.
+	Phase ProxyReplicaPhase `json:"phase"`
+
+	// Reason for the current phase.
+	// +optional
+	Reason string `json:"reason,omitempty"`
+}
+
 // ProxyStatus defines the observed state of Proxy.
 type ProxyStatus struct {
 	// Phase of the proxy.
@@ -71,9 +103,8 @@ type ProxyStatus struct {
 	// +optional
 	IPs []string `json:"ips,omitempty"`
 
-	// PoPs are the points of presence where the proxy is deployed.
-	// +optional
-	PoPs []string `json:"pops,omitempty"`
+	// Replicas are statuses of the individual proxy replicas.
+	Replicas []*ProxyReplicaStatus `json:"replicas,omitempty"`
 }
 
 var _ resource.StatusSubResource = &ProxyStatus{}
