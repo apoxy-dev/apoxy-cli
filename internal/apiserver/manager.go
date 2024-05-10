@@ -22,6 +22,7 @@ import (
 	"sigs.k8s.io/apiserver-runtime/pkg/builder"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	"github.com/apoxy-dev/apoxy-cli/config"
 	"github.com/apoxy-dev/apoxy-cli/internal/apiserver/auth"
@@ -117,11 +118,12 @@ func defaultOptions() *options {
 	}
 }
 
-// Run runs the API server.
-func Run(
+// Start starts the API server and returns the manager (that can be used to start the controller
+// manager). The manager must be started by the caller.
+func Start(
 	ctx context.Context,
 	opts ...Option,
-) error {
+) (manager.Manager, error) {
 	dOpts := defaultOptions()
 	for _, o := range opts {
 		o(dOpts)
@@ -245,5 +247,5 @@ func Run(
 		log.Fatalf("unable to start manager: %v", err)
 	}
 
-	return mgr.Start(ctx)
+	return mgr, nil
 }
