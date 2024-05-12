@@ -33,7 +33,6 @@ type ProxyReconciler struct {
 	envoy.Runtime
 
 	orgID    uuid.UUID
-	proxyUID string
 	machName string
 }
 
@@ -41,12 +40,11 @@ type ProxyReconciler struct {
 func NewProxyReconciler(
 	c client.Client,
 	orgID uuid.UUID,
-	proxyUID, machName string,
+	machName string,
 ) *ProxyReconciler {
 	return &ProxyReconciler{
 		Client:   c,
 		orgID:    orgID,
-		proxyUID: proxyUID,
 		machName: machName,
 	}
 }
@@ -75,7 +73,8 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 
 	status, found := findStatus(r.machName, p)
 	if !found {
-		return reconcile.Result{}, fmt.Errorf("failed to find status for machine %q", r.machName)
+		log.Info("status for machine not found")
+		return reconcile.Result{RequeueAfter: 2 * time.Second}, nil
 	}
 	ps := r.RuntimeStatus()
 
@@ -179,7 +178,7 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 	return reconcile.Result{RequeueAfter: requeueAfter}, nil
 }
 
-func uidPredicate(uid string) predicate.Funcs {
+func namePredicate(name string) predicate.Funcs {
 	return predicate.NewPredicateFuncs(func(obj client.Object) bool {
 		if obj == nil {
 			return false
@@ -190,11 +189,11 @@ func uidPredicate(uid string) predicate.Funcs {
 			return false
 		}
 
-		return uid == string(p.GetUID())
+		return name == p.Name
 	})
 }
 
-func (r *ProxyReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
+func (r *ProxyReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager, proxyName string) error {
 	err := mgr.GetFieldIndexer().IndexField(ctx, &ctrlv1alpha1.Proxy{}, "metadata.name", func(rawObj client.Object) []string {
 		p := rawObj.(*ctrlv1alpha1.Proxy)
 		return []string{p.Name}
@@ -207,7 +206,7 @@ func (r *ProxyReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager
 		For(&ctrlv1alpha1.Proxy{},
 			builder.WithPredicates(
 				&predicate.ResourceVersionChangedPredicate{},
-				uidPredicate(r.proxyUID),
+				namePredicate(proxyName),
 			),
 		).
 		WithOptions(controller.Options{

@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	bootstrapv3 "github.com/envoyproxy/go-control-plane/envoy/config/bootstrap/v3"
-	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -16,7 +14,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	ctrlv1alpha1 "github.com/apoxy-dev/apoxy/api/controllers/v1alpha1"
+	ctrlv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
 )
 
 const (
@@ -32,17 +30,14 @@ var _ reconcile.Reconciler = &ProxyReconciler{}
 // ProxyReconciler reconciles a Proxy object.
 type ProxyReconciler struct {
 	client.Client
-	projectID string
 }
 
 // NewProxyReconciler returns a new reconcile.Reconciler.
 func NewProxyReconciler(
 	c client.Client,
-	projectID string,
 ) *ProxyReconciler {
 	return &ProxyReconciler{
-		Client:    c,
-		projectID: projectID,
+		Client: c,
 	}
 }
 
@@ -141,37 +136,34 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 		return ctrl.Result{}, nil // Deleted.
 	}
 
-	switch p.Spec.Provider {
-	case ctrlv1alpha1.InfraProviderCloud:
-		switch p.Status.Phase {
-		case ctrlv1alpha1.ProxyPhasePending:
-			synced, err := r.syncProxy(ctx, p, false)
-			if err != nil {
-				log.Error(err, "Failed to assign Fly machine")
-				if _, ok := err.(retryableError); ok {
-					p.Status.Phase = ctrlv1alpha1.ProxyPhaseFailed
-					p.Status.Reason = fmt.Sprintf("Failed to provision cloud proxy: %v", err)
-					if err := r.Status().Update(ctx, p); err != nil {
-						return ctrl.Result{}, fmt.Errorf("failed to update Proxy: %w", err)
-					}
-					return ctrl.Result{}, nil // Leave the Proxy in the failed state.
-				}
-				return ctrl.Result{}, fmt.Errorf("failed to reconcile Fly machines: %w", err)
-			}
+	// TODO(dsky): This should be done via a webhook.
+	if p.Status.Phase == "" {
+		p.Status.Phase = ctrlv1alpha1.ProxyPhasePending
+	}
 
-			if err = r.syncAddrs(ctx, p.Status); err != nil {
+	switch p.Status.Phase {
+	case ctrlv1alpha1.ProxyPhasePending:
+		synced, err := r.syncProxy(ctx, p, false)
+		if err != nil {
+			log.Error(err, "Failed to assign Fly machine")
+			if _, ok := err.(retryableError); ok {
 				p.Status.Phase = ctrlv1alpha1.ProxyPhaseFailed
-				p.Status.Reason = fmt.Sprintf("Failed to reconcile addresses: %v", err)
-			} else if synced {
-				p.Status.Phase = ctrlv1alpha1.ProxyPhaseRunning
-				p.Status.Reason = "Proxy is running"
+				p.Status.Reason = fmt.Sprintf("Failed to provision cloud proxy: %v", err)
+				if err := r.Status().Update(ctx, p); err != nil {
+					return ctrl.Result{}, fmt.Errorf("failed to update Proxy: %w", err)
+				}
+				return ctrl.Result{}, nil // Leave the Proxy in the failed state.
 			}
+			return ctrl.Result{}, fmt.Errorf("failed to reconcile Fly machines: %w", err)
+		} else if synced {
+			p.Status.Phase = ctrlv1alpha1.ProxyPhaseRunning
+			p.Status.Reason = "Proxy is running"
+		}
 
-			if err := r.Status().Update(ctx, p); err != nil {
-				return ctrl.Result{}, fmt.Errorf("failed to update Proxy: %w", err)
-			} else {
-				return ctrl.Result{RequeueAfter: 2 * time.Second}, nil
-			}
+		if err := r.Status().Update(ctx, p); err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to update Proxy: %w", err)
+		} else {
+			return ctrl.Result{RequeueAfter: 2 * time.Second}, nil
 		}
 	}
 
@@ -185,8 +177,30 @@ func (r *ProxyReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager
 		Complete(r)
 }
 
-func (r *ProxyReconciler) syncProxy(ctx context.Context, p *ctrlv1alpha1.Proxy, delete bool) (bool, error) {
-}
-
-func (r *ProxyReconciler) syncAddrs(ctx context.Context, status *ctrlv1alpha1.ProxyStatus) error {
+func (r *ProxyReconciler) syncProxy(_ context.Context, p *ctrlv1alpha1.Proxy, delete bool) (bool, error) {
+	if delete {
+		// Replicas are doing the termination themselves, we're just waiting for them to stop.
+		for _, r := range p.Status.Replicas {
+			if r.Phase != ctrlv1alpha1.ProxyReplicaPhaseStopped {
+				return false, nil
+			}
+		}
+	} else {
+		switch p.Spec.Provider {
+		case ctrlv1alpha1.InfraProviderUnmanaged:
+			// For unmanaged proxies, we set single replica whose name is the same as the proxy.
+			if len(p.Status.Replicas) == 0 {
+				p.Status.Replicas = append(p.Status.Replicas, &ctrlv1alpha1.ProxyReplicaStatus{
+					Name:      p.Name,
+					CreatedAt: metav1.Now(),
+					Phase:     ctrlv1alpha1.ProxyReplicaPhasePending,
+					Reason:    "starting unmanaged proxy",
+				})
+				return false, nil
+			}
+		default:
+			return false, fmt.Errorf("unknown provider: %s", p.Spec.Provider)
+		}
+	}
+	return false, nil
 }

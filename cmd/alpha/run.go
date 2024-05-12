@@ -15,6 +15,7 @@ import (
 
 	"github.com/apoxy-dev/apoxy-cli/config"
 	"github.com/apoxy-dev/apoxy-cli/internal/apiserver"
+	apiserverctrl "github.com/apoxy-dev/apoxy-cli/internal/apiserver/controllers"
 	bpctrl "github.com/apoxy-dev/apoxy-cli/internal/backplane/controllers"
 	"github.com/apoxy-dev/apoxy-cli/internal/log"
 	"github.com/apoxy-dev/apoxy-cli/rest"
@@ -38,15 +39,13 @@ func updateProxyFromFile(ctx context.Context, path string) (*ctrlv1alpha1.Proxy,
 	if err != nil {
 		return nil, err
 	}
-	host, err := os.Hostname()
+	proxyName, err := proxyName(path)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get hostname: %w", err)
+		return nil, err
 	}
-	base := filepath.Base(path)
-	fName := strings.TrimSuffix(base, filepath.Ext(base))
 	proxy := &ctrlv1alpha1.Proxy{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: fmt.Sprintf("proxy-%s-%s", host, fName),
+			Name: proxyName,
 		},
 		Spec: ctrlv1alpha1.ProxySpec{
 			Provider: ctrlv1alpha1.InfraProviderUnmanaged,
@@ -109,6 +108,19 @@ func watchAndReloadProxy(ctx context.Context, path string) error {
 	panic("unreachable")
 }
 
+func proxyName(path string) (string, error) {
+	host, err := os.Hostname()
+	if err != nil {
+		return "", fmt.Errorf("failed to get hostname: %w", err)
+	}
+	basename := filepath.Base(path)
+	return fmt.Sprintf(
+		"proxy-%s-%s",
+		host,
+		strings.TrimSuffix(basename, filepath.Ext(basename)),
+	), nil
+}
+
 var runCmd = &cobra.Command{
 	Use:   "run",
 	Short: "Run Apoxy server locally",
@@ -116,28 +128,35 @@ var runCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cmd.SilenceUsage = true
 		path := args[0]
+		proxyName, err := proxyName(path)
+		if err != nil {
+			return err
+		}
 
 		startCh := make(chan error)
 		go func() {
-			mgr, err := apiserver.Start(
-				cmd.Context(),
-			)
+			mgr, err := apiserver.Start(cmd.Context())
 			if err != nil {
-				log.Errorf("failed to start API server: %w", err)
+				log.Errorf("failed to start API server: %v", err)
 				startCh <- err
 				return
 			}
 			startCh <- nil
 
 			projID := uuid.New()
-			bp := bpctrl.NewProxyReconciler(
+			if err := apiserverctrl.NewProxyReconciler(
+				mgr.GetClient(),
+			).SetupWithManager(cmd.Context(), mgr); err != nil {
+				log.Errorf("failed to set up Project controller: %v", err)
+				return
+			}
+
+			if err := bpctrl.NewProxyReconciler(
 				mgr.GetClient(),
 				projID,
-				"proxy-uid",
-				"machine-name",
-			)
-			if err := bp.SetupWithManager(cmd.Context(), mgr); err != nil {
-				log.Errorf("failed to set up Backplane controller: %w", err)
+				proxyName,
+			).SetupWithManager(cmd.Context(), mgr, proxyName); err != nil {
+				log.Errorf("failed to set up Backplane controller: %v", err)
 				return
 			}
 

@@ -24,6 +24,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyDeploymentStatus":   schema_apoxy_cli_api_controllers_v1alpha1_ProxyDeploymentStatus(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyDeploymentStrategy": schema_apoxy_cli_api_controllers_v1alpha1_ProxyDeploymentStrategy(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyList":               schema_apoxy_cli_api_controllers_v1alpha1_ProxyList(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyReplicaStatus":      schema_apoxy_cli_api_controllers_v1alpha1_ProxyReplicaStatus(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxySet":                schema_apoxy_cli_api_controllers_v1alpha1_ProxySet(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxySetList":            schema_apoxy_cli_api_controllers_v1alpha1_ProxySetList(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxySetSpec":            schema_apoxy_cli_api_controllers_v1alpha1_ProxySetSpec(ref),
@@ -601,6 +602,60 @@ func schema_apoxy_cli_api_controllers_v1alpha1_ProxyList(ref common.ReferenceCal
 	}
 }
 
+func schema_apoxy_cli_api_controllers_v1alpha1_ProxyReplicaStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "ProxyReplicaStatus defines the status of a proxy replica. This is used to track the status of individual proxy replicas.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Name of the replica.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"createdAt": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Creation time of the replica.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+						},
+					},
+					"location": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Location of the replica. Examples: \"global\", \"europe\", \"us-west1\", etc.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"phase": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Phase of the replica.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"reason": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Reason for the current phase.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+				Required: []string{"name", "createdAt", "phase"},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/apimachinery/pkg/apis/meta/v1.Time"},
+	}
+}
+
 func schema_apoxy_cli_api_controllers_v1alpha1_ProxySet(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -827,16 +882,14 @@ func schema_apoxy_cli_api_controllers_v1alpha1_ProxyStatus(ref common.ReferenceC
 							},
 						},
 					},
-					"pops": {
+					"replicas": {
 						SchemaProps: spec.SchemaProps{
-							Description: "PoPs are the points of presence where the proxy is deployed.",
+							Description: "Replicas are statuses of the individual proxy replicas.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
-										Default: "",
-										Type:    []string{"string"},
-										Format:  "",
+										Ref: ref("github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyReplicaStatus"),
 									},
 								},
 							},
@@ -845,6 +898,8 @@ func schema_apoxy_cli_api_controllers_v1alpha1_ProxyStatus(ref common.ReferenceC
 				},
 			},
 		},
+		Dependencies: []string{
+			"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyReplicaStatus"},
 	}
 }
 
