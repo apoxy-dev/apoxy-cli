@@ -30,6 +30,11 @@ func build(ctx context.Context) error {
 	if apoxyAPIKey == "" {
 		log.Fatal("APOXY_PROJECT_API_KEY not set")
 	}
+	sha := os.Getenv("GITHUB_SHA")
+	if sha == "" {
+		log.Fatal("GITHUB_SHA not set")
+	}
+	sha = sha[:10]
 
 	client, err := dagger.Connect(ctx, dagger.WithLogOutput(os.Stderr))
 	if err != nil {
@@ -37,8 +42,9 @@ func build(ctx context.Context) error {
 	}
 	defer client.Close()
 
+	// 1. Build binaries.
 	outPath := "build/"
-	builder := client.Container().
+	builder, err := client.Container().
 		From("golang:latest").
 		WithDirectory("/src", client.Host().Directory("."),
 			dagger.ContainerWithDirectoryOpts{
@@ -49,8 +55,14 @@ func build(ctx context.Context) error {
 		WithEnvVariable("GOMODCACHE", "/go/pkg/mod").
 		WithMountedCache("/go/build-cache", client.CacheVolume("go-build")).
 		WithEnvVariable("GOCACHE", "/go/build-cache").
-		WithExec([]string{"go", "build", "-o", outPath})
+		WithExec([]string{"go", "build", "-o", outPath}).
+		WithExec([]string{"go", "build", "-o", outPath, "./cmd/backplane"}).
+		Sync(ctx)
+	if err != nil {
+		return err
+	}
 
+	// 2. Run smoke test.
 	apoxyConfigSecret := client.SetSecret(
 		"apoxy-config-yaml",
 		fmt.Sprintf(apoxyConfigYAML, apoxyAPIKey),
@@ -77,8 +89,22 @@ func build(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-
 	fmt.Println(out)
+
+	// 3. Publish Backplane image.
+	_, err = client.Container().
+		From("cgr.dev/chainguard/wolfi-base:latest").
+		WithFile("/bin/backplane", builder.File(filepath.Join(outPath, "backplane"))).
+		WithEntrypoint([]string{"/bin/backplane"}).
+		WithRegistryAuth(
+			"docker.io",
+			"apoxy",
+			client.SetSecret("dockerhub-apoxy", os.Getenv("DOCKERHUB_APOXY")),
+		).
+		Publish(ctx, "docker.io/apoxy/backplane:"+sha)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }

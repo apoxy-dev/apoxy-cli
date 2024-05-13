@@ -27,11 +27,13 @@ func init() {
 }
 
 var (
-	projectID = flag.String("project_id", "", "Apoxy project UUID.")
-	proxyName = flag.String("proxy_name", "", "Name of the proxy to manage.")
+	projectID     = flag.String("project_id", "", "Apoxy project UUID.")
+	proxyName     = flag.String("proxy_name", "", "Name of the proxy to manage.")
+	apiserverHost = flag.String("apiserver_host", "localhost", "API server address.")
 )
 
 func main() {
+	flag.Parse()
 	projUUID, err := uuid.Parse(*projectID)
 	if err != nil {
 		log.Fatalf("invalid project UUID: %v", err)
@@ -41,7 +43,7 @@ func main() {
 	}
 
 	ctx := ctrl.SetupSignalHandler()
-	rC := apiserver.NewLocalClientConfig()
+	rC := apiserver.NewLocalClientConfig(*apiserverHost)
 	ctrl.SetLogger(zap.New(zap.UseDevMode(true))) // TODO(dilyevsky): Use default golang logger.
 	mgr, err := ctrl.NewManager(rC, ctrl.Options{
 		Cache: cache.Options{
@@ -66,4 +68,7 @@ func main() {
 		return
 	}
 
+	if err := mgr.Start(ctx); err != nil {
+		log.Fatalf("unable to start manager: %v", err)
+	}
 }
