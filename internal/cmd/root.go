@@ -11,8 +11,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/cobra/doc"
 
-	"github.com/apoxy-dev/apoxy-cli/cmd/alpha"
 	"github.com/apoxy-dev/apoxy-cli/config"
+	"github.com/apoxy-dev/apoxy-cli/internal/cmd/alpha"
 )
 
 // rootCmd represents the base command when called without any subcommands

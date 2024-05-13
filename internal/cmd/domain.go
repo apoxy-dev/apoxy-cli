@@ -14,8 +14,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
-	"github.com/apoxy-dev/apoxy-cli/cmd/utils"
 	"github.com/apoxy-dev/apoxy-cli/config"
+	"github.com/apoxy-dev/apoxy-cli/internal/cmd/utils"
 	"github.com/apoxy-dev/apoxy-cli/pretty"
 	"github.com/apoxy-dev/apoxy-cli/rest"
 )

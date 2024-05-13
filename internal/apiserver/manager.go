@@ -80,9 +80,17 @@ func newClient() *rest.Config {
 type Option func(*options)
 
 type options struct {
+	clientConfig          *rest.Config
 	enableAuth            bool
 	sqlitePath            string
 	certPairName, certDir string
+}
+
+// WithClientConfig sets the client configuration.
+func WithClientConfig(cfg *rest.Config) Option {
+	return func(o *options) {
+		o.clientConfig = cfg
+	}
 }
 
 // WithAuth enables authentication.
@@ -111,6 +119,7 @@ func WithCerts(certPairName, certDir string) Option {
 // defaultOptions returns default options.
 func defaultOptions() *options {
 	return &options{
+		clientConfig: NewLocalClientConfig(),
 		enableAuth:   false,
 		sqlitePath:   config.ApoxyDir() + "/apoxy.db",
 		certPairName: "",
@@ -137,7 +146,6 @@ func Start(
 		log.Fatalf("Failed to create authenticator: %v", err)
 	}
 
-	rC := newClient()
 	readyCh := make(chan struct{})
 	go func() {
 		if dOpts.sqlitePath != "" {
@@ -207,7 +215,7 @@ func Start(
 				// TODO(dilyevsky): Figure out how to make the listener flexible.
 				// c.SecureServing.Listener = lst
 
-				c.ClientConfig = rC
+				c.ClientConfig = dOpts.clientConfig
 
 				if dOpts.enableAuth {
 					// These are matched in order, so we want to match the header request
@@ -239,7 +247,7 @@ func Start(
 	}
 
 	ctrl.SetLogger(zap.New(zap.UseDevMode(true))) // TODO(dilyevsky): Use default golang logger.
-	mgr, err := ctrl.NewManager(rC, ctrl.Options{
+	mgr, err := ctrl.NewManager(dOpts.clientConfig, ctrl.Options{
 		Scheme:         scheme,
 		LeaderElection: false,
 	})
