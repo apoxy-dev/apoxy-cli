@@ -99,7 +99,7 @@ func build(ctx context.Context) error {
 		WithRegistryAuth(
 			"docker.io",
 			"apoxy",
-			client.SetSecret("dockerhub-apoxy", os.Getenv("DOCKERHUB_APOXY")),
+			client.SetSecret("dockerhub-apoxy", os.Getenv("APOXY_DOCKERHUB_PASSWORD")),
 		).
 		Publish(ctx, "docker.io/apoxy/backplane:"+sha)
 	if err != nil {
