@@ -109,7 +109,7 @@ func build(ctx context.Context) error {
 
 		v, err := client.Container(dagger.ContainerOpts{Platform: platform}).
 			From("cgr.dev/chainguard/wolfi-base:latest").
-			WithFile("/bin/backplane", builder.File(outPath)).
+			WithFile("/bin/backplane", builder.File(bpOut)).
 			WithFile("/bin/dial-stdio", builder.File(dsOut)).
 			WithEntrypoint([]string{"/bin/backplane"}).
 			Sync(ctx)
