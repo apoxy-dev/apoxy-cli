@@ -2,6 +2,7 @@ package build
 
 import (
 	"fmt"
+	"strings"
 )
 
 var (
@@ -11,6 +12,12 @@ var (
 	CommitHash   = "n/a"
 )
 
+// IsDev returns true if the build is a development build.
+func IsDev() bool {
+	return strings.HasSuffix(BuildVersion, "-dev")
+}
+
+// Version returns the version string in the format of "vX.Y.Z (<commit>), built <date>".
 func Version() string {
 	if BuildVersion == buildVersion {
 		return BuildVersion
@@ -18,6 +25,7 @@ func Version() string {
 	return fmt.Sprintf("v%s (%s), built %s", BuildVersion, CommitHash, BuildDate)
 }
 
+// UserAgent returns the user agent string.
 func UserAgent() string {
 	if BuildVersion == "dev" {
 		return fmt.Sprintf("apoxy-cli/%s", BuildVersion)

@@ -11,6 +11,7 @@ import (
 	"gopkg.in/yaml.v3"
 	"k8s.io/klog/v2"
 
+	"github.com/apoxy-dev/apoxy-cli/internal/log"
 	"github.com/apoxy-dev/apoxy-cli/rest"
 )
 
@@ -70,9 +71,11 @@ func Load() (*Config, error) {
 		slog.SetDefault(logger)
 		klog.SetSlogLogger(logger)
 		slog.Debug("Verbose logging enabled")
+		log.Init(slog.LevelDebug, false)
 	} else {
 		klog.SetOutput(ioutil.Discard)
 		klog.LogToStderr(false)
+		log.Init(slog.LevelInfo, false)
 	}
 
 	return cfg, nil

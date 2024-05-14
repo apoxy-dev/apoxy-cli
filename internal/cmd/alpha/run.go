@@ -16,7 +16,7 @@ import (
 	"github.com/apoxy-dev/apoxy-cli/config"
 	"github.com/apoxy-dev/apoxy-cli/internal/apiserver"
 	apiserverctrl "github.com/apoxy-dev/apoxy-cli/internal/apiserver/controllers"
-	bpctrl "github.com/apoxy-dev/apoxy-cli/internal/backplane/controllers"
+	"github.com/apoxy-dev/apoxy-cli/internal/backplane/drivers"
 	"github.com/apoxy-dev/apoxy-cli/internal/log"
 	"github.com/apoxy-dev/apoxy-cli/rest"
 
@@ -127,6 +127,11 @@ var runCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cmd.SilenceUsage = true
+		_, err := config.Load()
+		if err != nil {
+			return err
+		}
+
 		path := args[0]
 		proxyName, err := proxyName(path)
 		if err != nil {
@@ -143,20 +148,10 @@ var runCmd = &cobra.Command{
 			}
 			startCh <- nil
 
-			projID := uuid.New()
 			if err := apiserverctrl.NewProxyReconciler(
 				mgr.GetClient(),
 			).SetupWithManager(cmd.Context(), mgr); err != nil {
 				log.Errorf("failed to set up Project controller: %v", err)
-				return
-			}
-
-			if err := bpctrl.NewProxyReconciler(
-				mgr.GetClient(),
-				projID,
-				proxyName,
-			).SetupWithManager(cmd.Context(), mgr, proxyName); err != nil {
-				log.Errorf("failed to set up Backplane controller: %v", err)
 				return
 			}
 
@@ -171,6 +166,12 @@ var runCmd = &cobra.Command{
 			}
 		case <-cmd.Context().Done():
 			return nil
+		}
+
+		projID := uuid.New()
+		d := drivers.GetDriver("local")
+		if err := d.Start(cmd.Context(), projID, proxyName); err != nil {
+			return err
 		}
 
 		if err := watchAndReloadProxy(cmd.Context(), path); err != nil {
