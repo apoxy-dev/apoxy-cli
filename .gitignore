@@ -1,4 +1,6 @@
 apoxy-cli
 apoxy
 /backplane
+/dial-stdio
 dist/
+/main

@@ -99,15 +99,18 @@ func build(ctx context.Context) error {
 	var vars []*dagger.Container
 	for _, platform := range []dagger.Platform{"linux/amd64", "linux/arm64"} {
 		goarch := archOf(platform)
-		outPath := filepath.Join("build", goarch)
+		bpOut := filepath.Join("build", "backplane-"+goarch)
+		dsOut := filepath.Join("build", "dial-stdio-"+goarch)
 
 		builder = builder.
 			WithEnvVariable("GOARCH", goarch).
-			WithExec([]string{"go", "build", "-o", outPath, "./cmd/backplane"})
+			WithExec([]string{"go", "build", "-o", bpOut, "./cmd/backplane"}).
+			WithExec([]string{"go", "build", "-o", dsOut, "./cmd/dial-stdio"})
 
 		v, err := client.Container(dagger.ContainerOpts{Platform: platform}).
 			From("cgr.dev/chainguard/wolfi-base:latest").
 			WithFile("/bin/backplane", builder.File(outPath)).
+			WithFile("/bin/dial-stdio", builder.File(dsOut)).
 			WithEntrypoint([]string{"/bin/backplane"}).
 			Sync(ctx)
 		if err != nil {

@@ -4,6 +4,7 @@ package log
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -52,6 +53,10 @@ var DefaultLogger = slog.Default()
 // Init initializes the logger.
 func Init(level slog.Level, json bool) {
 	setLogger(level, json)
+}
+
+func Disable() {
+	slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, nil)))
 }
 
 func logf(level slog.Level, format string, args ...any) {
