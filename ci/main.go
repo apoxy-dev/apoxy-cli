@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"dagger.io/dagger"
+	"github.com/containerd/containerd/platforms"
 )
 
 var apoxyConfigYAML = `api_key: %s
@@ -21,6 +22,10 @@ func main() {
 	if err := build(context.Background()); err != nil {
 		log.Fatalf("failed to build: %v", err)
 	}
+}
+
+func archOf(p dagger.Platform) string {
+	return platforms.MustParse(string(p)).Architecture
 }
 
 func build(ctx context.Context) error {
@@ -56,7 +61,6 @@ func build(ctx context.Context) error {
 		WithMountedCache("/go/build-cache", client.CacheVolume("go-build")).
 		WithEnvVariable("GOCACHE", "/go/build-cache").
 		WithExec([]string{"go", "build", "-o", outPath}).
-		WithExec([]string{"go", "build", "-o", outPath, "./cmd/backplane"}).
 		Sync(ctx)
 	if err != nil {
 		return err
@@ -91,17 +95,38 @@ func build(ctx context.Context) error {
 	}
 	fmt.Println(out)
 
-	// 3. Publish Backplane image.
+	// 3. Build and publish multi-arch Backplane images.
+	var vars []*dagger.Container
+	for _, platform := range []dagger.Platform{"linux/amd64", "linux/arm64"} {
+		goarch := archOf(platform)
+		outPath := filepath.Join("build", goarch)
+
+		builder = builder.
+			WithEnvVariable("GOARCH", goarch).
+			WithExec([]string{"go", "build", "-o", outPath, "./cmd/backplane"})
+
+		v, err := client.Container(dagger.ContainerOpts{Platform: platform}).
+			From("cgr.dev/chainguard/wolfi-base:latest").
+			WithFile("/bin/backplane", builder.File(outPath)).
+			WithEntrypoint([]string{"/bin/backplane"}).
+			Sync(ctx)
+		if err != nil {
+			return err
+		}
+
+		vars = append(vars, v)
+	}
+
+	pubOpts := dagger.ContainerPublishOpts{
+		PlatformVariants: vars,
+	}
 	_, err = client.Container().
-		From("cgr.dev/chainguard/wolfi-base:latest").
-		WithFile("/bin/backplane", builder.File(filepath.Join(outPath, "backplane"))).
-		WithEntrypoint([]string{"/bin/backplane"}).
 		WithRegistryAuth(
 			"docker.io",
 			"apoxy",
 			client.SetSecret("dockerhub-apoxy", os.Getenv("APOXY_DOCKERHUB_PASSWORD")),
 		).
-		Publish(ctx, "docker.io/apoxy/backplane:"+sha)
+		Publish(ctx, "docker.io/apoxy/backplane:"+sha, pubOpts)
 	if err != nil {
 		return err
 	}
