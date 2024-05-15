@@ -16,7 +16,8 @@ import (
 	"github.com/apoxy-dev/apoxy-cli/config"
 	"github.com/apoxy-dev/apoxy-cli/internal/apiserver"
 	apiserverctrl "github.com/apoxy-dev/apoxy-cli/internal/apiserver/controllers"
-	"github.com/apoxy-dev/apoxy-cli/internal/backplane/drivers"
+	bpdrivers "github.com/apoxy-dev/apoxy-cli/internal/backplane/drivers"
+	chdrivers "github.com/apoxy-dev/apoxy-cli/internal/clickhouse/drivers"
 	"github.com/apoxy-dev/apoxy-cli/internal/log"
 	"github.com/apoxy-dev/apoxy-cli/rest"
 
@@ -169,8 +170,19 @@ var runCmd = &cobra.Command{
 		}
 
 		projID := uuid.New()
-		d := drivers.GetDriver("local")
-		if err := d.Start(cmd.Context(), projID, proxyName); err != nil {
+		bpDriver, err := bpdrivers.GetDriver("docker")
+		if err != nil {
+			return err
+		}
+		if err := bpDriver.Start(cmd.Context(), projID, proxyName); err != nil {
+			return err
+		}
+
+		chDriver, err := chdrivers.GetDriver("docker")
+		if err != nil {
+			return err
+		}
+		if err := chDriver.Start(cmd.Context()); err != nil {
 			return err
 		}
 
