@@ -40,7 +40,9 @@ func (fs tmplFS) Open(name string) (fs.File, error) {
 		return f, nil
 	}
 	return &tmplFile{
-		src:  f,
+		src: f,
+		// 4KB should be enough for everyone.
+		buf:  make([]byte, 4096),
 		data: fs.data,
 	}, nil
 }
@@ -48,6 +50,7 @@ func (fs tmplFS) Open(name string) (fs.File, error) {
 // tmplFile is a wrapper around embed.FS that implements fs.File.
 type tmplFile struct {
 	src  fs.File
+	buf  []byte
 	data any
 }
 
@@ -58,14 +61,18 @@ func (f *tmplFile) Stat() (fs.FileInfo, error) {
 
 // Read reads up to len(p) bytes into p.
 func (f *tmplFile) Read(p []byte) (n int, err error) {
-	n, err = f.src.Read(p)
+	n, err = f.src.Read(f.buf)
 	if err != nil {
 		return 0, err
+	}
+	// If the buffer is full, it means the file is too big.
+	if n == len(f.buf) {
+		return 0, fmt.Errorf("buffer is too small")
 	}
 
 	log.Debugf("read %d bytes from file", n)
 
-	tmpl, err := template.New("").Parse(string(p[:n]))
+	tmpl, err := template.New("").Parse(string(f.buf[:n]))
 	if err != nil {
 		return 0, err
 	}
@@ -77,6 +84,10 @@ func (f *tmplFile) Read(p []byte) (n int, err error) {
 	}
 
 	log.Debugf("rendered template: %s", buf.String())
+
+	if len(p) < buf.Len() {
+		return 0, fmt.Errorf("buffer is too small")
+	}
 
 	return copy(p, buf.Bytes()), nil
 }
