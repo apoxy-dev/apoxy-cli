@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
@@ -18,6 +19,9 @@ import (
 
 const (
 	NetworkName = "apoxy"
+
+	statusWaitTimeout  = 5 * time.Second
+	statusWaitInterval = 500 * time.Millisecond
 )
 
 type Option func(*options)
@@ -143,4 +147,31 @@ func Collect(ctx context.Context, namePrefix, imageRef string, opts ...Option) (
 	}
 
 	return containerName, found, nil
+}
+
+// WaitForStatus waits for the container to be in the desired status.
+func WaitForStatus(ctx context.Context, container string, status string) error {
+	log.Debugf("waiting for container %q to be %q", container, status)
+	wCtx, cancel := context.WithTimeout(ctx, statusWaitTimeout)
+	defer cancel()
+	for {
+		cmd := exec.CommandContext(wCtx,
+			"docker", "inspect",
+			"--format", "{{.State.Status}}",
+			container,
+		)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			log.Debugf("Failed to inspect container %q: %v", container, err)
+		} else if strings.TrimSpace(string(out)) == status {
+			return nil
+		}
+
+		select {
+		case <-wCtx.Done():
+			return fmt.Errorf("Timed out waiting for container %q to be %q", container, status)
+		case <-time.After(statusWaitInterval):
+		}
+	}
+	panic("unreachable")
 }

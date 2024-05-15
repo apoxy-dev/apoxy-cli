@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"os/exec"
 
+	"github.com/google/uuid"
+
+	"github.com/apoxy-dev/apoxy-cli/internal/clickhouse/migrations"
 	"github.com/apoxy-dev/apoxy-cli/internal/log"
 	dockerutils "github.com/apoxy-dev/apoxy-cli/internal/utils/docker"
 )
@@ -18,7 +21,7 @@ const (
 // Driver is the interface to deploy ClickHouse server.
 type Driver interface {
 	// Start deploys the ClickHouse server.
-	Start(ctx context.Context) error
+	Start(ctx context.Context, orgID uuid.UUID) error
 }
 
 // GetDriver returns a driver by name.
@@ -33,7 +36,7 @@ func GetDriver(driver string) (Driver, error) {
 type dockerDriver struct{}
 
 // Start starts a ClickHouse container if it's not already running.
-func (d *dockerDriver) Start(ctx context.Context) error {
+func (d *dockerDriver) Start(ctx context.Context, orgID uuid.UUID) error {
 	cname, found, err := dockerutils.Collect(ctx, containerNamePrefix, clickhouseImage)
 	if err != nil {
 		return err
@@ -53,7 +56,6 @@ func (d *dockerDriver) Start(ctx context.Context) error {
 
 	cmd := exec.CommandContext(ctx,
 		"docker", "run",
-		"--rm",
 		"--network", dockerutils.NetworkName,
 		"--name", cname,
 		// Increase the number of open files limit.
@@ -63,5 +65,20 @@ func (d *dockerDriver) Start(ctx context.Context) error {
 		"-p", "9009:9009",
 		clickhouseImage,
 	)
-	return cmd.Start()
+
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("failed to start clickhouse server: %w", err)
+	}
+
+	if err := dockerutils.WaitForStatus(ctx, cname, "running"); err != nil {
+		return fmt.Errorf("failed to start clickhouse server: %w", err)
+	}
+
+	log.Infof("clickhouse server %q started, running migrations...", cname)
+
+	if err := migrations.Run("localhost:9000", orgID); err != nil {
+		return fmt.Errorf("failed to run migrations: %w", err)
+	}
+
+	return nil
 }
