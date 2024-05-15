@@ -123,15 +123,17 @@ func build(ctx context.Context) error {
 	pubOpts := dagger.ContainerPublishOpts{
 		PlatformVariants: vars,
 	}
-	_, err = client.Container().
-		WithRegistryAuth(
-			"docker.io",
-			"apoxy",
-			client.SetSecret("dockerhub-apoxy", os.Getenv("APOXY_DOCKERHUB_PASSWORD")),
-		).
-		Publish(ctx, "docker.io/apoxy/backplane:"+sha, pubOpts)
-	if err != nil {
-		return err
+	for _, tag := range []string{"latest", sha} {
+		_, err = client.Container().
+			WithRegistryAuth(
+				"docker.io",
+				"apoxy",
+				client.SetSecret("dockerhub-apoxy", os.Getenv("APOXY_DOCKERHUB_PASSWORD")),
+			).
+			Publish(ctx, "docker.io/apoxy/backplane:"+tag, pubOpts)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
