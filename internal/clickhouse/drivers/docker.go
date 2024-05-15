@@ -56,6 +56,8 @@ func (d *dockerDriver) Start(ctx context.Context) error {
 		"--rm",
 		"--network", dockerutils.NetworkName,
 		"--name", cname,
+		// Increase the number of open files limit.
+		"--ulimit", "nofile=262144:262144",
 		"-p", "8123:8123",
 		"-p", "9000:9000",
 		"-p", "9009:9009",
