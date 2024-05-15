@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/google/uuid"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/utils/pointer"
@@ -17,6 +18,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/apoxy-dev/apoxy-cli/internal/backplane/envoy"
+	"github.com/apoxy-dev/apoxy-cli/internal/backplane/logs"
 
 	ctrlv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
 )
@@ -34,6 +36,7 @@ type ProxyReconciler struct {
 
 	orgID    uuid.UUID
 	machName string
+	chConn   clickhouse.Conn
 }
 
 // NewProxyReconciler returns a new reconcile.Reconciler for Proxy objects.
@@ -41,11 +44,13 @@ func NewProxyReconciler(
 	c client.Client,
 	orgID uuid.UUID,
 	machName string,
+	chConn clickhouse.Conn,
 ) *ProxyReconciler {
 	return &ProxyReconciler{
 		Client:   c,
 		orgID:    orgID,
 		machName: machName,
+		chConn:   chConn,
 	}
 }
 
@@ -111,8 +116,14 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 
 	var requeueAfter time.Duration
 	if ps.StartedAt.IsZero() {
+		pUUID, _ := uuid.Parse(string(p.UID))
+		logsCollector := logs.NewClickHouseLogsCollector(r.chConn, pUUID)
 		// TODO(dsky): Support Starlark config render here.
-		if err := r.Start(ctx, envoy.WithBootstrapConfigYAML(p.Spec.Config)); err != nil {
+		if err := r.Start(
+			ctx,
+			envoy.WithBootstrapConfigYAML(p.Spec.Config),
+			envoy.WithLogsCollector(logsCollector),
+		); err != nil {
 			if fatalErr, ok := err.(envoy.FatalError); ok {
 				status.Phase = ctrlv1alpha1.ProxyReplicaPhaseFailed
 				status.Reason = fmt.Sprintf("failed to create proxy replica: %v", fatalErr)

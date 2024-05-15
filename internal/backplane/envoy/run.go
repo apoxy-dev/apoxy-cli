@@ -18,11 +18,15 @@ import (
 	"github.com/shirou/gopsutil/process"
 
 	"github.com/apoxy-dev/apoxy-cli/config"
+	"github.com/apoxy-dev/apoxy-cli/internal/backplane/logs"
 	"github.com/apoxy-dev/apoxy-cli/internal/log"
 )
 
 const (
 	githubURL = "github.com/envoyproxy/envoy/releases/download"
+
+	accessLogsPath = "/var/log/accesslogs"
+	tapsPath       = "/var/log/taps"
 )
 
 var (
@@ -105,6 +109,13 @@ func WithRelease(release *Release) Option {
 	}
 }
 
+// WithLogsCollector sets the logs collector.
+func WithLogsCollector(c logs.LogsCollector) Option {
+	return func(r *Runtime) {
+		r.logs = c
+	}
+}
+
 // Runtime vendors the Envoy binary and runs it.
 type Runtime struct {
 	EnvoyPath           string
@@ -116,6 +127,8 @@ type Runtime struct {
 
 	exitCh chan struct{}
 	cmd    *exec.Cmd
+	logs   logs.LogsCollector
+
 	mu     sync.RWMutex
 	status RuntimeStatus
 }
@@ -145,9 +158,26 @@ func (r *Runtime) run(ctx context.Context) error {
 		args = append(args, "-c", r.BootstrapConfigPath)
 	}
 
-	args = append(args, r.Args...)
+	rCtx, cancel := context.WithCancelCause(ctx)
+	if r.logs != nil {
+		go func() {
+			err := r.logs.CollectAccessLogs(ctx, accessLogsPath)
+			if err != nil {
+				log.Errorf("failed to collect access logs: %v", err)
+				cancel(fmt.Errorf("access logs collector failed: %v", err))
+			}
+		}()
+		go func() {
+			err := r.logs.CollectTaps(ctx, tapsPath)
+			if err != nil {
+				cancel(fmt.Errorf("taps collector failed: %v", err))
+				log.Errorf("failed to collect taps: %v", err)
+			}
+		}()
+	}
 
-	r.cmd = exec.CommandContext(ctx, r.envoyPath(), args...)
+	args = append(args, r.Args...)
+	r.cmd = exec.CommandContext(rCtx, r.envoyPath(), args...)
 	r.cmd.Stdout = os.Stdout
 	r.cmd.Stderr = os.Stderr
 
@@ -161,7 +191,7 @@ func (r *Runtime) run(ctx context.Context) error {
 		r.mu.Unlock()
 		return fmt.Errorf("failed to find envoy process: %w", err)
 	}
-	ctime, err := p.CreateTimeWithContext(ctx)
+	ctime, err := p.CreateTimeWithContext(rCtx)
 	if err != nil {
 		r.mu.Unlock()
 		return fmt.Errorf("failed to get envoy process create time: %w", err)
