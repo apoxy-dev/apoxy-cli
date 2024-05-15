@@ -37,7 +37,7 @@ type dockerDriver struct{}
 func imageRef() string {
 	imgTag := build.BuildVersion
 	if build.IsDev() {
-		imgTag = "lates	t"
+		imgTag = "latest"
 	}
 	return imageRepo + ":" + imgTag
 }
