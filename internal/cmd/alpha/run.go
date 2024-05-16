@@ -170,19 +170,28 @@ var runCmd = &cobra.Command{
 		}
 
 		orgID := uuid.New()
-		bpDriver, err := bpdrivers.GetDriver("docker")
-		if err != nil {
-			return err
-		}
-		if err := bpDriver.Start(cmd.Context(), orgID, proxyName); err != nil {
-			return err
-		}
-
 		chDriver, err := chdrivers.GetDriver("docker")
 		if err != nil {
 			return err
 		}
 		if err := chDriver.Start(cmd.Context(), orgID); err != nil {
+			return err
+		}
+		chAddr, err := chDriver.GetAddr(cmd.Context())
+		if err != nil {
+			return err
+		}
+
+		bpDriver, err := bpdrivers.GetDriver("docker")
+		if err != nil {
+			return err
+		}
+		if err := bpDriver.Start(
+			cmd.Context(),
+			orgID,
+			proxyName,
+			bpdrivers.WithArgs("--ch_addrs", chAddr+":9000"),
+		); err != nil {
 			return err
 		}
 

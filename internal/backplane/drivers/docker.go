@@ -18,9 +18,26 @@ const (
 	imageRepo           = "docker.io/apoxy/backplane"
 )
 
+type Option func(*options)
+
+type options struct {
+	Args []string
+}
+
+func defaultOptions() *options {
+	return &options{}
+}
+
+// WithArgs sets the arguments for the driver.
+func WithArgs(args ...string) Option {
+	return func(o *options) {
+		o.Args = args
+	}
+}
+
 type Driver interface {
 	// Deploy deploys the proxy.
-	Start(ctx context.Context, orgID uuid.UUID, proxyName string) error
+	Start(ctx context.Context, orgID uuid.UUID, proxyName string, opts ...Option) error
 }
 
 // GetDriver returns a driver by name.
@@ -42,7 +59,16 @@ func imageRef() string {
 	return imageRepo + ":" + imgTag
 }
 
-func (d *dockerDriver) Start(ctx context.Context, orgID uuid.UUID, proxyName string) error {
+func (d *dockerDriver) Start(
+	ctx context.Context,
+	orgID uuid.UUID,
+	proxyName string,
+	opts ...Option,
+) error {
+	setOpts := defaultOptions()
+	for _, opt := range opts {
+		opt(setOpts)
+	}
 	imageRef := imageRef()
 	cname, found, err := dockerutils.Collect(
 		ctx, containerNamePrefix, imageRef, dockerutils.WithLabel("org.apoxy.machine", proxyName))
@@ -67,12 +93,10 @@ func (d *dockerDriver) Start(ctx context.Context, orgID uuid.UUID, proxyName str
 
 	log.Infof("Starting container %s", cname)
 	cmd := exec.CommandContext(ctx,
-		"docker",
-		"run",
+		"docker", "run",
+		"--rm",
 		"--name", cname,
 		"--label", "org.apoxy.machine="+proxyName,
-		"-d",
-		"--restart", "always",
 		"--privileged",
 		"--network", dockerutils.NetworkName,
 	)
@@ -83,8 +107,17 @@ func (d *dockerDriver) Start(ctx context.Context, orgID uuid.UUID, proxyName str
 		"--proxy_name=" + proxyName,
 		"--apiserver_host=host.docker.internal",
 	}...)
+	cmd.Args = append(cmd.Args, setOpts.Args...)
 
 	log.Debugf("Running command: %v", cmd.String())
 
-	return cmd.Start()
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("failed to start clickhouse server: %w", err)
+	}
+
+	if err := dockerutils.WaitForStatus(ctx, cname, "running"); err != nil {
+		return fmt.Errorf("failed to start clickhouse server: %w", err)
+	}
+
+	return nil
 }

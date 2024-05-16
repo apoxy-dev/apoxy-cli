@@ -22,6 +22,9 @@ const (
 type Driver interface {
 	// Start deploys the ClickHouse server.
 	Start(ctx context.Context, orgID uuid.UUID) error
+
+	// GetAddr returns the address of the ClickHouse server.
+	GetAddr(ctx context.Context) (string, error)
 }
 
 // GetDriver returns a driver by name.
@@ -56,10 +59,11 @@ func (d *dockerDriver) Start(ctx context.Context, orgID uuid.UUID) error {
 
 	cmd := exec.CommandContext(ctx,
 		"docker", "run",
-		"--network", dockerutils.NetworkName,
 		"--name", cname,
+		"--rm",
 		// Increase the number of open files limit.
 		"--ulimit", "nofile=262144:262144",
+		"--network", dockerutils.NetworkName,
 		"-p", "8123:8123",
 		"-p", "9000:9000",
 		"-p", "9009:9009",
@@ -81,4 +85,15 @@ func (d *dockerDriver) Start(ctx context.Context, orgID uuid.UUID) error {
 	}
 
 	return nil
+}
+
+func (d *dockerDriver) GetAddr(ctx context.Context) (string, error) {
+	cname, found, err := dockerutils.Collect(ctx, containerNamePrefix, clickhouseImage)
+	if err != nil {
+		return "", err
+	} else if !found {
+		return "", fmt.Errorf("clickhouse server not found")
+	}
+
+	return cname, nil
 }
