@@ -268,19 +268,18 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 			status.Phase = ctrlv1alpha1.ProxyReplicaPhaseRunning
 			status.Reason = "Running"
 
+			// Update the status with the ports that the proxy is listening on.
 			ls, err := getListenerStatuses(p)
 			if err != nil {
 				return reconcile.Result{}, fmt.Errorf("failed to get admin listeners: %w", err)
 			}
+			ports := make([]string, 0, len(ls))
 			for _, l := range ls {
 				// TODO(dsky): Support UDP protocol - we will need to query the kernel or fix Envoy to report it.
 				proto := "tcp"
-				status.Ports = append(status.Ports, fmt.Sprintf("%d/%s", l.LocalAddress.SocketAddress.PortValue, proto))
+				ports = append(ports, fmt.Sprintf("%d/%s", l.LocalAddress.SocketAddress.PortValue, proto))
 			}
-
-			if err := r.Status().Update(ctx, p); err != nil {
-				return reconcile.Result{}, fmt.Errorf("failed to update proxy replica status: %w", err)
-			}
+			status.Ports = ports
 
 			return reconcile.Result{}, nil
 		} else {
