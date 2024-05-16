@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"flag"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -18,15 +19,16 @@ import (
 	apiserveropts "k8s.io/apiserver/pkg/server/options"
 	"k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/rest"
+	"k8s.io/klog/v2"
 	netutils "k8s.io/utils/net"
 	"sigs.k8s.io/apiserver-runtime/pkg/builder"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	"github.com/apoxy-dev/apoxy-cli/config"
 	"github.com/apoxy-dev/apoxy-cli/internal/apiserver/auth"
 	"github.com/apoxy-dev/apoxy-cli/internal/log"
+	"github.com/sirupsen/logrus"
 
 	ctrlv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
 	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
@@ -146,6 +148,12 @@ func Start(
 		log.Fatalf("Failed to create authenticator: %v", err)
 	}
 
+	l := log.New(config.Verbose)
+	ctrl.SetLogger(l)
+	klog.SetLogger(l)
+	// Disables useless kine logging.
+	logrus.SetOutput(io.Discard)
+
 	readyCh := make(chan struct{})
 	go func() {
 		if dOpts.sqlitePath != "" {
@@ -180,6 +188,9 @@ func Start(
 			WithResourceAndStorage(&ctrlv1alpha1.ProxyDeployment{}, NewKineStorage(ctx, "sqlite://"+dOpts.sqlitePath)).
 			DisableAuthorization().
 			WithOptionsFns(func(o *builder.ServerOptions) *builder.ServerOptions {
+				o.StdErr = io.Discard
+				o.StdOut = io.Discard
+
 				o.RecommendedOptions.CoreAPI = nil
 				o.RecommendedOptions.Admission = nil
 				o.RecommendedOptions.Authentication = nil
@@ -246,7 +257,6 @@ func Start(
 	case <-readyCh:
 	}
 
-	ctrl.SetLogger(zap.New(zap.UseDevMode(true))) // TODO(dilyevsky): Use default golang logger.
 	mgr, err := ctrl.NewManager(dOpts.clientConfig, ctrl.Options{
 		Scheme:         scheme,
 		LeaderElection: false,

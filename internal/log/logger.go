@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"time"
+
+	"github.com/go-logr/logr"
 )
 
 func setLogger(level LogLevel, json bool) {
@@ -100,4 +102,15 @@ func Fatalf(format string, args ...any) {
 	level := slog.LevelError
 	logf(level, format, args...)
 	os.Exit(1)
+}
+
+// New returns a new logr.Logger.
+func New(enabled bool) logr.Logger {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	}))
+	if !enabled {
+		logger = slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
+	}
+	return logr.FromSlogHandler(logger.Handler())
 }
