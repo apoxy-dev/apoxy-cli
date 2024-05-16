@@ -93,19 +93,16 @@ func (lc *chLogsCollector) writeAccessLog(ctx context.Context, data []byte) erro
 // CollectAccessLogs collects access logs from the given path.
 func (lc *chLogsCollector) CollectAccessLogs(ctx context.Context, path string) error {
 	fs, err := os.Stat(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-				return err
-			}
-			if _, err := os.Create(path); err != nil {
-				return err
-			}
-		} else {
+	if os.IsNotExist(err) {
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 			return err
 		}
-	}
-	if fs.IsDir() {
+		if _, err := os.Create(path); err != nil {
+			return err
+		}
+	} else if err != nil {
+		return fmt.Errorf("failed to stat access log path: %w", err)
+	} else if fs.IsDir() {
 		return fmt.Errorf("access log path is a directory: %s", path)
 	}
 

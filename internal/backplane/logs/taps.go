@@ -254,16 +254,13 @@ func (lc *chLogsCollector) processTapsDir(ctx context.Context, dirPath string) e
 func (lc *chLogsCollector) CollectTaps(ctx context.Context, dirPath string) error {
 	log.Infof("Collecting taps from: %s", dirPath)
 	ds, err := os.Stat(dirPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			if err := os.MkdirAll(dirPath, 0755); err != nil {
-				return fmt.Errorf("Failed to create taps dir: %s", err)
-			}
-		} else {
-			return err
+	if os.IsNotExist(err) {
+		if err := os.MkdirAll(dirPath, 0755); err != nil {
+			return fmt.Errorf("Failed to create taps dir: %s", err)
 		}
-	}
-	if !ds.IsDir() {
+	} else if err != nil {
+		return fmt.Errorf("Failed to stat directory: %s", err)
+	} else if !ds.IsDir() {
 		return fmt.Errorf("%s is not a directory", dirPath)
 	}
 
