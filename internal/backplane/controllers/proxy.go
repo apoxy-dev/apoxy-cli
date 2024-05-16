@@ -255,60 +255,59 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 			return reconcile.Result{}, fmt.Errorf("failed to update proxy replica status: %w", err)
 		}
 
+		// Requeue after a short delay to check the status of the proxy.
 		return reconcile.Result{RequeueAfter: 2 * time.Second}, nil
+	}
+
+	if ps.Running {
+		// TODO(dsky): Also needs a detach loop.
+		log.Info("Proxy is running", "start_time", ps.StartedAt)
+		//for _, addr := range p.Status.IPs {
+		//	if err := r.attachAddr(ctx, addr); err != nil {
+		//		return reconcile.Result{}, fmt.Errorf("failed to set address: %w", err)
+		//	}
+		//}
+		status.Phase = ctrlv1alpha1.ProxyReplicaPhaseRunning
+		status.Reason = "Running"
+
+		// Update the status with the ports that the proxy is listening on.
+		ls, err := getListenerStatuses(p)
+		if err != nil {
+			return reconcile.Result{}, fmt.Errorf("failed to get admin listeners: %w", err)
+		}
+		ports := make([]string, 0, len(ls))
+		for _, l := range ls {
+			// TODO(dsky): Support UDP protocol - we will need to query the kernel or fix Envoy to report it.
+			proto := "tcp"
+			ports = append(ports, fmt.Sprintf("%d/%s", l.LocalAddress.SocketAddress.PortValue, proto))
+		}
+		status.Ports = ports
 	} else {
-		if ps.Running {
-			// TODO(dsky): Also needs a detach loop.
-			log.Info("Proxy is running", "start_time", ps.StartedAt)
-			//for _, addr := range p.Status.IPs {
-			//	if err := r.attachAddr(ctx, addr); err != nil {
-			//		return reconcile.Result{}, fmt.Errorf("failed to set address: %w", err)
-			//	}
-			//}
-			status.Phase = ctrlv1alpha1.ProxyReplicaPhaseRunning
-			status.Reason = "Running"
-
-			// Update the status with the ports that the proxy is listening on.
-			ls, err := getListenerStatuses(p)
-			if err != nil {
-				return reconcile.Result{}, fmt.Errorf("failed to get admin listeners: %w", err)
-			}
-			ports := make([]string, 0, len(ls))
-			for _, l := range ls {
-				// TODO(dsky): Support UDP protocol - we will need to query the kernel or fix Envoy to report it.
-				proto := "tcp"
-				ports = append(ports, fmt.Sprintf("%d/%s", l.LocalAddress.SocketAddress.PortValue, proto))
-			}
-			status.Ports = ports
-
-			return reconcile.Result{}, nil
-		} else {
-			switch status.Phase {
-			case ctrlv1alpha1.ProxyReplicaPhasePending:
-				if time.Now().After(status.CreatedAt.Time.Add(proxyReplicaPendingTimeout)) {
-					log.Error(nil, "Proxy replica failed to start in time", "timeout", proxyReplicaPendingTimeout, "start_time", ps.StartedAt)
-					status.Phase = ctrlv1alpha1.ProxyReplicaPhaseFailed
-					status.Reason = "Proxy replica failed to start"
-				} else {
-					status.Phase = ctrlv1alpha1.ProxyReplicaPhasePending
-					status.Reason = "Proxy replica is being created"
-				}
-				requeueAfter = 2 * time.Second
-			case ctrlv1alpha1.ProxyReplicaPhaseRunning:
+		switch status.Phase {
+		case ctrlv1alpha1.ProxyReplicaPhasePending:
+			if time.Now().After(status.CreatedAt.Time.Add(proxyReplicaPendingTimeout)) {
+				log.Error(nil, "Proxy replica failed to start in time", "timeout", proxyReplicaPendingTimeout, "start_time", ps.StartedAt)
 				status.Phase = ctrlv1alpha1.ProxyReplicaPhaseFailed
-				status.Reason = fmt.Sprintf("Proxy replica exited: %v", ps.ProcState)
-			case ctrlv1alpha1.ProxyReplicaPhaseTerminating:
-				status.Phase = ctrlv1alpha1.ProxyReplicaPhaseStopped
-				status.Reason = "Proxy replica stopped"
-			case ctrlv1alpha1.ProxyReplicaPhaseFailed, ctrlv1alpha1.ProxyReplicaPhaseStopped: // Do nothing.
-			default:
-				return reconcile.Result{}, fmt.Errorf("unknown proxy replica phase: %v", status.Phase)
+				status.Reason = "Proxy replica failed to start"
+			} else {
+				status.Phase = ctrlv1alpha1.ProxyReplicaPhasePending
+				status.Reason = "Proxy replica is being created"
+				requeueAfter = 2 * time.Second
 			}
+		case ctrlv1alpha1.ProxyReplicaPhaseRunning:
+			status.Phase = ctrlv1alpha1.ProxyReplicaPhaseFailed
+			status.Reason = fmt.Sprintf("Proxy replica exited: %v", ps.ProcState)
+		case ctrlv1alpha1.ProxyReplicaPhaseTerminating:
+			status.Phase = ctrlv1alpha1.ProxyReplicaPhaseStopped
+			status.Reason = "Proxy replica stopped"
+		case ctrlv1alpha1.ProxyReplicaPhaseFailed, ctrlv1alpha1.ProxyReplicaPhaseStopped: // Do nothing.
+		default:
+			return reconcile.Result{}, fmt.Errorf("unknown proxy replica phase: %v", status.Phase)
 		}
+	}
 
-		if err := r.Status().Update(ctx, p); err != nil {
-			return reconcile.Result{}, fmt.Errorf("failed to update proxy replica status: %w", err)
-		}
+	if err := r.Status().Update(ctx, p); err != nil {
+		return reconcile.Result{}, fmt.Errorf("failed to update proxy replica status: %w", err)
 	}
 
 	return reconcile.Result{RequeueAfter: requeueAfter}, nil
