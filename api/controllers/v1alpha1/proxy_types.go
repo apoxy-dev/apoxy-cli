@@ -87,6 +87,10 @@ type ProxyReplicaStatus struct {
 	// Reason for the current phase.
 	// +optional
 	Reason string `json:"reason,omitempty"`
+
+	// Open ports of the proxy in the format of <port>/<protocol>.
+	// +optional
+	Ports []string `json:"ports,omitempty"`
 }
 
 // ProxyStatus defines the observed state of Proxy.

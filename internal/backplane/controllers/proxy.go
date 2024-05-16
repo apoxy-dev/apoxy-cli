@@ -2,11 +2,18 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
+	goerrors "errors"
 	"fmt"
+	"net"
+	"net/http"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
+	bootstrapv3 "github.com/envoyproxy/go-control-plane/envoy/config/bootstrap/v3"
+	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	"github.com/google/uuid"
+	"google.golang.org/protobuf/encoding/protojson"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -16,6 +23,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/yaml"
 
 	"github.com/apoxy-dev/apoxy-cli/internal/backplane/envoy"
 	"github.com/apoxy-dev/apoxy-cli/internal/backplane/logs"
@@ -54,13 +62,98 @@ func NewProxyReconciler(
 	}
 }
 
-func findStatus(name string, p *ctrlv1alpha1.Proxy) (*ctrlv1alpha1.ProxyReplicaStatus, bool) {
+func findReplicaStatus(name string, p *ctrlv1alpha1.Proxy) (*ctrlv1alpha1.ProxyReplicaStatus, bool) {
 	for i := range p.Status.Replicas {
 		if p.Status.Replicas[i].Name == name {
 			return p.Status.Replicas[i], true
 		}
 	}
 	return nil, false
+}
+
+func nodeID(p *ctrlv1alpha1.Proxy) string {
+	return fmt.Sprintf("%s-%s", p.Name, &p.ObjectMeta.ResourceVersion)
+}
+
+func adminUDSPath(nodeID string) string {
+	return fmt.Sprintf("/tmp/admin_%s.sock", nodeID)
+}
+
+func validateBootstrapConfig(nodeID, config string) (string, error) {
+	pb := &bootstrapv3.Bootstrap{}
+	if config == "" {
+		return "", goerrors.New("bootstrap config is empty")
+	}
+	jsonBytes, err := yaml.YAMLToJSON([]byte(config))
+	if err != nil {
+		return "", fmt.Errorf("failed to convert YAML to JSON: %v", err)
+	}
+	if err := protojson.Unmarshal(jsonBytes, pb); err != nil {
+		return "", fmt.Errorf("failed to unmarshal Envoy bootstrap config: %v", err)
+	}
+	if err := pb.ValidateAll(); err != nil {
+		return "", fmt.Errorf("invalid Envoy bootstrap config: %v", err)
+	}
+
+	if pb.Node == nil {
+		pb.Node = &corev3.Node{}
+	}
+	pb.Node.Id = nodeID
+
+	pb.Admin = &bootstrapv3.Admin{
+		AccessLogPath: "/dev/null",
+		Address: &corev3.Address{
+			Address: &corev3.Address_Pipe{
+				Pipe: &corev3.Pipe{
+					Path: adminUDSPath(nodeID),
+				},
+			},
+		},
+	}
+
+	cfgBytes, err := protojson.Marshal(pb)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal Envoy bootstrap config: %v", err)
+	}
+	return string(cfgBytes), nil
+}
+
+type listenerStatus struct {
+	Name         string `json:"name"`
+	LocalAddress struct {
+		SocketAddress struct {
+			Address   string `json:"address"`
+			PortValue uint32 `json:"port_value"`
+		} `json:"socket_address"`
+	} `json:"local_address"`
+}
+
+type listeners struct {
+	ListenerStatuses []listenerStatus `json:"listener_statuses"`
+}
+
+func getListenerStatuses(p *ctrlv1alpha1.Proxy) ([]listenerStatus, error) {
+	udsPath := adminUDSPath(nodeID(p))
+	// Connect to the admin UDS and get listener statuses
+	httpClient := http.Client{
+		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+				return net.Dial("unix", udsPath)
+			},
+		},
+		Timeout: 2 * time.Second,
+	}
+	resp, err := httpClient.Get("http://localhost/listeners?format=json")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get listener statuses: %v", err)
+	}
+	defer resp.Body.Close()
+
+	var ls listeners
+	if err := json.NewDecoder(resp.Body).Decode(&ls); err != nil {
+		return nil, fmt.Errorf("failed to decode listener statuses: %v", err)
+	}
+	return ls.ListenerStatuses, nil
 }
 
 func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
@@ -76,7 +169,7 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 	log := log.FromContext(ctx, "app", string(p.UID), "name", p.Name, "machine", r.machName)
 	log.Info("Reconciling Proxy")
 
-	status, found := findStatus(r.machName, p)
+	status, found := findReplicaStatus(r.machName, p)
 	if !found {
 		log.Info("status for machine not found")
 		return reconcile.Result{RequeueAfter: 2 * time.Second}, nil
@@ -118,10 +211,25 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 	if ps.StartedAt.IsZero() {
 		pUUID, _ := uuid.Parse(string(p.UID))
 		logsCollector := logs.NewClickHouseLogsCollector(r.chConn, pUUID)
+
 		// TODO(dsky): Support Starlark config render here.
+		cfg, err := validateBootstrapConfig(fmt.Sprintf("%s-%s", p.Name, p.ObjectMeta.ResourceVersion), p.Spec.Config)
+		if err != nil {
+			// If the config is invalid, we can't start the proxy.
+			log.Error(err, "failed to validate proxy config")
+			status.Phase = ctrlv1alpha1.ProxyReplicaPhaseFailed
+			status.Reason = fmt.Sprintf("failed to validate proxy config: %v", err)
+
+			if err := r.Status().Update(ctx, p); err != nil {
+				return reconcile.Result{}, fmt.Errorf("failed to update proxy status: %w", err)
+			}
+
+			return reconcile.Result{}, nil // Leave the proxy in failed state.
+		}
+
 		if err := r.Start(
 			ctx,
-			envoy.WithBootstrapConfigYAML(p.Spec.Config),
+			envoy.WithBootstrapConfigYAML(cfg),
 			envoy.WithLogsCollector(logsCollector),
 		); err != nil {
 			if fatalErr, ok := err.(envoy.FatalError); ok {
@@ -157,6 +265,22 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 			//}
 			status.Phase = ctrlv1alpha1.ProxyReplicaPhaseRunning
 			status.Reason = "Running"
+
+			ls, err := getListenerStatuses(p)
+			if err != nil {
+				return reconcile.Result{}, fmt.Errorf("failed to get admin listeners: %w", err)
+			}
+			for _, l := range ls {
+				// TODO(dsky): Support UDP protocol - we will need to query the kernel or fix Envoy to report it.
+				proto := "tcp"
+				status.Ports = append(status.Ports, fmt.Sprintf("%d/%s", l.LocalAddress.SocketAddress.PortValue, proto))
+			}
+
+			if err := r.Status().Update(ctx, p); err != nil {
+				return reconcile.Result{}, fmt.Errorf("failed to update proxy replica status: %w", err)
+			}
+
+			return reconcile.Result{}, nil
 		} else {
 			switch status.Phase {
 			case ctrlv1alpha1.ProxyReplicaPhasePending:

@@ -647,6 +647,21 @@ func schema_apoxy_cli_api_controllers_v1alpha1_ProxyReplicaStatus(ref common.Ref
 							Format:      "",
 						},
 					},
+					"ports": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Open ports of the proxy in the format of <port>/<protocol>.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
 				},
 				Required: []string{"name", "createdAt", "phase"},
 			},
