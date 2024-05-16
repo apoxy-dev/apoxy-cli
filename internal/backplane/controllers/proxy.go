@@ -72,7 +72,7 @@ func findReplicaStatus(name string, p *ctrlv1alpha1.Proxy) (*ctrlv1alpha1.ProxyR
 }
 
 func nodeID(p *ctrlv1alpha1.Proxy) string {
-	return fmt.Sprintf("%s-%s", p.Name, &p.ObjectMeta.ResourceVersion)
+	return fmt.Sprintf("%s-%s", p.Name, p.ObjectMeta.ResourceVersion)
 }
 
 func adminUDSPath(nodeID string) string {
@@ -213,7 +213,7 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 		logsCollector := logs.NewClickHouseLogsCollector(r.chConn, pUUID)
 
 		// TODO(dsky): Support Starlark config render here.
-		cfg, err := validateBootstrapConfig(fmt.Sprintf("%s-%s", p.Name, p.ObjectMeta.ResourceVersion), p.Spec.Config)
+		cfg, err := validateBootstrapConfig(nodeID(p), p.Spec.Config)
 		if err != nil {
 			// If the config is invalid, we can't start the proxy.
 			log.Error(err, "failed to validate proxy config")
