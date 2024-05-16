@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	goerrors "errors"
 	"fmt"
@@ -72,7 +73,8 @@ func findReplicaStatus(name string, p *ctrlv1alpha1.Proxy) (*ctrlv1alpha1.ProxyR
 }
 
 func nodeID(p *ctrlv1alpha1.Proxy) string {
-	return fmt.Sprintf("%s-%s", p.Name, p.ObjectMeta.ResourceVersion)
+	configSHA := sha256.Sum256([]byte(p.Spec.Config))
+	return fmt.Sprintf("%s-%x", p.Name, configSHA[:8])
 }
 
 func adminUDSPath(nodeID string) string {
