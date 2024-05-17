@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -38,9 +39,36 @@ func GetDriver(driver string) (Driver, error) {
 
 type dockerDriver struct{}
 
+func chWaitReady(ctx context.Context, cname string) error {
+	for {
+		cmd := exec.CommandContext(ctx,
+			"docker", "exec",
+			cname,
+			"clickhouse-client",
+			"--query",
+			"SELECT 1",
+		)
+		if err := cmd.Run(); err == nil {
+			return nil
+		}
+		log.Infof("clickhouse server is not ready, waiting...")
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(1 * time.Second):
+		}
+	}
+	panic("unreachable")
+}
+
 // Start starts a ClickHouse container if it's not already running.
 func (d *dockerDriver) Start(ctx context.Context, orgID uuid.UUID) error {
-	cname, found, err := dockerutils.Collect(ctx, containerNamePrefix, clickhouseImage)
+	cname, found, err := dockerutils.Collect(
+		ctx,
+		containerNamePrefix,
+		clickhouseImage,
+		dockerutils.WithLabel("org.apoxy.project_id", orgID.String()),
+	)
 	if err != nil {
 		return err
 	} else if found {
@@ -59,8 +87,9 @@ func (d *dockerDriver) Start(ctx context.Context, orgID uuid.UUID) error {
 
 	cmd := exec.CommandContext(ctx,
 		"docker", "run",
-		"--name", cname,
 		"--rm",
+		"--name", cname,
+		"--label", "org.apoxy.project_id="+orgID.String(),
 		// Increase the number of open files limit.
 		"--ulimit", "nofile=262144:262144",
 		"--network", dockerutils.NetworkName,
@@ -77,8 +106,11 @@ func (d *dockerDriver) Start(ctx context.Context, orgID uuid.UUID) error {
 	if err := dockerutils.WaitForStatus(ctx, cname, "running"); err != nil {
 		return fmt.Errorf("failed to start clickhouse server: %w", err)
 	}
+	if err := chWaitReady(ctx, cname); err != nil {
+		return fmt.Errorf("failed to wait for clickhouse server: %w", err)
+	}
 
-	log.Infof("clickhouse server %q started, running migrations...", cname)
+	log.Infof("clickhouse server %q is running, running migrations...", cname)
 
 	if err := migrations.Run("localhost:9000", orgID); err != nil {
 		return fmt.Errorf("failed to run migrations: %w", err)

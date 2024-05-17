@@ -71,7 +71,12 @@ func (d *dockerDriver) Start(
 	}
 	imageRef := imageRef()
 	cname, found, err := dockerutils.Collect(
-		ctx, containerNamePrefix, imageRef, dockerutils.WithLabel("org.apoxy.machine", proxyName))
+		ctx,
+		containerNamePrefix,
+		imageRef,
+		dockerutils.WithLabel("org.apoxy.projec_id", orgID.String()),
+		dockerutils.WithLabel("org.apoxy.proxy", proxyName),
+	)
 	if err != nil {
 		return "", err
 	} else if found {
@@ -96,7 +101,8 @@ func (d *dockerDriver) Start(
 		"docker", "run",
 		"--rm",
 		"--name", cname,
-		"--label", "org.apoxy.machine="+proxyName,
+		"--label", "org.apoxy.project_id="+orgID.String(),
+		"--label", "org.apoxy.proxy="+proxyName,
 		"--privileged",
 		"--network", dockerutils.NetworkName,
 	)

@@ -142,9 +142,13 @@ var runCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cmd.SilenceUsage = true
-		_, err := config.Load()
+		cfg, err := config.Load()
 		if err != nil {
 			return err
+		}
+		projID := uuid.New()
+		if cfg.ProjectID.String() != "" {
+			projID = cfg.ProjectID
 		}
 
 		path := args[0]
@@ -185,12 +189,11 @@ var runCmd = &cobra.Command{
 			return nil
 		}
 
-		orgID := uuid.New()
 		chDriver, err := chdrivers.GetDriver("docker")
 		if err != nil {
 			return err
 		}
-		if err := chDriver.Start(cmd.Context(), orgID); err != nil {
+		if err := chDriver.Start(cmd.Context(), projID); err != nil {
 			return err
 		}
 		chAddr, err := chDriver.GetAddr(cmd.Context())
@@ -204,7 +207,7 @@ var runCmd = &cobra.Command{
 		}
 		cname, err := bpDriver.Start(
 			cmd.Context(),
-			orgID,
+			projID,
 			proxyName,
 			bpdrivers.WithArgs("--ch_addrs", chAddr+":9000"),
 		)
