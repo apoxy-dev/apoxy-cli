@@ -22,8 +22,9 @@ var cmd = &cobra.Command{
 	Long:  "Dialer for standard I/O streams.",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		log.Disable()
+
 		addr := args[0]
-		log.Infof("Dialing %s...", addr)
 
 		// Parse network from addr scheme and dial out.
 		var network string
@@ -42,8 +43,6 @@ var cmd = &cobra.Command{
 			return fmt.Errorf("unable to dial %s: %w", addr, err)
 		}
 		defer conn.Close()
-
-		log.Disable()
 
 		// Copy standard I/O streams to the connection.
 		done := make(chan struct{})
@@ -76,7 +75,6 @@ func main() {
 	}()
 
 	if err := cmd.ExecuteContext(ctx); err != nil {
-		log.Fatalf("Error: %s", err)
 		os.Exit(1)
 	}
 }
