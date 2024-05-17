@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"os"
 	"os/exec"
 
 	"github.com/apoxy-dev/apoxy-cli/internal/log"
@@ -45,14 +44,14 @@ func handleConnection(
 	}
 
 	go func() {
-		if _, err := io.Copy(io.MultiWriter(os.Stdout, stdin), conn); err != nil {
+		if _, err := io.Copy(stdin, conn); err != nil {
 			log.Debugf("failed to copy from conn to stdin: %v", err)
 		}
 		cmd.Process.Kill()
 	}()
 
 	go func() {
-		if _, err := io.Copy(io.MultiWriter(os.Stdout, conn), stdout); err != nil {
+		if _, err := io.Copy(conn, stdout); err != nil {
 			log.Debugf("failed to copy from stdout to conn: %v", err)
 		}
 		cmd.Process.Kill()
