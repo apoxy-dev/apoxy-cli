@@ -157,6 +157,8 @@ var runCmd = &cobra.Command{
 			return err
 		}
 
+		fmt.Printf("Starting Apoxy server with proxy %s...\n", proxyName)
+
 		ctx, ctxCancel := context.WithCancelCause(cmd.Context())
 
 		startCh := make(chan error)
@@ -214,6 +216,8 @@ var runCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+
+		fmt.Printf("Proxy is running at %s. Watching %s for changes...\n", cname, path)
 
 		rc := apiserver.NewLocalClientConfig("localhost")
 		fwd, err := portforward.NewPortForwarder(rc, proxyName, proxyName, cname)

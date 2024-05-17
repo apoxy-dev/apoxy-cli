@@ -14,7 +14,7 @@ import (
 	"github.com/go-logr/logr"
 )
 
-func setLogger(level LogLevel, json bool) {
+func setLogger(level LogLevel, json bool, w io.Writer) {
 	replace := func(groups []string, a slog.Attr) slog.Attr {
 		// Remove the directory from the source's filename.
 		if a.Key == slog.SourceKey {
@@ -29,15 +29,15 @@ func setLogger(level LogLevel, json bool) {
 		Level:       level,
 		ReplaceAttr: replace,
 	}
-	logger := slog.New(slog.NewTextHandler(os.Stdout, opts))
+	logger := slog.New(slog.NewTextHandler(w, opts))
 	if json {
-		logger = slog.New(slog.NewJSONHandler(os.Stdout, opts))
+		logger = slog.New(slog.NewJSONHandler(w, opts))
 	}
 	slog.SetDefault(logger)
 }
 
 func init() {
-	setLogger(slog.LevelInfo, false)
+	setLogger(slog.LevelInfo, false, io.Discard)
 }
 
 type LogLevel = slog.Level
@@ -53,8 +53,8 @@ const (
 var DefaultLogger = slog.Default()
 
 // Init initializes the logger.
-func Init(level slog.Level, json bool) {
-	setLogger(level, json)
+func Init(level slog.Level, json bool, w io.Writer) {
+	setLogger(level, json, w)
 }
 
 func Disable() {

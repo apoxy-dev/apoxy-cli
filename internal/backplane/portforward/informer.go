@@ -86,6 +86,7 @@ func (pf *PortForwarder) sync(key string) error {
 		for p, stopCh := range pf.portStopCh {
 			delete(pf.portStopCh, p)
 			close(stopCh)
+			fmt.Printf("Stopped listening on :%s\n", p)
 		}
 		return nil
 	}
@@ -111,6 +112,7 @@ func (pf *PortForwarder) sync(key string) error {
 			stopCh := make(chan struct{})
 			switch proto {
 			case "tcp":
+				fmt.Printf("Listening on %s\n", port)
 				go drivers.ForwardTCP(stopCh, pf.cname, portn, portn)
 			default:
 				return fmt.Errorf("invalid protocol %q", proto)
@@ -123,6 +125,7 @@ func (pf *PortForwarder) sync(key string) error {
 		if !slices.Contains(rs.Ports, p) {
 			delete(pf.portStopCh, p)
 			close(stopCh)
+			fmt.Printf("Stopped listening on :%s\n", p)
 		}
 	}
 

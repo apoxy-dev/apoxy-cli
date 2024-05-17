@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
@@ -16,15 +18,26 @@ import (
 )
 
 var (
-	ConfigFile    string
-	Verbose       bool
-	DefaultConfig = &Config{
+	ConfigFile      string
+	AlsoLogToStderr bool
+	Verbose         bool
+	DefaultConfig   = &Config{
 		APIKey:       "",
 		Verbose:      false,
 		APIBaseURL:   "https://api.apoxy.dev",
 		DashboardURL: "https://dashboard.apoxy.dev",
 	}
+	initTime                 time.Time
+	createLogFileIfNotExists func() (*os.File, error)
 )
+
+func init() {
+	initTime = time.Now()
+	lpath := filepath.Join(os.TempDir(), fmt.Sprintf("apoxy-cli-%s.log", initTime.Format("2006-01-02T15:04:05.000Z")))
+	createLogFileIfNotExists = sync.OnceValues(func() (*os.File, error) {
+		return os.OpenFile(lpath, os.O_CREATE|os.O_WRONLY, 0644)
+	})
+}
 
 type Config struct {
 	// The API key to use for authentication.
@@ -57,7 +70,7 @@ func Load() (*Config, error) {
 	if _, err := os.Stat(ConfigFile); os.IsNotExist(err) {
 		return DefaultConfig, nil
 	}
-	yamlFile, err := ioutil.ReadFile(ConfigFile)
+	yamlFile, err := os.ReadFile(ConfigFile)
 	if err != nil {
 		return nil, fmt.Errorf("error reading YAML file: %v", err)
 	}
@@ -66,16 +79,24 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("failed to unmarshal YAML: %v", err)
 	}
 
+	logW := os.Stderr
+	if !AlsoLogToStderr {
+		logW, err = createLogFileIfNotExists()
+		if err != nil {
+			return nil, fmt.Errorf("failed to open log file: %v", err)
+		}
+	}
+
 	if Verbose || cfg.Verbose {
 		logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
 		slog.SetDefault(logger)
 		klog.SetSlogLogger(logger)
 		slog.Debug("Verbose logging enabled")
-		log.Init(slog.LevelDebug, false)
+		log.Init(slog.LevelDebug, false, logW)
 	} else {
 		klog.SetOutput(ioutil.Discard)
 		klog.LogToStderr(false)
-		log.Init(slog.LevelInfo, false)
+		log.Init(slog.LevelInfo, false, logW)
 	}
 
 	return cfg, nil
@@ -104,7 +125,7 @@ func Store(cfg *Config) error {
 	if err := ensureDirExists(ConfigFile); err != nil {
 		return fmt.Errorf("failed to ensure directory exists: %v", err)
 	}
-	if err := ioutil.WriteFile(ConfigFile, yamlFile, 0644); err != nil {
+	if err := os.WriteFile(ConfigFile, yamlFile, 0644); err != nil {
 		return fmt.Errorf("failed to write YAML file: %v", err)
 	}
 	return nil
