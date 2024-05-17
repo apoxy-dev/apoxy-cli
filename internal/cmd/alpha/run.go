@@ -2,6 +2,7 @@ package alpha
 
 import (
 	"context"
+	goerrors "errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -17,6 +18,7 @@ import (
 	"github.com/apoxy-dev/apoxy-cli/internal/apiserver"
 	apiserverctrl "github.com/apoxy-dev/apoxy-cli/internal/apiserver/controllers"
 	bpdrivers "github.com/apoxy-dev/apoxy-cli/internal/backplane/drivers"
+	"github.com/apoxy-dev/apoxy-cli/internal/backplane/portforward"
 	chdrivers "github.com/apoxy-dev/apoxy-cli/internal/clickhouse/drivers"
 	"github.com/apoxy-dev/apoxy-cli/internal/log"
 	"github.com/apoxy-dev/apoxy-cli/rest"
@@ -36,7 +38,7 @@ func updateProxyFromFile(ctx context.Context, path string) (*ctrlv1alpha1.Proxy,
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file: %w", err)
 	}
-	c, err := defaultOrLocalAPIClient(true)
+	rc, err := defaultOrLocalAPIClient(true)
 	if err != nil {
 		return nil, err
 	}
@@ -53,14 +55,14 @@ func updateProxyFromFile(ctx context.Context, path string) (*ctrlv1alpha1.Proxy,
 			Config:   string(cfg),
 		},
 	}
-	p, err := c.ControllersV1alpha1().Proxies().Create(ctx, proxy, metav1.CreateOptions{})
+	p, err := rc.ControllersV1alpha1().Proxies().Create(ctx, proxy, metav1.CreateOptions{})
 	if errors.IsAlreadyExists(err) {
-		p, err = c.ControllersV1alpha1().Proxies().Get(ctx, proxy.Name, metav1.GetOptions{})
+		p, err = rc.ControllersV1alpha1().Proxies().Get(ctx, proxy.Name, metav1.GetOptions{})
 		if err != nil {
 			return nil, fmt.Errorf("failed to get proxy: %w", err)
 		}
 		p.Spec = proxy.Spec
-		if _, err = c.ControllersV1alpha1().Proxies().Update(
+		if _, err = rc.ControllersV1alpha1().Proxies().Update(
 			ctx,
 			p,
 			metav1.UpdateOptions{},
@@ -122,6 +124,18 @@ func proxyName(path string) (string, error) {
 	), nil
 }
 
+type runError struct {
+	Err error
+}
+
+func (e *runError) Error() string {
+	return e.Err.Error()
+}
+
+func (e *runError) Unwrap() error {
+	return e.Err
+}
+
 var runCmd = &cobra.Command{
 	Use:   "run",
 	Short: "Run Apoxy server locally",
@@ -138,6 +152,8 @@ var runCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+
+		ctx, ctxCancel := context.WithCancelCause(cmd.Context())
 
 		startCh := make(chan error)
 		go func() {
@@ -186,17 +202,35 @@ var runCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		if err := bpDriver.Start(
+		cname, err := bpDriver.Start(
 			cmd.Context(),
 			orgID,
 			proxyName,
 			bpdrivers.WithArgs("--ch_addrs", chAddr+":9000"),
-		); err != nil {
+		)
+		if err != nil {
 			return err
 		}
 
+		rc := apiserver.NewLocalClientConfig("localhost")
+		fwd, err := portforward.NewPortForwarder(rc, proxyName, proxyName, cname)
+		if err != nil {
+			return err
+		}
+		go func() {
+			if err := fwd.Run(ctx); err != nil {
+				ctxCancel(&runError{Err: err})
+			}
+			// If err is nil, it means context has been cancelled.
+		}()
+
 		if err := watchAndReloadProxy(cmd.Context(), path); err != nil {
 			return err
+		}
+
+		var runErr *runError
+		if err := context.Cause(ctx); goerrors.As(err, &runErr) {
+			return runErr.Err
 		}
 
 		return nil

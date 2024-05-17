@@ -37,7 +37,7 @@ func WithArgs(args ...string) Option {
 
 type Driver interface {
 	// Deploy deploys the proxy.
-	Start(ctx context.Context, orgID uuid.UUID, proxyName string, opts ...Option) error
+	Start(ctx context.Context, orgID uuid.UUID, proxyName string, opts ...Option) (string, error)
 }
 
 // GetDriver returns a driver by name.
@@ -64,7 +64,7 @@ func (d *dockerDriver) Start(
 	orgID uuid.UUID,
 	proxyName string,
 	opts ...Option,
-) error {
+) (string, error) {
 	setOpts := defaultOptions()
 	for _, opt := range opts {
 		opt(setOpts)
@@ -73,21 +73,21 @@ func (d *dockerDriver) Start(
 	cname, found, err := dockerutils.Collect(
 		ctx, containerNamePrefix, imageRef, dockerutils.WithLabel("org.apoxy.machine", proxyName))
 	if err != nil {
-		return err
+		return "", err
 	} else if found {
 		log.Infof("Container %s already running", cname)
-		return nil
+		return cname, nil
 	}
 
 	// Pull the image.
 	if err := exec.CommandContext(ctx, "docker", "pull", imageRef).Run(); err != nil {
-		return fmt.Errorf("failed to pull image %s: %w", imageRef, err)
+		return "", fmt.Errorf("failed to pull image %s: %w", imageRef, err)
 	}
 
 	// Check for network and create if not exists.
 	if err := exec.CommandContext(ctx, "docker", "network", "inspect", dockerutils.NetworkName).Run(); err != nil {
 		if err := exec.CommandContext(ctx, "docker", "network", "create", dockerutils.NetworkName).Run(); err != nil {
-			return fmt.Errorf("failed to create network apoxy: %w", err)
+			return "", fmt.Errorf("failed to create network apoxy: %w", err)
 		}
 	}
 
@@ -104,7 +104,9 @@ func (d *dockerDriver) Start(
 	cmd.Args = append(cmd.Args, imageRef)
 	cmd.Args = append(cmd.Args, []string{
 		"--project_id=" + orgID.String(),
-		"--proxy_name=" + proxyName,
+		// Use the same name for both proxy and replica - we only have one replica.
+		"--proxy=" + proxyName,
+		"--replica=" + proxyName,
 		"--apiserver_host=host.docker.internal",
 	}...)
 	cmd.Args = append(cmd.Args, setOpts.Args...)
@@ -112,12 +114,12 @@ func (d *dockerDriver) Start(
 	log.Debugf("Running command: %v", cmd.String())
 
 	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("failed to start clickhouse server: %w", err)
+		return "", fmt.Errorf("failed to start clickhouse server: %w", err)
 	}
 
 	if err := dockerutils.WaitForStatus(ctx, cname, "running"); err != nil {
-		return fmt.Errorf("failed to start clickhouse server: %w", err)
+		return "", fmt.Errorf("failed to start clickhouse server: %w", err)
 	}
 
-	return nil
+	return cname, nil
 }

@@ -68,16 +68,6 @@ func waitForReadyz(url string, timeout time.Duration) error {
 	}
 }
 
-func newClient() *rest.Config {
-	return &rest.Config{
-		QPS:  -1,
-		Host: "https://localhost:443",
-		TLSClientConfig: rest.TLSClientConfig{
-			Insecure: true,
-		},
-	}
-}
-
 // Option is an API server option.
 type Option func(*options)
 
