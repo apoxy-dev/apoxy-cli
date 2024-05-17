@@ -43,29 +43,29 @@ type ProxyReconciler struct {
 	client.Client
 	envoy.Runtime
 
-	orgID    uuid.UUID
-	machName string
-	chConn   clickhouse.Conn
+	orgID       uuid.UUID
+	replicaName string
+	chConn      clickhouse.Conn
 }
 
 // NewProxyReconciler returns a new reconcile.Reconciler for Proxy objects.
 func NewProxyReconciler(
 	c client.Client,
 	orgID uuid.UUID,
-	machName string,
+	replicaName string,
 	chConn clickhouse.Conn,
 ) *ProxyReconciler {
 	return &ProxyReconciler{
-		Client:   c,
-		orgID:    orgID,
-		machName: machName,
-		chConn:   chConn,
+		Client:      c,
+		orgID:       orgID,
+		replicaName: replicaName,
+		chConn:      chConn,
 	}
 }
 
-func findReplicaStatus(name string, p *ctrlv1alpha1.Proxy) (*ctrlv1alpha1.ProxyReplicaStatus, bool) {
+func findReplicaStatus(p *ctrlv1alpha1.Proxy, rname string) (*ctrlv1alpha1.ProxyReplicaStatus, bool) {
 	for i := range p.Status.Replicas {
-		if p.Status.Replicas[i].Name == name {
+		if p.Status.Replicas[i].Name == rname {
 			return p.Status.Replicas[i], true
 		}
 	}
@@ -168,10 +168,10 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 		return reconcile.Result{}, fmt.Errorf("failed to get Proxy: %w", err)
 	}
 
-	log := log.FromContext(ctx, "app", string(p.UID), "name", p.Name, "machine", r.machName)
+	log := log.FromContext(ctx, "app", string(p.UID), "name", p.Name, "replica", r.replicaName)
 	log.Info("Reconciling Proxy")
 
-	status, found := findReplicaStatus(r.machName, p)
+	status, found := findReplicaStatus(p, r.replicaName)
 	if !found {
 		log.Info("status for machine not found")
 		return reconcile.Result{RequeueAfter: 2 * time.Second}, nil

@@ -30,8 +30,9 @@ func init() {
 }
 
 var (
-	projectID = flag.String("project_id", "", "Apoxy project UUID.")
-	proxyName = flag.String("proxy_name", "", "Name of the proxy to manage.")
+	projectID   = flag.String("project_id", "", "Apoxy project UUID.")
+	proxyName   = flag.String("proxy", "", "Name of the proxy to manage.")
+	replicaName = flag.String("replica", "", "Name of the replica to manage.")
 
 	apiserverHost = flag.String("apiserver_host", "host.docker.internal", "API server address.")
 
@@ -97,7 +98,7 @@ func main() {
 	if err := bpctrl.NewProxyReconciler(
 		mgr.GetClient(),
 		projUUID,
-		*proxyName,
+		*replicaName,
 		chConn,
 	).SetupWithManager(ctx, mgr, *proxyName); err != nil {
 		log.Errorf("failed to set up Backplane controller: %v", err)
