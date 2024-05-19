@@ -36,6 +36,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&config.ConfigFile, "config", "", "Config file (default is $HOME/.apoxy/config.yaml).")
 	rootCmd.PersistentFlags().BoolVar(&config.AlsoLogToStderr, "alsologtostderr", false, "Log to standard error as well as files.")
 	rootCmd.PersistentFlags().BoolVarP(&config.Verbose, "verbose", "v", false, "Enable verbose output.")
+	rootCmd.PersistentFlags().BoolVar(&config.LocalMode, "local", false, "Run in local mode.")
 
 	rootCmd.AddCommand(alpha.Cmd())
 }

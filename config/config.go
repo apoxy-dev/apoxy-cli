@@ -21,6 +21,7 @@ var (
 	ConfigFile      string
 	AlsoLogToStderr bool
 	Verbose         bool
+	LocalMode       bool
 	DefaultConfig   = &Config{
 		APIKey:       "",
 		Verbose:      false,
@@ -133,6 +134,9 @@ func Store(cfg *Config) error {
 
 // DefaultAPIClient returns a new Apoxy API client.
 func DefaultAPIClient() (*rest.APIClient, error) {
+	if LocalMode {
+		return rest.NewAPIClient("https://localhost:443", "localhost", "", uuid.New())
+	}
 	cfg, err := Load()
 	if err != nil {
 		return nil, err
