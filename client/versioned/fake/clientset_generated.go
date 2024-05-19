@@ -8,6 +8,8 @@ import (
 	fakecontrollersv1alpha1 "github.com/apoxy-dev/apoxy-cli/client/versioned/typed/controllers/v1alpha1/fake"
 	corev1alpha "github.com/apoxy-dev/apoxy-cli/client/versioned/typed/core/v1alpha"
 	fakecorev1alpha "github.com/apoxy-dev/apoxy-cli/client/versioned/typed/core/v1alpha/fake"
+	policyv1alpha1 "github.com/apoxy-dev/apoxy-cli/client/versioned/typed/policy/v1alpha1"
+	fakepolicyv1alpha1 "github.com/apoxy-dev/apoxy-cli/client/versioned/typed/policy/v1alpha1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"
@@ -73,4 +75,9 @@ func (c *Clientset) ControllersV1alpha1() controllersv1alpha1.ControllersV1alpha
 // CoreV1alpha retrieves the CoreV1alphaClient
 func (c *Clientset) CoreV1alpha() corev1alpha.CoreV1alphaInterface {
 	return &fakecorev1alpha.FakeCoreV1alpha{Fake: &c.Fake}
+}
+
+// PolicyV1alpha1 retrieves the PolicyV1alpha1Client
+func (c *Clientset) PolicyV1alpha1() policyv1alpha1.PolicyV1alpha1Interface {
+	return &fakepolicyv1alpha1.FakePolicyV1alpha1{Fake: &c.Fake}
 }

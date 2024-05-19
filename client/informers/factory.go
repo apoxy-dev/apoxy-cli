@@ -10,6 +10,7 @@ import (
 	controllers "github.com/apoxy-dev/apoxy-cli/client/informers/controllers"
 	core "github.com/apoxy-dev/apoxy-cli/client/informers/core"
 	internalinterfaces "github.com/apoxy-dev/apoxy-cli/client/informers/internalinterfaces"
+	policy "github.com/apoxy-dev/apoxy-cli/client/informers/policy"
 	versioned "github.com/apoxy-dev/apoxy-cli/client/versioned"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
@@ -240,6 +241,7 @@ type SharedInformerFactory interface {
 
 	Controllers() controllers.Interface
 	Core() core.Interface
+	Policy() policy.Interface
 }
 
 func (f *sharedInformerFactory) Controllers() controllers.Interface {
@@ -248,4 +250,8 @@ func (f *sharedInformerFactory) Controllers() controllers.Interface {
 
 func (f *sharedInformerFactory) Core() core.Interface {
 	return core.New(f, f.namespace, f.tweakListOptions)
+}
+
+func (f *sharedInformerFactory) Policy() policy.Interface {
+	return policy.New(f, f.namespace, f.tweakListOptions)
 }

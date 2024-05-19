@@ -8,6 +8,7 @@ import (
 
 	controllersv1alpha1 "github.com/apoxy-dev/apoxy-cli/client/versioned/typed/controllers/v1alpha1"
 	corev1alpha "github.com/apoxy-dev/apoxy-cli/client/versioned/typed/core/v1alpha"
+	policyv1alpha1 "github.com/apoxy-dev/apoxy-cli/client/versioned/typed/policy/v1alpha1"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"
@@ -17,6 +18,7 @@ type Interface interface {
 	Discovery() discovery.DiscoveryInterface
 	ControllersV1alpha1() controllersv1alpha1.ControllersV1alpha1Interface
 	CoreV1alpha() corev1alpha.CoreV1alphaInterface
+	PolicyV1alpha1() policyv1alpha1.PolicyV1alpha1Interface
 }
 
 // Clientset contains the clients for groups.
@@ -24,6 +26,7 @@ type Clientset struct {
 	*discovery.DiscoveryClient
 	controllersV1alpha1 *controllersv1alpha1.ControllersV1alpha1Client
 	coreV1alpha         *corev1alpha.CoreV1alphaClient
+	policyV1alpha1      *policyv1alpha1.PolicyV1alpha1Client
 }
 
 // ControllersV1alpha1 retrieves the ControllersV1alpha1Client
@@ -34,6 +37,11 @@ func (c *Clientset) ControllersV1alpha1() controllersv1alpha1.ControllersV1alpha
 // CoreV1alpha retrieves the CoreV1alphaClient
 func (c *Clientset) CoreV1alpha() corev1alpha.CoreV1alphaInterface {
 	return c.coreV1alpha
+}
+
+// PolicyV1alpha1 retrieves the PolicyV1alpha1Client
+func (c *Clientset) PolicyV1alpha1() policyv1alpha1.PolicyV1alpha1Interface {
+	return c.policyV1alpha1
 }
 
 // Discovery retrieves the DiscoveryClient
@@ -88,6 +96,10 @@ func NewForConfigAndClient(c *rest.Config, httpClient *http.Client) (*Clientset,
 	if err != nil {
 		return nil, err
 	}
+	cs.policyV1alpha1, err = policyv1alpha1.NewForConfigAndClient(&configShallowCopy, httpClient)
+	if err != nil {
+		return nil, err
+	}
 
 	cs.DiscoveryClient, err = discovery.NewDiscoveryClientForConfigAndClient(&configShallowCopy, httpClient)
 	if err != nil {
@@ -111,6 +123,7 @@ func New(c rest.Interface) *Clientset {
 	var cs Clientset
 	cs.controllersV1alpha1 = controllersv1alpha1.New(c)
 	cs.coreV1alpha = corev1alpha.New(c)
+	cs.policyV1alpha1 = policyv1alpha1.New(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClient(c)
 	return &cs

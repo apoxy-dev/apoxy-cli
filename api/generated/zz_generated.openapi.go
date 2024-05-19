@@ -51,6 +51,12 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNodeList":                  schema_apoxy_cli_api_core_v1alpha_TunnelNodeList(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNodeSpec":                  schema_apoxy_cli_api_core_v1alpha_TunnelNodeSpec(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNodeStatus":                schema_apoxy_cli_api_core_v1alpha_TunnelNodeStatus(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/policy/v1alpha1.RateLimit":                    schema_apoxy_cli_api_policy_v1alpha1_RateLimit(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/policy/v1alpha1.RateLimitDescriptor":          schema_apoxy_cli_api_policy_v1alpha1_RateLimitDescriptor(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/policy/v1alpha1.RateLimitList":                schema_apoxy_cli_api_policy_v1alpha1_RateLimitList(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/policy/v1alpha1.RateLimitPolicy":              schema_apoxy_cli_api_policy_v1alpha1_RateLimitPolicy(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/policy/v1alpha1.RateLimitSpec":                schema_apoxy_cli_api_policy_v1alpha1_RateLimitSpec(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/policy/v1alpha1.RateLimitStatus":              schema_apoxy_cli_api_policy_v1alpha1_RateLimitStatus(ref),
 		"k8s.io/api/core/v1.AWSElasticBlockStoreVolumeSource":                             schema_k8sio_api_core_v1_AWSElasticBlockStoreVolumeSource(ref),
 		"k8s.io/api/core/v1.Affinity":                                                     schema_k8sio_api_core_v1_Affinity(ref),
 		"k8s.io/api/core/v1.AttachedVolume":                                               schema_k8sio_api_core_v1_AttachedVolume(ref),
@@ -1750,6 +1756,242 @@ func schema_apoxy_cli_api_core_v1alpha_TunnelNodeStatus(ref common.ReferenceCall
 		},
 		Dependencies: []string{
 			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.PeerStatus"},
+	}
+}
+
+func schema_apoxy_cli_api_policy_v1alpha1_RateLimit(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
+						},
+					},
+					"spec": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/policy/v1alpha1.RateLimitSpec"),
+						},
+					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/policy/v1alpha1.RateLimitStatus"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/apoxy-dev/apoxy-cli/api/policy/v1alpha1.RateLimitSpec", "github.com/apoxy-dev/apoxy-cli/api/policy/v1alpha1.RateLimitStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+	}
+}
+
+func schema_apoxy_cli_api_policy_v1alpha1_RateLimitDescriptor(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"key": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Key is the key of the descriptor.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"value": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Value is the value of the descriptor.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"rateLimit": {
+						SchemaProps: spec.SchemaProps{
+							Description: "RateLimit defines the rate limit policy for the descriptor.",
+							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/policy/v1alpha1.RateLimitPolicy"),
+						},
+					},
+					"shadowMode": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Whether descriptor is in \"shadow mode\" which means that the rate limit is not enforced but the requests are logged.",
+							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/apoxy-dev/apoxy-cli/api/policy/v1alpha1.RateLimitPolicy"},
+	}
+}
+
+func schema_apoxy_cli_api_policy_v1alpha1_RateLimitList(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "RateLimitList contains a list of RateLimit objects.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
+						},
+					},
+					"items": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/policy/v1alpha1.RateLimit"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"items"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/apoxy-dev/apoxy-cli/api/policy/v1alpha1.RateLimit", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+	}
+}
+
+func schema_apoxy_cli_api_policy_v1alpha1_RateLimitPolicy(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"unit": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Unit of time for the rate limit.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"requestsPerUnit": {
+						SchemaProps: spec.SchemaProps{
+							Description: "How many requests are allowed per unit. 0 means no requests are allowed.",
+							Type:        []string{"integer"},
+							Format:      "int64",
+						},
+					},
+					"unlimited": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Sets unlimited requests per unit.",
+							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func schema_apoxy_cli_api_policy_v1alpha1_RateLimitSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"descriptors": {
+						SchemaProps: spec.SchemaProps{
+							Description: "A list of rate limit descriptors.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("github.com/apoxy-dev/apoxy-cli/api/policy/v1alpha1.RateLimitDescriptor"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/apoxy-dev/apoxy-cli/api/policy/v1alpha1.RateLimitDescriptor"},
+	}
+}
+
+func schema_apoxy_cli_api_policy_v1alpha1_RateLimitStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"phase": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Phase is the current state of the rate limit.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"withinLimit": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Number of rate limit requests within the limit.",
+							Type:        []string{"integer"},
+							Format:      "int64",
+						},
+					},
+					"overLimit": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Number of rate limit requests that exceeded the limit.",
+							Type:        []string{"integer"},
+							Format:      "int64",
+						},
+					},
+					"totalRequests": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Total number of rate limit requests.",
+							Type:        []string{"integer"},
+							Format:      "int64",
+						},
+					},
+				},
+			},
+		},
 	}
 }
 
