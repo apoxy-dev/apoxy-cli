@@ -36,10 +36,9 @@ func build(ctx context.Context) error {
 		log.Fatal("APOXY_PROJECT_API_KEY not set")
 	}
 	sha := os.Getenv("GITHUB_SHA")
-	if sha == "" {
-		log.Fatal("GITHUB_SHA not set")
+	if sha != "" {
+		sha = sha[:10]
 	}
-	sha = sha[:10]
 
 	client, err := dagger.Connect(ctx, dagger.WithLogOutput(os.Stderr))
 	if err != nil {
@@ -96,7 +95,9 @@ func build(ctx context.Context) error {
 	fmt.Println(out)
 
 	// 3. Build and publish multi-arch Backplane images.
-	var vars []*dagger.Container
+
+	var bpContainers []*dagger.Container
+	var rlContainers []*dagger.Container
 	for _, platform := range []dagger.Platform{"linux/amd64", "linux/arm64"} {
 		goarch := archOf(platform)
 		bpOut := filepath.Join("build", "backplane-"+goarch)
@@ -117,11 +118,40 @@ func build(ctx context.Context) error {
 			return err
 		}
 
-		vars = append(vars, v)
+		bpContainers = append(bpContainers, v)
+
+		rlRepo := client.Git("https://github.com/envoyproxy/ratelimit.git").
+			Branch("main").
+			Tree()
+		rlBuilder := client.Container().From("golang:latest").
+			WithDirectory("/src", rlRepo).
+			WithWorkdir("/src").
+			WithMountedCache("/go/pkg/mod", client.CacheVolume("go-mod-rl")).
+			WithEnvVariable("GOMODCACHE", "/go/pkg/mod").
+			WithMountedCache("/go/build-cache", client.CacheVolume("go-build-rl")).
+			WithEnvVariable("GOCACHE", "/go/build-cache").
+			WithEnvVariable("GOARCH", goarch).
+			WithExec([]string{"go", "build", "-o", "ratelimit", "./src/service_cmd/main.go"})
+
+		v, err = client.Container(dagger.ContainerOpts{Platform: platform}).
+			From("cgr.dev/chainguard/wolfi-base:latest").
+			WithFile("/bin/ratelimit", rlBuilder.File("/src/ratelimit")).
+			WithEntrypoint([]string{"/bin/ratelimit"}).
+			Sync(ctx)
+		if err != nil {
+			return err
+		}
+
+		rlContainers = append(rlContainers, v)
+	}
+
+	if sha == "" {
+		// Skip publishing if not in a CI environment.
+		return nil
 	}
 
 	pubOpts := dagger.ContainerPublishOpts{
-		PlatformVariants: vars,
+		PlatformVariants: bpContainers,
 	}
 	for _, tag := range []string{"latest", sha} {
 		_, err = client.Container().
@@ -134,6 +164,19 @@ func build(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
+	}
+
+	_, err = client.Container().
+		WithRegistryAuth(
+			"docker.io",
+			"apoxy",
+			client.SetSecret("dockerhub-apoxy", os.Getenv("APOXY_DOCKERHUB_PASSWORD")),
+		).
+		Publish(ctx, "docker.io/apoxy/ratelimit:"+sha, dagger.ContainerPublishOpts{
+			PlatformVariants: rlContainers,
+		})
+	if err != nil {
+		return err
 	}
 
 	return nil
