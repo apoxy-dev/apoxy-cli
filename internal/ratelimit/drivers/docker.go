@@ -25,7 +25,7 @@ const (
 // Driver is the interface to deploy RateLimit service.
 type Driver interface {
 	// Starts the RateLimit service.
-	Start(ctx context.Context, orgID uuid.UUID) error
+	Start(ctx context.Context, orgID uuid.UUID, xdsURL string) error
 }
 
 // GetDriver returns a driver by name.
@@ -104,7 +104,7 @@ func (d *dockerDriver) setupRedis(ctx context.Context, orgID uuid.UUID) (string,
 }
 
 // Start starts the RateLimit service container in Docker.
-func (d *dockerDriver) Start(ctx context.Context, orgID uuid.UUID) error {
+func (d *dockerDriver) Start(ctx context.Context, orgID uuid.UUID, xdsURL string) error {
 	rc, err := d.setupRedis(ctx, orgID)
 	if err != nil {
 		return fmt.Errorf("failed to setup redis: %w", err)
@@ -143,8 +143,9 @@ func (d *dockerDriver) Start(ctx context.Context, orgID uuid.UUID) error {
 		"-e", "USE_STATSD=false",
 		"-e", "LOG_LEVEL=debug",
 		"-e", "CONFIG_TYPE=GRPC_XDS_SOTW",
-		"-e", "CONFIG_GRPC_XDS_NODE_ID=ratelimit",
+		"-e", "CONFIG_GRPC_XDS_NODE_ID="+orgID.String(),
 		"-e", "FORCE_START_WITHOUT_INITIAL_CONFIG=true",
+		"-e", "CONFIG_GRPC_XDS_SERVER_URL="+xdsURL,
 		//"-p", "8080:8080",
 		//"-p", "8081:8081",
 		//"-p", "6070:6070",

@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	xdsPort = 18000
+	XDSPort = 18000
 )
 
 var _ reconcile.Reconciler = &RateLimitReconciler{}
@@ -82,7 +82,7 @@ func (r *RateLimitReconciler) Reconcile(ctx context.Context, request reconcile.R
 		return ctrl.Result{}, nil // Deleted.
 	}
 
-	if err := r.syncSnapshot(rl); err != nil {
+	if err := r.syncSnapshot(ctx, rl); err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to sync xDS snapshot: %w", err)
 	}
 
@@ -111,14 +111,14 @@ func (r *RateLimitReconciler) ServeXDS() error {
 		}),
 	)
 
-	ls, err := net.Listen("tcp", fmt.Sprintf(":%d", xdsPort))
+	ls, err := net.Listen("tcp", fmt.Sprintf(":%d", XDSPort))
 	if err != nil {
 		return fmt.Errorf("failed to listen: %w", err)
 	}
 
 	discoveryv3.RegisterAggregatedDiscoveryServiceServer(grpcServer, r.xdsServer)
 
-	log.Log.Info("Starting xDS server", "port", xdsPort)
+	log.Log.Info("Starting xDS server", "port", XDSPort)
 
 	return grpcServer.Serve(ls)
 }
@@ -154,7 +154,9 @@ func objToProto(rl *policyv1alpha1.RateLimit) (*ratelimitv3.RateLimitConfig, err
 	return pb, nil
 }
 
-func (r *RateLimitReconciler) syncSnapshot(rl *policyv1alpha1.RateLimit) error {
+func (r *RateLimitReconciler) syncSnapshot(ctx context.Context, rl *policyv1alpha1.RateLimit) error {
+	log := log.FromContext(ctx, "name", rl.Name)
+
 	pb, err := objToProto(rl)
 	if err != nil {
 		return fmt.Errorf("failed to convert RateLimit to proto: %w", err)
@@ -162,11 +164,15 @@ func (r *RateLimitReconciler) syncSnapshot(rl *policyv1alpha1.RateLimit) error {
 	r.configCache[rl.Name] = pb
 
 	rs := make([]types.Resource, 0, len(r.configCache))
+	names := make([]string, 0, len(r.configCache))
 	for _, v := range r.configCache {
 		rs = append(rs, v)
+		names = append(names, v.GetName())
 	}
+	version := fmt.Sprintf("ratelimit-%d", time.Now().Local().UnixMilli())
+	log.Info("Syncing snapshot with RateLimitConfigs", "version", version, "configs", names)
 	s, err := cache.NewSnapshot(
-		"1",
+		version,
 		map[resource.Type][]types.Resource{
 			resource.RateLimitConfigType: rs,
 		},
@@ -176,6 +182,10 @@ func (r *RateLimitReconciler) syncSnapshot(rl *policyv1alpha1.RateLimit) error {
 	}
 	if err := s.Consistent(); err != nil {
 		return fmt.Errorf("inconsistent snapshot: %w", err)
+	}
+
+	if err := r.cache.SetSnapshot(ctx, r.orgID.String(), s); err != nil {
+		return fmt.Errorf("failed to set snapshot: %w", err)
 	}
 
 	return nil

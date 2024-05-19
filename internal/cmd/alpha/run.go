@@ -213,7 +213,11 @@ var runCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		if err := rlDriver.Start(cmd.Context(), projID); err != nil {
+		if err := rlDriver.Start(
+			cmd.Context(),
+			projID,
+			fmt.Sprintf("host.docker.internal:%d", apiserverpolicy.XDSPort),
+		); err != nil {
 			return err
 		}
 
