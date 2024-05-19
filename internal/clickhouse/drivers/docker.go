@@ -55,7 +55,7 @@ func chWaitReady(ctx context.Context, cname string) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(1 * time.Second):
+		case <-time.After(200 * time.Millisecond):
 		}
 	}
 	panic("unreachable")

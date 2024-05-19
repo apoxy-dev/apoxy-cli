@@ -21,6 +21,7 @@ import (
 	"github.com/apoxy-dev/apoxy-cli/internal/backplane/portforward"
 	chdrivers "github.com/apoxy-dev/apoxy-cli/internal/clickhouse/drivers"
 	"github.com/apoxy-dev/apoxy-cli/internal/log"
+	ratelimitdrivers "github.com/apoxy-dev/apoxy-cli/internal/ratelimit/drivers"
 	"github.com/apoxy-dev/apoxy-cli/rest"
 
 	ctrlv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
@@ -189,6 +190,14 @@ var runCmd = &cobra.Command{
 			}
 		case <-cmd.Context().Done():
 			return nil
+		}
+
+		rlDriver, err := ratelimitdrivers.GetDriver("docker")
+		if err != nil {
+			return err
+		}
+		if err := rlDriver.Start(cmd.Context(), projID); err != nil {
+			return err
 		}
 
 		chDriver, err := chdrivers.GetDriver("docker")
