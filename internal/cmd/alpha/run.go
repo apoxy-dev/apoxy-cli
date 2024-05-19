@@ -17,6 +17,7 @@ import (
 	"github.com/apoxy-dev/apoxy-cli/config"
 	"github.com/apoxy-dev/apoxy-cli/internal/apiserver"
 	apiserverctrl "github.com/apoxy-dev/apoxy-cli/internal/apiserver/controllers"
+	apiserverpolicy "github.com/apoxy-dev/apoxy-cli/internal/apiserver/policy"
 	bpdrivers "github.com/apoxy-dev/apoxy-cli/internal/backplane/drivers"
 	"github.com/apoxy-dev/apoxy-cli/internal/backplane/portforward"
 	chdrivers "github.com/apoxy-dev/apoxy-cli/internal/clickhouse/drivers"
@@ -178,6 +179,22 @@ var runCmd = &cobra.Command{
 				log.Errorf("failed to set up Project controller: %v", err)
 				return
 			}
+
+			pr := apiserverpolicy.NewRateLimitReconciler(
+				cmd.Context(),
+				mgr.GetClient(),
+				projID,
+			)
+			if err := pr.SetupWithManager(cmd.Context(), mgr); err != nil {
+				log.Errorf("failed to set up RateLimit controller: %v", err)
+				return
+			}
+			go func() {
+				if err := pr.ServeXDS(); err != nil {
+					log.Errorf("failed to serve XDS: %v", err)
+					ctxCancel(&runError{Err: err})
+				}
+			}()
 
 			if err := mgr.Start(cmd.Context()); err != nil {
 				log.Errorf("failed to start manager: %v", err)

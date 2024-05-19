@@ -27,7 +27,7 @@ type RateLimitPolicy struct {
 
 	// How many requests are allowed per unit.
 	// 0 means no requests are allowed.
-	RequestsPerUnit int64 `json:"requestsPerUnit,omitempty"`
+	RequestsPerUnit uint32 `json:"requestsPerUnit,omitempty"`
 
 	// Sets unlimited requests per unit.
 	// +optional
