@@ -5,7 +5,6 @@ import (
 	goerrors "errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/fsnotify/fsnotify"
@@ -13,6 +12,14 @@ import (
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/discovery"
+	memory "k8s.io/client-go/discovery/cached"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/restmapper"
 
 	"github.com/apoxy-dev/apoxy-cli/config"
 	"github.com/apoxy-dev/apoxy-cli/internal/apiserver"
@@ -23,61 +30,91 @@ import (
 	chdrivers "github.com/apoxy-dev/apoxy-cli/internal/clickhouse/drivers"
 	"github.com/apoxy-dev/apoxy-cli/internal/log"
 	ratelimitdrivers "github.com/apoxy-dev/apoxy-cli/internal/ratelimit/drivers"
-	"github.com/apoxy-dev/apoxy-cli/rest"
 
 	ctrlv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
+	policyv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/policy/v1alpha1"
 )
 
-func defaultOrLocalAPIClient(local bool) (*rest.APIClient, error) {
-	if local {
-		return rest.NewAPIClient("https://localhost:443", "localhost", "", uuid.New())
-	}
-	return config.DefaultAPIClient()
+var (
+	scheme   = runtime.NewScheme()
+	codecs   = serializer.NewCodecFactory(scheme)
+	decodeFn = codecs.UniversalDeserializer().Decode
+)
+
+func init() {
+	utilruntime.Must(ctrlv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(policyv1alpha1.AddToScheme(scheme))
 }
 
-func updateProxyFromFile(ctx context.Context, path string) (*ctrlv1alpha1.Proxy, error) {
+func maybeNamespaced(un *unstructured.Unstructured) string {
+	ns := un.GetNamespace()
+	if ns == "" {
+		return un.GetName()
+	}
+	return fmt.Sprintf("%s/%s", ns, un.GetName())
+}
+
+func updateFromFile(ctx context.Context, path string) error {
 	cfg, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read file: %w", err)
+		return fmt.Errorf("failed to read file: %w", err)
 	}
-	rc, err := defaultOrLocalAPIClient(true)
+	c, err := config.DefaultAPIClient()
 	if err != nil {
-		return nil, err
+		return err
 	}
-	proxyName, err := proxyName(path)
+
+	dc, err := discovery.NewDiscoveryClientForConfig(c.RESTConfig)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	proxy := &ctrlv1alpha1.Proxy{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: proxyName,
-		},
-		Spec: ctrlv1alpha1.ProxySpec{
-			Provider: ctrlv1alpha1.InfraProviderUnmanaged,
-			Config:   string(cfg),
-		},
+	dynClient, err := dynamic.NewForConfig(c.RESTConfig)
+	if err != nil {
+		return err
 	}
-	p, err := rc.ControllersV1alpha1().Proxies().Create(ctx, proxy, metav1.CreateOptions{})
-	if errors.IsAlreadyExists(err) {
-		p, err = rc.ControllersV1alpha1().Proxies().Get(ctx, proxy.Name, metav1.GetOptions{})
+	mapper := restmapper.NewDeferredDiscoveryRESTMapper(memory.NewMemCacheClient(dc))
+
+	for _, objYaml := range strings.Split(string(cfg), "\n---\n") {
+		unObj := &unstructured.Unstructured{}
+		_, _, err := decodeFn([]byte(objYaml), nil, unObj)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get proxy: %w", err)
+			return fmt.Errorf("failed to decode object: %w", err)
 		}
-		p.Spec = proxy.Spec
-		if _, err = rc.ControllersV1alpha1().Proxies().Update(
-			ctx,
-			p,
-			metav1.UpdateOptions{},
-		); err != nil {
-			return nil, fmt.Errorf("failed to update proxy: %w", err)
+
+		mapping, err := mapper.RESTMapping(
+			unObj.GroupVersionKind().GroupKind(),
+			unObj.GroupVersionKind().Version,
+		)
+		if err != nil {
+			return err
 		}
-	} else if err != nil {
-		return nil, fmt.Errorf("failed to create proxy: %w", err)
+
+		_, err = dynClient.Resource(mapping.Resource).
+			Namespace(unObj.GetNamespace()).
+			Create(ctx, unObj, metav1.CreateOptions{})
+		if errors.IsAlreadyExists(err) {
+			log.Debugf("object %v %s already exists, updating...", unObj.GroupVersionKind(), maybeNamespaced(unObj))
+
+			_, err = dynClient.Resource(mapping.Resource).
+				Namespace(unObj.GetNamespace()).
+				Update(ctx, unObj, metav1.UpdateOptions{})
+			if err != nil {
+				return fmt.Errorf("failed to update object %s: %w", maybeNamespaced(unObj), err)
+			}
+
+			fmt.Printf("updated %v object %s\n", unObj.GroupVersionKind(), maybeNamespaced(unObj))
+		} else if err != nil {
+			return fmt.Errorf("failed to create object %s: %w", maybeNamespaced(unObj), err)
+		} else {
+			fmt.Printf("created %v object %s\n", unObj.GroupVersionKind(), maybeNamespaced(unObj))
+		}
 	}
-	return p, err
+	return err
 }
 
-func watchAndReloadProxy(ctx context.Context, path string) error {
+// watchAndReloadConfig watches the given file for changes and reloads the
+// Apoxy configuration when the file changes.
+func watchAndReloadConfig(ctx context.Context, path string) error {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return err
@@ -87,7 +124,7 @@ func watchAndReloadProxy(ctx context.Context, path string) error {
 		return err
 	}
 
-	if _, err := updateProxyFromFile(ctx, path); err != nil {
+	if err := updateFromFile(ctx, path); err != nil {
 		return err
 	}
 	for {
@@ -103,7 +140,7 @@ func watchAndReloadProxy(ctx context.Context, path string) error {
 			}
 
 			// Reload the proxy configuration
-			if _, err := updateProxyFromFile(ctx, path); err != nil {
+			if err := updateFromFile(ctx, path); err != nil {
 				return err
 			}
 		case err := <-watcher.Errors:
@@ -111,19 +148,6 @@ func watchAndReloadProxy(ctx context.Context, path string) error {
 		}
 	}
 	panic("unreachable")
-}
-
-func proxyName(path string) (string, error) {
-	host, err := os.Hostname()
-	if err != nil {
-		return "", fmt.Errorf("failed to get hostname: %w", err)
-	}
-	basename := filepath.Base(path)
-	return fmt.Sprintf(
-		"proxy-%s-%s",
-		host,
-		strings.TrimSuffix(basename, filepath.Ext(basename)),
-	), nil
 }
 
 type runError struct {
@@ -141,8 +165,11 @@ func (e *runError) Unwrap() error {
 var runCmd = &cobra.Command{
 	Use:   "run",
 	Short: "Run Apoxy server locally",
-	Args:  cobra.ExactArgs(1),
+	Long: `Run Apoxy API locally. This command brings up Apoxy API stack locally
+allowing you to test and develop your proxy infrastructure.`,
+	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		config.LocalMode = true // Enable local mode
 		cmd.SilenceUsage = true
 		cfg, err := config.Load()
 		if err != nil {
@@ -154,7 +181,7 @@ var runCmd = &cobra.Command{
 		}
 
 		path := args[0]
-		proxyName, err := proxyName(path)
+		proxyName, err := os.Hostname()
 		if err != nil {
 			return err
 		}
@@ -165,7 +192,7 @@ var runCmd = &cobra.Command{
 
 		startCh := make(chan error)
 		go func() {
-			mgr, err := apiserver.Start(cmd.Context())
+			mgr, err := apiserver.Start(cmd.Context(), apiserver.WithSQLitePath(":memory:"))
 			if err != nil {
 				log.Errorf("failed to start API server: %v", err)
 				startCh <- err
@@ -261,9 +288,10 @@ var runCmd = &cobra.Command{
 			// If err is nil, it means context has been cancelled.
 		}()
 
-		if err := watchAndReloadProxy(cmd.Context(), path); err != nil {
+		if err := watchAndReloadConfig(cmd.Context(), path); err != nil {
 			return err
 		}
+		<-cmd.Context().Done()
 
 		var runErr *runError
 		if err := context.Cause(ctx); goerrors.As(err, &runErr) {

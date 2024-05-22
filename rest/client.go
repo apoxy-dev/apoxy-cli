@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
+	"k8s.io/client-go/rest"
 
 	"github.com/apoxy-dev/apoxy-cli/build"
 	"github.com/apoxy-dev/apoxy-cli/client/versioned"
@@ -21,6 +22,7 @@ type APIClient struct {
 	APIKey     string
 	ProjectID  uuid.UUID
 	HTTPClient *http.Client
+	RESTConfig *rest.Config
 }
 
 // NewAPIClient creates a new instance of the APIClient.
@@ -49,6 +51,7 @@ func NewAPIClient(baseURL, baseHost, apiKey string, projectID uuid.UUID) (*APICl
 				TLSClientConfig: tlsCfg,
 			},
 		},
+		RESTConfig: a3yConfig,
 	}, nil
 }
 
