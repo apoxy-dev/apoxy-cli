@@ -10,10 +10,6 @@ import (
 type Interface interface {
 	// Proxies returns a ProxyInformer.
 	Proxies() ProxyInformer
-	// ProxyDeployments returns a ProxyDeploymentInformer.
-	ProxyDeployments() ProxyDeploymentInformer
-	// ProxySets returns a ProxySetInformer.
-	ProxySets() ProxySetInformer
 }
 
 type version struct {
@@ -30,14 +26,4 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 // Proxies returns a ProxyInformer.
 func (v *version) Proxies() ProxyInformer {
 	return &proxyInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
-}
-
-// ProxyDeployments returns a ProxyDeploymentInformer.
-func (v *version) ProxyDeployments() ProxyDeploymentInformer {
-	return &proxyDeploymentInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
-}
-
-// ProxySets returns a ProxySetInformer.
-func (v *version) ProxySets() ProxySetInformer {
-	return &proxySetInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }

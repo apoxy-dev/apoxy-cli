@@ -46,11 +46,7 @@ func init() {
 func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
 		&Proxy{},
-		&ProxyDeployment{},
-		&ProxyDeploymentList{},
 		&ProxyList{},
-		&ProxySet{},
-		&ProxySetList{},
 	)
 	// AddToGroupVersion allows the serialization of client types like ListOptions.
 	v1.AddToGroupVersion(scheme, SchemeGroupVersion)

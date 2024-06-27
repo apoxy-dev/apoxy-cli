@@ -176,8 +176,6 @@ func Start(
 			WithResourceAndStorage(&corev1alpha.Domain{}, NewKineStorage(ctx, "sqlite://"+dOpts.sqlitePath)).
 			WithResourceAndStorage(&corev1alpha.TunnelNode{}, NewKineStorage(ctx, "sqlite://"+dOpts.sqlitePath)).
 			WithResourceAndStorage(&ctrlv1alpha1.Proxy{}, NewKineStorage(ctx, "sqlite://"+dOpts.sqlitePath)).
-			WithResourceAndStorage(&ctrlv1alpha1.ProxySet{}, NewKineStorage(ctx, "sqlite://"+dOpts.sqlitePath)).
-			WithResourceAndStorage(&ctrlv1alpha1.ProxyDeployment{}, NewKineStorage(ctx, "sqlite://"+dOpts.sqlitePath)).
 			WithResourceAndStorage(&policyv1alpha1.RateLimit{}, NewKineStorage(ctx, "sqlite://"+dOpts.sqlitePath)).
 			DisableAuthorization().
 			WithOptionsFns(func(o *builder.ServerOptions) *builder.ServerOptions {

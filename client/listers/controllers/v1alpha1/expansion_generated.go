@@ -5,11 +5,3 @@ package v1alpha1
 // ProxyListerExpansion allows custom methods to be added to
 // ProxyLister.
 type ProxyListerExpansion interface{}
-
-// ProxyDeploymentListerExpansion allows custom methods to be added to
-// ProxyDeploymentLister.
-type ProxyDeploymentListerExpansion interface{}
-
-// ProxySetListerExpansion allows custom methods to be added to
-// ProxySetLister.
-type ProxySetListerExpansion interface{}

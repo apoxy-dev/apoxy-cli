@@ -16,14 +16,6 @@ func (c *FakeControllersV1alpha1) Proxies() v1alpha1.ProxyInterface {
 	return &FakeProxies{c}
 }
 
-func (c *FakeControllersV1alpha1) ProxyDeployments() v1alpha1.ProxyDeploymentInterface {
-	return &FakeProxyDeployments{c}
-}
-
-func (c *FakeControllersV1alpha1) ProxySets() v1alpha1.ProxySetInterface {
-	return &FakeProxySets{c}
-}
-
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
 func (c *FakeControllersV1alpha1) RESTClient() rest.Interface {

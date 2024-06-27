@@ -41,10 +41,6 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 	// Group=controllers.apoxy.dev, Version=v1alpha1
 	case v1alpha1.SchemeGroupVersion.WithResource("proxies"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Controllers().V1alpha1().Proxies().Informer()}, nil
-	case v1alpha1.SchemeGroupVersion.WithResource("proxydeployments"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Controllers().V1alpha1().ProxyDeployments().Informer()}, nil
-	case v1alpha1.SchemeGroupVersion.WithResource("proxysets"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Controllers().V1alpha1().ProxySets().Informer()}, nil
 
 		// Group=core.apoxy.dev, Version=v1alpha
 	case v1alpha.SchemeGroupVersion.WithResource("addresses"):

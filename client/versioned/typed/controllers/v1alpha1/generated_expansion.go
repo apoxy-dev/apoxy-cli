@@ -3,7 +3,3 @@
 package v1alpha1
 
 type ProxyExpansion interface{}
-
-type ProxyDeploymentExpansion interface{}
-
-type ProxySetExpansion interface{}

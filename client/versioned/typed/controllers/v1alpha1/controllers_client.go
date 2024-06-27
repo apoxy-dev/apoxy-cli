@@ -13,8 +13,6 @@ import (
 type ControllersV1alpha1Interface interface {
 	RESTClient() rest.Interface
 	ProxiesGetter
-	ProxyDeploymentsGetter
-	ProxySetsGetter
 }
 
 // ControllersV1alpha1Client is used to interact with features provided by the controllers.apoxy.dev group.
@@ -24,14 +22,6 @@ type ControllersV1alpha1Client struct {
 
 func (c *ControllersV1alpha1Client) Proxies() ProxyInterface {
 	return newProxies(c)
-}
-
-func (c *ControllersV1alpha1Client) ProxyDeployments() ProxyDeploymentInterface {
-	return newProxyDeployments(c)
-}
-
-func (c *ControllersV1alpha1Client) ProxySets() ProxySetInterface {
-	return newProxySets(c)
 }
 
 // NewForConfig creates a new ControllersV1alpha1Client for the given config.
