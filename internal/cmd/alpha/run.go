@@ -192,7 +192,7 @@ allowing you to test and develop your proxy infrastructure.`,
 
 		startCh := make(chan error)
 		go func() {
-			mgr, err := apiserver.Start(cmd.Context(), apiserver.WithSQLitePath(":memory:"))
+			mgr, err := apiserver.Start(cmd.Context(), apiserver.WithSQLitePath("file::memory:?cache=shared"))
 			if err != nil {
 				log.Errorf("failed to start API server: %v", err)
 				startCh <- err

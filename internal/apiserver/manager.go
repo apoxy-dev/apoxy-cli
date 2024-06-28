@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -148,7 +149,7 @@ func Start(
 
 	readyCh := make(chan struct{})
 	go func() {
-		if dOpts.sqlitePath != "" {
+		if dOpts.sqlitePath != "" && !strings.Contains(dOpts.sqlitePath, ":memory:") {
 			if _, err := os.Stat(dOpts.sqlitePath); os.IsNotExist(err) {
 				if err := os.MkdirAll(filepath.Dir(dOpts.sqlitePath), 0755); err != nil {
 					log.Fatalf("Failed to create database directory: %v", err)
