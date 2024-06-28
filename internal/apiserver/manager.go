@@ -33,6 +33,7 @@ import (
 
 	ctrlv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
 	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
+	extensionsv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1"
 	apoxyopenapi "github.com/apoxy-dev/apoxy-cli/api/generated"
 	policyv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/policy/v1alpha1"
 )
@@ -43,6 +44,7 @@ func init() {
 	utilruntime.Must(corev1alpha.AddToScheme(scheme))
 	utilruntime.Must(ctrlv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(policyv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(extensionsv1alpha1.AddToScheme(scheme))
 	feature.DefaultMutableFeatureGate.Set(string(features.APIPriorityAndFairness) + "=false")
 }
 
@@ -178,6 +180,7 @@ func Start(
 			WithResourceAndStorage(&corev1alpha.TunnelNode{}, NewKineStorage(ctx, "sqlite://"+dOpts.sqlitePath)).
 			WithResourceAndStorage(&ctrlv1alpha1.Proxy{}, NewKineStorage(ctx, "sqlite://"+dOpts.sqlitePath)).
 			WithResourceAndStorage(&policyv1alpha1.RateLimit{}, NewKineStorage(ctx, "sqlite://"+dOpts.sqlitePath)).
+			WithResourceAndStorage(&extensionsv1alpha1.EdgeFunction{}, NewKineStorage(ctx, "sqlite://"+dOpts.sqlitePath)).
 			DisableAuthorization().
 			WithOptionsFns(func(o *builder.ServerOptions) *builder.ServerOptions {
 				o.StdErr = io.Discard

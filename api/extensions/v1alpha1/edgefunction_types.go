@@ -137,10 +137,10 @@ type EdgeFunctionRevision struct {
 type EdgeFunctionPhase string
 
 const (
-	// EdgeFunctionPhasePending means the function is pending creation.
-	EdgeFunctionPhasePending EdgeFunctionPhase = "Pending"
-	// EdgeFunctionPhaseActive means the function is active.
-	EdgeFunctionPhaseActive EdgeFunctionPhase = "Active"
+	// EdgeFunctionPhasePreparing means the function is being prepared.
+	EdgeFunctionPhasePreparing EdgeFunctionPhase = "Preparing"
+	// EdgeFunctionPhaseReady means the function is ready.
+	EdgeFunctionPhaseReady EdgeFunctionPhase = "Ready"
 	// EdgeFunctionPhaseUpdating means the function is being updated.
 	EdgeFunctionPhaseUpdating EdgeFunctionPhase = "Updating"
 	// EdgeFunctionPhaseFailed means the function has failed.

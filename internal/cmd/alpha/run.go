@@ -24,6 +24,7 @@ import (
 	"github.com/apoxy-dev/apoxy-cli/config"
 	"github.com/apoxy-dev/apoxy-cli/internal/apiserver"
 	apiserverctrl "github.com/apoxy-dev/apoxy-cli/internal/apiserver/controllers"
+	apiserverext "github.com/apoxy-dev/apoxy-cli/internal/apiserver/extensions"
 	apiserverpolicy "github.com/apoxy-dev/apoxy-cli/internal/apiserver/policy"
 	bpdrivers "github.com/apoxy-dev/apoxy-cli/internal/backplane/drivers"
 	"github.com/apoxy-dev/apoxy-cli/internal/backplane/portforward"
@@ -32,6 +33,7 @@ import (
 	ratelimitdrivers "github.com/apoxy-dev/apoxy-cli/internal/ratelimit/drivers"
 
 	ctrlv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
+	extensionsv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1"
 	policyv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/policy/v1alpha1"
 )
 
@@ -44,6 +46,7 @@ var (
 func init() {
 	utilruntime.Must(ctrlv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(policyv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(extensionsv1alpha1.AddToScheme(scheme))
 }
 
 func maybeNamespaced(un *unstructured.Unstructured) string {
@@ -204,6 +207,17 @@ allowing you to test and develop your proxy infrastructure.`,
 				mgr.GetClient(),
 			).SetupWithManager(cmd.Context(), mgr); err != nil {
 				log.Errorf("failed to set up Project controller: %v", err)
+				return
+			}
+
+			if err := apiserverext.NewEdgeFuncReconciler(
+				mgr.GetClient(),
+			).SetupWithManager(cmd.Context(), mgr); err != nil {
+				log.Errorf("failed to set up Project controller: %v", err)
+				return
+			}
+			if err := (&extensionsv1alpha1.EdgeFunction{}).SetupWebhookWithManager(mgr); err != nil {
+				log.Errorf("failed to set up EdgeFunction webhook: %v", err)
 				return
 			}
 
