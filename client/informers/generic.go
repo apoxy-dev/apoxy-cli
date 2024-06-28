@@ -7,6 +7,7 @@ import (
 
 	v1alpha1 "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
 	v1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
+	extensionsv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1"
 	policyv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/policy/v1alpha1"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
@@ -51,6 +52,10 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Core().V1alpha().Proxies().Informer()}, nil
 	case v1alpha.SchemeGroupVersion.WithResource("tunnelnodes"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Core().V1alpha().TunnelNodes().Informer()}, nil
+
+		// Group=extensions.apoxy.dev, Version=v1alpha1
+	case extensionsv1alpha1.SchemeGroupVersion.WithResource("edgefunctions"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Extensions().V1alpha1().EdgeFunctions().Informer()}, nil
 
 		// Group=policy.apoxy.dev, Version=v1alpha1
 	case policyv1alpha1.SchemeGroupVersion.WithResource("ratelimits"):
