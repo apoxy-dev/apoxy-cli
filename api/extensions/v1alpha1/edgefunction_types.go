@@ -45,15 +45,21 @@ type JavaScriptNpmSource struct {
 // JavaScriptSource provides sources for the JavaScript function runtime.
 // Only one of the fields may be specified.
 type JavaScriptSource struct {
+	// Entrypoint is the entrypoint path to the function.
+	Entrypoint string `json:"entrypoint"`
+
 	// Asset accepts a list of source files to be included in the function.
+	// Only one of Assets, Git, or Npm may be specified.
 	// +optional
 	Assets *JavaScriptAssetsSource `json:"assets,omitempty"`
 
 	// Git is the git source for the function.
+	// Only one of Assets, Git, or Npm may be specified.
 	// +optional
 	Git *JavaScriptGitSource `json:"git,omitempty"`
 
 	// Npm is the npm source for the function.
+	// Only one of Assets, Git, or Npm may be specified.
 	// +optional
 	Npm *JavaScriptNpmSource `json:"npm,omitempty"`
 }
@@ -83,7 +89,7 @@ type EnvVar struct {
 	Value string `json:"value"`
 }
 
-type RuntimeCapability struct {
+type RuntimeCapabilities struct {
 	// FetchAPI is the capability to fetch data from the internet.
 	// Defaults to true.
 	// +optional
@@ -97,7 +103,8 @@ type RuntimeConfig struct {
 	Timeout *metav1.Duration `json:"timeout,omitempty"`
 
 	// Capabilities is the list of capabilities granted to the function.
-	Capabilities []RuntimeCapability `json:"capabilities"`
+	// +optional
+	Capabilities *RuntimeCapabilities `json:"capabilities"`
 }
 
 type EdgeFunctionSpec struct {
