@@ -10,6 +10,7 @@ import (
 	"github.com/fsnotify/fsnotify"
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
+	"github.com/temporalio/cli/temporalcli/devserver"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -253,6 +254,22 @@ allowing you to test and develop your proxy infrastructure.`,
 		case <-cmd.Context().Done():
 			return nil
 		}
+
+		tOpts := devserver.StartOptions{
+			FrontendIP:             "127.0.0.1",
+			FrontendPort:           7223,
+			Namespaces:             []string{"default"},
+			Logger:                 log.DefaultLogger,
+			ClusterID:              uuid.NewString(),
+			MasterClusterName:      "active",
+			CurrentClusterName:     "active",
+			InitialFailoverVersion: 1,
+		}
+		tSrv, err := devserver.Start(tOpts)
+		if err != nil {
+			return fmt.Errorf("failed starting server: %w", err)
+		}
+		defer tSrv.Stop()
 
 		rlDriver, err := ratelimitdrivers.GetDriver("docker")
 		if err != nil {
