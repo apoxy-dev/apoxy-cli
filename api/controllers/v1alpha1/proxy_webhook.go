@@ -13,7 +13,7 @@ func (r *Proxy) SetupWebhookWithManager(mgr ctrl.Manager) error {
 
 var _ webhook.Defaulter = &Proxy{}
 
-// Default implements webhook.Defaulter so a webhook will be registered for the type
+// Default sets the default values for a Proxy.
 func (r *Proxy) Default() {
 	r.Status.Phase = ProxyPhasePending
 }

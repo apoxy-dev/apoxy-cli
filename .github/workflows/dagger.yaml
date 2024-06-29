@@ -37,4 +37,4 @@ jobs:
            _EXPERIMENTAL_DAGGER_RUNNER_HOST: tcp://localhost:9080
            APOXY_PROJECT_API_KEY: ${{ secrets.APOXY_PROJECT_API_KEY }}
            APOXY_DOCKERHUB_PASSWORD: ${{ secrets.APOXY_DOCKERHUB_PASSWORD }}
-        timeout-minutes: 10
+        timeout-minutes: 15

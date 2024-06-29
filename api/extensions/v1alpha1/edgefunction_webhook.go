@@ -13,7 +13,7 @@ func (r *EdgeFunction) SetupWebhookWithManager(mgr ctrl.Manager) error {
 
 var _ webhook.Defaulter = &EdgeFunction{}
 
-// Default implements webhook.Defaulter so a webhook will be registered for the type
+// Default sets the default values for an EdgeFunction.
 func (r *EdgeFunction) Default() {
 	r.Status.Phase = EdgeFunctionPhasePreparing
 }
