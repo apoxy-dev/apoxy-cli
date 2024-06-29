@@ -136,11 +136,6 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 		return ctrl.Result{}, nil // Deleted.
 	}
 
-	// TODO(dsky): This should be done via a webhook.
-	if p.Status.Phase == "" {
-		p.Status.Phase = ctrlv1alpha1.ProxyPhasePending
-	}
-
 	switch p.Status.Phase {
 	case ctrlv1alpha1.ProxyPhasePending:
 		synced, err := r.syncProxy(ctx, p, false)

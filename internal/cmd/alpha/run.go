@@ -209,6 +209,10 @@ allowing you to test and develop your proxy infrastructure.`,
 				log.Errorf("failed to set up Project controller: %v", err)
 				return
 			}
+			if err := (&ctrlv1alpha1.Proxy{}).SetupWebhookWithManager(mgr); err != nil {
+				log.Errorf("failed to set up Proxy webhook: %v", err)
+				return
+			}
 
 			if err := apiserverext.NewEdgeFuncReconciler(
 				mgr.GetClient(),

@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"flag"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -20,11 +21,13 @@ import (
 	apiserveropts "k8s.io/apiserver/pkg/server/options"
 	"k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/rest"
+	certutil "k8s.io/client-go/util/cert"
 	"k8s.io/klog/v2"
 	netutils "k8s.io/utils/net"
 	"sigs.k8s.io/apiserver-runtime/pkg/builder"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	"github.com/apoxy-dev/apoxy-cli/config"
 	"github.com/apoxy-dev/apoxy-cli/internal/apiserver/auth"
@@ -71,6 +74,30 @@ func waitForReadyz(url string, timeout time.Duration) error {
 		case <-time.After(100 * time.Millisecond):
 		}
 	}
+}
+
+type certSource struct {
+	cert, key []byte
+}
+
+func newSelfSignedCert() (*certSource, error) {
+	cert, key, err := certutil.GenerateSelfSignedCertKeyWithFixtures(
+		"localhost",
+		nil, // IP addresses
+		nil, // alternate names
+		"",
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate self-signed certificate: %w", err)
+	}
+	return &certSource{cert: cert, key: key}, nil
+}
+
+func (c *certSource) GetCertificate(*tls.ClientHelloInfo) (*tls.Certificate, error) {
+	return &tls.Certificate{
+		Certificate: [][]byte{c.cert},
+		PrivateKey:  c.key,
+	}, nil
 }
 
 // Option is an API server option.
@@ -252,9 +279,22 @@ func Start(
 	case <-readyCh:
 	}
 
+	certSrc, err := newSelfSignedCert()
+	if err != nil {
+		log.Fatalf("Failed to generate self-signed certificate: %v", err)
+	}
+	whSrvOpts := webhook.Options{
+		TLSOpts: []func(*tls.Config){
+			func(cfg *tls.Config) {
+				cfg.GetCertificate = certSrc.GetCertificate
+			},
+		},
+	}
+
 	mgr, err := ctrl.NewManager(dOpts.clientConfig, ctrl.Options{
 		Scheme:         scheme,
 		LeaderElection: false,
+		WebhookServer:  webhook.NewServer(whSrvOpts),
 	})
 	if err != nil {
 		log.Fatalf("unable to start manager: %v", err)
