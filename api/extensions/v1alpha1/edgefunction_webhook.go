@@ -15,5 +15,7 @@ var _ webhook.Defaulter = &EdgeFunction{}
 
 // Default sets the default values for an EdgeFunction.
 func (r *EdgeFunction) Default() {
-	r.Status.Phase = EdgeFunctionPhasePreparing
+	if r.Status.Phase == "" {
+		r.Status.Phase = EdgeFunctionPhasePreparing
+	}
 }

@@ -15,5 +15,7 @@ var _ webhook.Defaulter = &Proxy{}
 
 // Default sets the default values for a Proxy.
 func (r *Proxy) Default() {
-	r.Status.Phase = ProxyPhasePending
+	if r.Status.Phase == "" {
+		r.Status.Phase = ProxyPhasePending
+	}
 }
