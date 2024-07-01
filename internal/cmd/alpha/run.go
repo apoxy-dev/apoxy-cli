@@ -5,12 +5,16 @@ import (
 	goerrors "errors"
 	"fmt"
 	"os"
+	goruntime "runtime"
 	"strings"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	"github.com/temporalio/cli/temporalcli/devserver"
+	tclient "go.temporal.io/sdk/client"
+	"go.temporal.io/sdk/worker"
+	tworker "go.temporal.io/sdk/worker"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -26,6 +30,7 @@ import (
 	"github.com/apoxy-dev/apoxy-cli/internal/apiserver"
 	apiserverctrl "github.com/apoxy-dev/apoxy-cli/internal/apiserver/controllers"
 	apiserverext "github.com/apoxy-dev/apoxy-cli/internal/apiserver/extensions"
+	"github.com/apoxy-dev/apoxy-cli/internal/apiserver/ingest"
 	apiserverpolicy "github.com/apoxy-dev/apoxy-cli/internal/apiserver/policy"
 	bpdrivers "github.com/apoxy-dev/apoxy-cli/internal/backplane/drivers"
 	"github.com/apoxy-dev/apoxy-cli/internal/backplane/portforward"
@@ -166,6 +171,15 @@ func (e *runError) Unwrap() error {
 	return e.Err
 }
 
+func stopCh(ctx context.Context) <-chan interface{} {
+	ch := make(chan interface{})
+	go func() {
+		<-ctx.Done()
+		close(ch)
+	}()
+	return ch
+}
+
 var runCmd = &cobra.Command{
 	Use:   "run",
 	Short: "Run Apoxy server locally",
@@ -190,9 +204,54 @@ allowing you to test and develop your proxy infrastructure.`,
 			return err
 		}
 
+		c, err := config.DefaultAPIClient()
+		if err != nil {
+			return err
+		}
+
 		fmt.Printf("Starting Apoxy server with proxy %s...\n", proxyName)
 
 		ctx, ctxCancel := context.WithCancelCause(cmd.Context())
+
+		tOpts := devserver.StartOptions{
+			FrontendIP:             "127.0.0.1",
+			FrontendPort:           7223,
+			Namespaces:             []string{"default"},
+			Logger:                 log.DefaultLogger,
+			ClusterID:              uuid.NewString(),
+			MasterClusterName:      "active",
+			CurrentClusterName:     "active",
+			InitialFailoverVersion: 1,
+		}
+		tSrv, err := devserver.Start(tOpts)
+		if err != nil {
+			return fmt.Errorf("failed starting Temporal server: %w", err)
+		}
+		defer tSrv.Stop()
+		tc, err := tclient.NewLazyClient(tclient.Options{
+			HostPort:  "localhost:7223",
+			Namespace: "default",
+		})
+		if err != nil {
+			return fmt.Errorf("failed creating Temporal client: %w", err)
+		}
+
+		wOpts := tworker.Options{
+			MaxConcurrentActivityExecutionSize:     goruntime.NumCPU(),
+			MaxConcurrentWorkflowTaskExecutionSize: goruntime.NumCPU(),
+			EnableSessionWorker:                    true,
+		}
+		w := worker.New(tc, ingest.EdgeFunctionIngestQueue, wOpts)
+		ingest.RegisterWorkflows(w)
+		ww := ingest.NewWorker(c)
+		ww.RegisterActivities(w)
+		go func() {
+			err = w.Run(stopCh(cmd.Context()))
+			if err != nil {
+				log.Errorf("failed running Temporal worker: %v", err)
+				ctxCancel(&runError{Err: err})
+			}
+		}()
 
 		startCh := make(chan error)
 		go func() {
@@ -217,6 +276,7 @@ allowing you to test and develop your proxy infrastructure.`,
 
 			if err := apiserverext.NewEdgeFuncReconciler(
 				mgr.GetClient(),
+				tc,
 			).SetupWithManager(cmd.Context(), mgr); err != nil {
 				log.Errorf("failed to set up Project controller: %v", err)
 				return
@@ -254,22 +314,6 @@ allowing you to test and develop your proxy infrastructure.`,
 		case <-cmd.Context().Done():
 			return nil
 		}
-
-		tOpts := devserver.StartOptions{
-			FrontendIP:             "127.0.0.1",
-			FrontendPort:           7223,
-			Namespaces:             []string{"default"},
-			Logger:                 log.DefaultLogger,
-			ClusterID:              uuid.NewString(),
-			MasterClusterName:      "active",
-			CurrentClusterName:     "active",
-			InitialFailoverVersion: 1,
-		}
-		tSrv, err := devserver.Start(tOpts)
-		if err != nil {
-			return fmt.Errorf("failed starting server: %w", err)
-		}
-		defer tSrv.Stop()
 
 		rlDriver, err := ratelimitdrivers.GetDriver("docker")
 		if err != nil {
