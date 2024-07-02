@@ -54,6 +54,14 @@ func (r *EdgeFunctionReconciler) Reconcile(ctx context.Context, request reconcil
 	log := clog.FromContext(ctx, "name", f.Name)
 	log.Info("Reconciling EdgeFunction", "phase", f.Status.Phase)
 
+	if !f.ObjectMeta.DeletionTimestamp.IsZero() {
+		log.Info("EdgeFunction is being deleted")
+		if err := r.cancelIngestWorkflow(ctx, f); err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to cancel ingest workflow: %w", err)
+		}
+		return ctrl.Result{}, nil
+	}
+
 	switch f.Status.Phase {
 	case v1alpha1.EdgeFunctionPhasePreparing:
 		if err := r.startIngestWorkflow(clog.IntoContext(ctx, log), f); err != nil {
@@ -103,4 +111,20 @@ func (r *EdgeFunctionReconciler) startIngestWorkflow(ctx context.Context, obj *v
 	}
 	_, err = r.tc.ExecuteWorkflow(ctx, wOpts, ingest.EdgeFunctionIngestWorkflow, in)
 	return err
+}
+
+func (r *EdgeFunctionReconciler) cancelIngestWorkflow(ctx context.Context, obj *v1alpha1.EdgeFunction) error {
+	wid := ingest.WorkflowID(obj)
+	log := clog.FromContext(ctx, "workflow_id", wid)
+
+	log.Info("Cancelling ingest workflow")
+
+	if err := r.tc.CancelWorkflow(ctx, wid, ""); err != nil {
+		var serviceErr *serviceerror.NotFound
+		if !goerrors.As(err, &serviceErr) {
+			return fmt.Errorf("failed to describe workflow execution: %w", err)
+		}
+		log.Info("Workflow is not found, nothing to cancel")
+	}
+	return nil
 }
