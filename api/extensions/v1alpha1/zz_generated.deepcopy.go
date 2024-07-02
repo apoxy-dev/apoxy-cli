@@ -113,7 +113,11 @@ func (in *EdgeFunctionRevision) DeepCopy() *EdgeFunctionRevision {
 func (in *EdgeFunctionSpec) DeepCopyInto(out *EdgeFunctionSpec) {
 	*out = *in
 	in.Code.DeepCopyInto(&out.Code)
-	out.Env = in.Env
+	if in.Env != nil {
+		in, out := &in.Env, &out.Env
+		*out = make([]EnvVar, len(*in))
+		copy(*out, *in)
+	}
 	in.RuntimeConfig.DeepCopyInto(&out.RuntimeConfig)
 }
 

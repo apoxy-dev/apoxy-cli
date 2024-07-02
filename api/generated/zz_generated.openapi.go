@@ -1583,8 +1583,15 @@ func schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionSpec(ref common.Refere
 					"env": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Env is a list of environment variables to set in the function runtime. These will be available via WASIp1 environ* routines as well asu Apoxy Runtime SDK APIs.",
-							Default:     map[string]interface{}{},
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EnvVar"),
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EnvVar"),
+									},
+								},
+							},
 						},
 					},
 					"runtimeConfig": {

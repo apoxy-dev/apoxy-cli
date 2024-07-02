@@ -116,7 +116,7 @@ type EdgeFunctionSpec struct {
 	// These will be available via WASIp1 environ* routines as well asu
 	// Apoxy Runtime SDK APIs.
 	// +optional
-	Env EnvVar `json:"env,omitempty"`
+	Env []EnvVar `json:"env,omitempty"`
 
 	// RuntimeConfig is the configuration for the function runtime.
 	// +optional
