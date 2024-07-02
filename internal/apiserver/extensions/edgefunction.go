@@ -9,6 +9,7 @@ import (
 
 	"go.temporal.io/api/enums/v1"
 	"go.temporal.io/api/serviceerror"
+	"go.temporal.io/api/workflow/v1"
 	tclient "go.temporal.io/sdk/client"
 	"k8s.io/apimachinery/pkg/api/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -63,10 +64,29 @@ func (r *EdgeFunctionReconciler) Reconcile(ctx context.Context, request reconcil
 	}
 
 	switch f.Status.Phase {
-	case v1alpha1.EdgeFunctionPhasePreparing:
+	case v1alpha1.EdgeFunctionPhasePreparing, v1alpha1.EdgeFunctionPhaseUpdating:
 		if err := r.startIngestWorkflow(clog.IntoContext(ctx, log), f); err != nil {
 			return ctrl.Result{}, fmt.Errorf("failed to start ingest workflow: %w", err)
 		}
+	case v1alpha1.EdgeFunctionPhaseReady:
+		log.Info("EdgeFunction is ready, detecting changes")
+		wid, err := ingest.WorkflowID(f)
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to get workflow ID: %w", err)
+		}
+		_, found, err := r.findIngestWorkflow(clog.IntoContext(ctx, log), wid)
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to find ingest workflow: %w", err)
+		} else if !found {
+			log.Info("Detected changes in EdgeFunction code, switching to Updating phase")
+			// Workflow with the given ID not found, means we haven't ingested this configuration yet.
+			// Switch the state to Updating to trigger a new ingest.
+			f.Status.Phase = v1alpha1.EdgeFunctionPhaseUpdating
+			if err := r.Status().Update(ctx, f); err != nil {
+				return ctrl.Result{}, fmt.Errorf("failed to update EdgeFunction: %w", err)
+			}
+		}
+		// Workflow with the same ID found, means we have ingested this configuration - do nothing.
 	default:
 		log.Info("EdgeFunction is in an unknown phase", "phase", f.Status.Phase)
 		return ctrl.Result{}, nil
@@ -82,21 +102,39 @@ func (r *EdgeFunctionReconciler) SetupWithManager(ctx context.Context, mgr ctrl.
 		Complete(r)
 }
 
-func (r *EdgeFunctionReconciler) startIngestWorkflow(ctx context.Context, obj *v1alpha1.EdgeFunction) error {
-	wid := ingest.WorkflowID(obj)
+func (r *EdgeFunctionReconciler) findIngestWorkflow(ctx context.Context, wid string) (*workflow.WorkflowExecutionInfo, bool, error) {
 	log := clog.FromContext(ctx, "workflow_id", wid)
-
+	log.Info("Finding workflow")
 	res, err := r.tc.DescribeWorkflowExecution(ctx, wid, "" /* RunID */)
 	if err != nil {
 		var serviceErr *serviceerror.NotFound
 		if !goerrors.As(err, &serviceErr) {
-			return fmt.Errorf("failed to describe workflow execution: %w", err)
+			return nil, false, fmt.Errorf("failed to describe workflow execution: %w", err)
 		}
-	} else if res.WorkflowExecutionInfo.GetStatus() == enums.WORKFLOW_EXECUTION_STATUS_RUNNING {
-		log.Info("Workflow is already running, returning")
-		return nil
+		return nil, false, nil // Workflow not found
+	}
+	log.Info("Found workflow", "status", res.WorkflowExecutionInfo.GetStatus())
+	return res.WorkflowExecutionInfo, true, nil
+}
+
+func (r *EdgeFunctionReconciler) startIngestWorkflow(ctx context.Context, obj *v1alpha1.EdgeFunction) error {
+	wid, err := ingest.WorkflowID(obj)
+	if err != nil {
+		return fmt.Errorf("failed to get workflow ID: %w", err)
+	}
+	log := clog.FromContext(ctx, "workflow_id", wid)
+
+	execInfo, found, err := r.findIngestWorkflow(ctx, wid)
+	if err != nil {
+		return err
+	} else if found {
+		if execInfo.GetStatus() == enums.WORKFLOW_EXECUTION_STATUS_RUNNING {
+			log.Info("Workflow is already running, returning")
+			return nil
+		}
+		log.Info("Workflow is not running, starting new workflow", "status", execInfo.GetStatus())
 	} else {
-		log.Info("Workflow is not running, starting new workflow", "status", res.WorkflowExecutionInfo.GetStatus())
+		log.Info("Workflow not found, starting new workflow")
 	}
 
 	log.Info("Starting ingest workflow")
@@ -114,7 +152,10 @@ func (r *EdgeFunctionReconciler) startIngestWorkflow(ctx context.Context, obj *v
 }
 
 func (r *EdgeFunctionReconciler) cancelIngestWorkflow(ctx context.Context, obj *v1alpha1.EdgeFunction) error {
-	wid := ingest.WorkflowID(obj)
+	wid, err := ingest.WorkflowID(obj)
+	if err != nil {
+		return fmt.Errorf("failed to get workflow ID: %w", err)
+	}
 	log := clog.FromContext(ctx, "workflow_id", wid)
 
 	log.Info("Cancelling ingest workflow")

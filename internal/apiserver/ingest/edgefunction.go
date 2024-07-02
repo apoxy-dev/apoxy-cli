@@ -2,6 +2,9 @@ package ingest
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -38,14 +41,21 @@ type EdgeFunctionIngestParams struct {
 }
 
 type EdgeFunctionIngestResult struct {
-	WasmFilePath string
-	Err          string
+	WasmFilePath      string
+	WasmFileCreatedAt metav1.Time
+	Err               string
 }
 
 // WorkflowID returns a unique identifier for the Edge Function ingest workflow.
 // Each workflow is uniquely identified by the Edge Function name and its resource version.
-func WorkflowID(o *v1alpha1.EdgeFunction) string {
-	return o.Name + "-" + o.ResourceVersion
+func WorkflowID(o *v1alpha1.EdgeFunction) (string, error) {
+	bs, err := json.Marshal(o.Spec.Code)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal EdgeFunction code spec: %w", err)
+	}
+	h := sha256.New()
+	h.Write(bs)
+	return o.Name + "@sha256:" + hex.EncodeToString(h.Sum(nil)), nil
 }
 
 // RegisterWorkflows registers Edge Function workflows with the Temporal worker.
@@ -226,8 +236,15 @@ func (w *worker) DownloadWasmActivity(
 		return nil, err
 	}
 
+	stat, err := os.Stat(wasmFile)
+	if err != nil {
+		log.Error("Failed to stat WASM file", "Error", err)
+		return nil, err
+	}
+
 	return &EdgeFunctionIngestResult{
-		WasmFilePath: wasmFile,
+		WasmFilePath:      wasmFile,
+		WasmFileCreatedAt: metav1.NewTime(stat.ModTime()),
 	}, nil
 }
 
@@ -288,6 +305,12 @@ func (w *worker) FinalizeActivity(
 			f.Status.Message = inResult.Err
 		} else {
 			f.Status.Phase = v1alpha1.EdgeFunctionPhaseReady
+			// Prepend the revision to the list of revisions.
+			rev := v1alpha1.EdgeFunctionRevision{
+				Ref:       activity.GetInfo(ctx).WorkflowExecution.ID,
+				CreatedAt: inResult.WasmFileCreatedAt,
+			}
+			f.Status.Revisions = append([]v1alpha1.EdgeFunctionRevision{rev}, f.Status.Revisions...)
 		}
 
 		if _, err := w.a3y.ExtensionsV1alpha1().EdgeFunctions().UpdateStatus(ctx, f, metav1.UpdateOptions{}); err != nil {

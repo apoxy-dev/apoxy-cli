@@ -1461,6 +1461,13 @@ func schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionCodeSource(ref common.
 			SchemaProps: spec.SchemaProps{
 				Type: []string{"object"},
 				Properties: map[string]spec.Schema{
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Metadata of the function source.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
+						},
+					},
 					"jsSource": {
 						SchemaProps: spec.SchemaProps{
 							Description: "JsSource specifies sources for the JavaScript function runtime. If set/modified, a function will undergo a build step to compile the JavaScript source into a WebAssembly binary before it is deployed.",
@@ -1477,7 +1484,7 @@ func schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionCodeSource(ref common.
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.JavaScriptSource", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.WasmSource"},
+			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.JavaScriptSource", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.WasmSource", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
 	}
 }
 
@@ -1535,18 +1542,17 @@ func schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionRevision(ref common.Re
 			SchemaProps: spec.SchemaProps{
 				Type: []string{"object"},
 				Properties: map[string]spec.Schema{
-					"revision": {
+					"ref": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Revision is the revision number of the function.",
-							Default:     0,
-							Type:        []string{"integer"},
-							Format:      "int64",
+							Description: "Ref is the reference to the function revision.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
 						},
 					},
 					"status": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Status is the status of the function revision.",
-							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -1559,7 +1565,7 @@ func schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionRevision(ref common.Re
 						},
 					},
 				},
-				Required: []string{"revision", "status", "createdAt"},
+				Required: []string{"ref", "createdAt"},
 			},
 		},
 		Dependencies: []string{

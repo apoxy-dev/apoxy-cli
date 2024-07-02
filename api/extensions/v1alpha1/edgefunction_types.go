@@ -70,6 +70,10 @@ type WasmSource struct {
 }
 
 type EdgeFunctionCodeSource struct {
+	// Metadata of the function source.
+	// +optional
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
 	// JsSource specifies sources for the JavaScript function runtime.
 	// If set/modified, a function will undergo a build step to compile the
 	// JavaScript source into a WebAssembly binary before it is deployed.
@@ -124,11 +128,12 @@ type EdgeFunctionSpec struct {
 }
 
 type EdgeFunctionRevision struct {
-	// Revision is the revision number of the function.
-	Revision int64 `json:"revision"`
+	// Ref is the reference to the function revision.
+	Ref string `json:"ref"`
 
 	// Status is the status of the function revision.
-	Status string `json:"status"`
+	// +optional
+	Status string `json:"status,omitempty"`
 
 	// CreatedAt is the time the function revision was created.
 	CreatedAt metav1.Time `json:"createdAt"`
@@ -145,8 +150,6 @@ const (
 	EdgeFunctionPhaseUpdating EdgeFunctionPhase = "Updating"
 	// EdgeFunctionPhaseFailed means the function has failed.
 	EdgeFunctionPhaseFailed EdgeFunctionPhase = "Failed"
-	// EdgeFunctionPhaseDeleting means the function is being deleted.
-	EdgeFunctionPhaseDeleting EdgeFunctionPhase = "Deleting"
 	// EdgeFunctionPhaseUnknown means the function is in an unknown state.
 	EdgeFunctionPhaseUnknown EdgeFunctionPhase = "Unknown"
 )
