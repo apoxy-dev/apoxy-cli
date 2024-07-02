@@ -21,6 +21,7 @@ import (
 
 	"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1"
 	"github.com/apoxy-dev/apoxy-cli/client/versioned"
+	"github.com/apoxy-dev/apoxy-cli/internal/log"
 	"github.com/apoxy-dev/apoxy-cli/rest"
 )
 
@@ -96,17 +97,19 @@ func EdgeFunctionIngestWorkflow(ctx workflow.Context, in *EdgeFunctionIngestPara
 	if err != nil {
 		log.Error("Download activity failed", "Error", err)
 		res.Err = err.Error()
-		finErr := workflow.ExecuteActivity(sessCtx, w.FinalizeActivity, in, res).Get(ctx, nil)
-		if finErr != nil {
-			log.Error("Failed to finalize Edge Function ingest", "Error", finErr)
-		}
-		return err
+		goto Finalize
 	}
 
 	log.Info("Edge Function .wasm staged successfully", "WasmFilePath", res.WasmFilePath)
 
-	// TBD
+	err = workflow.ExecuteActivity(sessCtx, w.StoreWasmActivity, in, res).Get(sessCtx, nil)
+	if err != nil {
+		log.Error("Store activity failed", "Error", err)
+		res.Err = err.Error()
+		goto Finalize
+	}
 
+Finalize:
 	finErr := workflow.ExecuteActivity(sessCtx, w.FinalizeActivity, in, res).Get(ctx, nil)
 	if finErr != nil {
 		log.Error("Failed to finalize Edge Function ingest", "Error", finErr)
@@ -135,6 +138,7 @@ func NewWorker(c *rest.APIClient, baseDir string) *worker {
 // the Temporal worker instance.
 func (w *worker) RegisterActivities(tw tworker.Worker) {
 	tw.RegisterActivity(w.DownloadWasmActivity)
+	tw.RegisterActivity(w.StoreWasmActivity)
 	tw.RegisterActivity(w.FinalizeActivity)
 }
 
@@ -251,7 +255,7 @@ func (w *worker) StoreWasmActivity(
 	targetFile := filepath.Join(targetDir, "func.wasm")
 	// TODO(dilyevsky): Use object store API to store the file.
 	// For now, just link the file to the target directory.
-	if err := os.Link(inResult.WasmFilePath, targetFile); err != nil {
+	if err := os.Rename(inResult.WasmFilePath, targetFile); err != nil {
 		log.Error("Failed to link WASM file", "Error", err)
 		return err
 	}
@@ -293,6 +297,15 @@ func (w *worker) FinalizeActivity(
 
 		return nil
 	})
+}
+
+// ListenAndServeWasm starts an HTTP server to serve the Edge Function .wasm file.
+func (w *worker) ListenAndServeWasm(host string, port int) error {
+	mux := http.NewServeMux()
+	mux.Handle("/wasm/", w)
+	addr := fmt.Sprintf("%s:%d", host, port)
+	log.Infof("Listening on %s", addr)
+	return http.ListenAndServe(addr, mux)
 }
 
 func (w *worker) ServeHTTP(wr http.ResponseWriter, req *http.Request) {
