@@ -243,7 +243,7 @@ allowing you to test and develop your proxy infrastructure.`,
 		}
 		w := worker.New(tc, ingest.EdgeFunctionIngestQueue, wOpts)
 		ingest.RegisterWorkflows(w)
-		ww := ingest.NewWorker(c)
+		ww := ingest.NewWorker(c, os.Getenv("TMPDIR"))
 		ww.RegisterActivities(w)
 		go func() {
 			err = w.Run(stopCh(cmd.Context()))

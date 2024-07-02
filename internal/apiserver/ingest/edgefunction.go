@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"go.temporal.io/sdk/activity"
@@ -94,10 +95,8 @@ func EdgeFunctionIngestWorkflow(ctx workflow.Context, in *EdgeFunctionIngestPara
 	}
 	if err != nil {
 		log.Error("Download activity failed", "Error", err)
-		inResult := &EdgeFunctionIngestResult{
-			Err: err.Error(),
-		}
-		finErr := workflow.ExecuteActivity(sessCtx, w.FinalizeActivity, in, inResult).Get(ctx, nil)
+		res.Err = err.Error()
+		finErr := workflow.ExecuteActivity(sessCtx, w.FinalizeActivity, in, res).Get(ctx, nil)
 		if finErr != nil {
 			log.Error("Failed to finalize Edge Function ingest", "Error", finErr)
 		}
@@ -108,20 +107,27 @@ func EdgeFunctionIngestWorkflow(ctx workflow.Context, in *EdgeFunctionIngestPara
 
 	// TBD
 
-	log.Info("Edge Function ingest completed successfully")
+	finErr := workflow.ExecuteActivity(sessCtx, w.FinalizeActivity, in, res).Get(ctx, nil)
+	if finErr != nil {
+		log.Error("Failed to finalize Edge Function ingest", "Error", finErr)
+		return finErr
+	}
 
+	log.Info("Edge Function ingest completed successfully")
 	return nil
 }
 
 // Worker implements Temporal Activities for Edge Functions Ingest queue.
 type worker struct {
-	a3y versioned.Interface
+	a3y     versioned.Interface
+	baseDir string
 }
 
 // NewWorker returns a new worker for Edge Functions Ingest queue.
-func NewWorker(c *rest.APIClient) *worker {
+func NewWorker(c *rest.APIClient, baseDir string) *worker {
 	return &worker{
-		a3y: c,
+		a3y:     c,
+		baseDir: baseDir,
 	}
 }
 
@@ -132,8 +138,8 @@ func (w *worker) RegisterActivities(tw tworker.Worker) {
 	tw.RegisterActivity(w.FinalizeActivity)
 }
 
-func (w *worker) stagingDir(wid, rid string) string {
-	return filepath.Join("/tmp", "edgefunc", wid, rid)
+func (w *worker) stagingDir(name, rid string) string {
+	return filepath.Join(w.baseDir, "run", "ingest", "staging", name, rid)
 }
 
 const (
@@ -221,6 +227,38 @@ func (w *worker) DownloadWasmActivity(
 	}, nil
 }
 
+func (w *worker) storeDir(name string) string {
+	return filepath.Join(w.baseDir, "/run", "ingest", "store", name)
+}
+
+// StoreWasmActivity stores the Edge Function .wasm file in the object store.
+func (w *worker) StoreWasmActivity(
+	ctx context.Context,
+	in *EdgeFunctionIngestParams,
+	inResult *EdgeFunctionIngestResult,
+) error {
+	log := tlog.With(activity.GetLogger(ctx), "Name", in.Obj.Name, "ResourceVersion", in.Obj.ResourceVersion)
+	log.Info("Storing Edge Function .wasm file in object store")
+
+	wid := activity.GetInfo(ctx).WorkflowExecution.ID
+
+	targetDir := w.storeDir(wid)
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
+		log.Error("Failed to create target directory", "Error", err)
+		return err
+	}
+
+	targetFile := filepath.Join(targetDir, "func.wasm")
+	// TODO(dilyevsky): Use object store API to store the file.
+	// For now, just link the file to the target directory.
+	if err := os.Link(inResult.WasmFilePath, targetFile); err != nil {
+		log.Error("Failed to link WASM file", "Error", err)
+		return err
+	}
+
+	return nil
+}
+
 // FinalizeActivity finalizes the Edge Function ingest workflow.
 // This activity is responsible for updating the Edge Function status.
 func (w *worker) FinalizeActivity(
@@ -255,4 +293,33 @@ func (w *worker) FinalizeActivity(
 
 		return nil
 	})
+}
+
+func (w *worker) ServeHTTP(wr http.ResponseWriter, req *http.Request) {
+	ss := strings.Split(req.URL.Path, "/")
+	name := ss[len(ss)-1]
+	if name == "" {
+		http.Error(wr, "Name is required", http.StatusBadRequest)
+		return
+	}
+	p := w.storeDir(name) + "/func.wasm"
+	if _, err := os.Stat(p); err != nil {
+		http.Error(wr, "File not found", http.StatusNotFound)
+		return
+	}
+	f, err := os.Open(p)
+	if err != nil {
+		http.Error(wr, "Failed to open file", http.StatusInternalServerError)
+		return
+	}
+	defer f.Close()
+
+	wr.Header().Set("Content-Type", "application/octet-stream")
+
+	if _, err := io.Copy(wr, f); err != nil {
+		http.Error(wr, "Failed to copy file", http.StatusInternalServerError)
+		return
+	}
+
+	wr.WriteHeader(http.StatusOK)
 }
