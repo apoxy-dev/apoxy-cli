@@ -6,6 +6,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apiserver/pkg/registry/rest"
 	"sigs.k8s.io/apiserver-runtime/pkg/builder/resource"
+
+	gwapiv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
 
 type SourceFile struct {
@@ -112,6 +114,9 @@ type RuntimeConfig struct {
 }
 
 type EdgeFunctionSpec struct {
+	// TargetRefs are the Proxies that the function is associated with.
+	TargetRefs []gwapiv1alpha2.LocalPolicyTargetReference `json:"targetRefs"`
+
 	// Code is the source of the function code/binary.
 	Code EdgeFunctionCodeSource `json:"code"`
 
