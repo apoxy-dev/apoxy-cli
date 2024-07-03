@@ -114,7 +114,8 @@ type RuntimeConfig struct {
 }
 
 type EdgeFunctionSpec struct {
-	// TargetRefs are the Proxies that the function is associated with.
+	// TargetRefs are the resources that the function is associated with.
+	// Currently we only support Proxy targets and not Routes or
 	TargetRefs []gwapiv1alpha2.LocalPolicyTargetReference `json:"targetRefs"`
 
 	// Code is the source of the function code/binary.

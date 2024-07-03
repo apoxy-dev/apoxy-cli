@@ -91,10 +91,11 @@ func main() {
 			BindAddress: ":8081",
 		},
 	})
-
 	if err != nil {
 		log.Fatalf("unable to start manager: %v", err)
 	}
+
+	log.Infof("Setting up controllers")
 	if err := bpctrl.NewProxyReconciler(
 		mgr.GetClient(),
 		projUUID,
@@ -104,7 +105,14 @@ func main() {
 		log.Errorf("failed to set up Backplane controller: %v", err)
 		return
 	}
+	if err := bpctrl.NewEdgeFuncReconciler(
+		mgr.GetClient(),
+	).SetupWithManager(ctx, mgr, *proxyName); err != nil {
+		log.Errorf("failed to set up EdgeFunction controller: %v", err)
+		return
+	}
 
+	log.Infof("Starting manager")
 	if err := mgr.Start(ctx); err != nil {
 		log.Fatalf("unable to start manager: %v", err)
 	}
