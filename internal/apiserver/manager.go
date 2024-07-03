@@ -16,10 +16,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apiserver/pkg/authorization/authorizerfactory"
-	"k8s.io/apiserver/pkg/features"
 	apiserver "k8s.io/apiserver/pkg/server"
 	apiserveropts "k8s.io/apiserver/pkg/server/options"
-	"k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/client-go/informers"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	certutil "k8s.io/client-go/util/cert"
 	"k8s.io/klog/v2"
@@ -48,7 +48,9 @@ func init() {
 	utilruntime.Must(ctrlv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(policyv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(extensionsv1alpha1.AddToScheme(scheme))
-	feature.DefaultMutableFeatureGate.Set(string(features.APIPriorityAndFairness) + "=false")
+
+	// Disable feature gates here. Example:
+	// feature.DefaultMutableFeatureGate.Set(string(features.APIPriorityAndFairness) + "=false")
 }
 
 func waitForReadyz(url string, timeout time.Duration) error {
@@ -163,7 +165,13 @@ func Start(
 	}
 	// Reset flags. APIServer cmd expects its own flagset.
 	flag.CommandLine = flag.NewFlagSet("apiserver", flag.ExitOnError)
-	os.Args = append([]string{os.Args[0]}, flag.Args()...) // Keep non-flag arguments.
+	os.Args = append(
+		[]string{
+			os.Args[0],
+			// Disable API priority and fairness (flow control) which doesn't work anyway.
+			"--enable-priority-and-fairness=false",
+		},
+		flag.Args()...) // Keep non-flag arguments.
 
 	sAuth, err := auth.NewHeaderAuthenticator()
 	if err != nil {
@@ -249,6 +257,11 @@ func Start(
 				// c.SecureServing.Listener = lst
 
 				c.ClientConfig = dOpts.clientConfig
+				c.SharedInformerFactory = informers.NewSharedInformerFactory(
+					kubernetes.NewForConfigOrDie(c.ClientConfig),
+					0,
+				)
+				c.FlowControl = nil
 
 				if dOpts.enableAuth {
 					// These are matched in order, so we want to match the header request
