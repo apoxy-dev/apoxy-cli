@@ -34,6 +34,8 @@ var (
 	proxyName   = flag.String("proxy", "", "Name of the proxy to manage.")
 	replicaName = flag.String("replica", "", "Name of the replica to manage.")
 
+	devMode = flag.Bool("dev", false, "Enable development mode.")
+
 	apiserverHost = flag.String("apiserver_host", "host.docker.internal", "API server address.")
 
 	chAddrs  = flag.String("ch_addrs", "", "Comma-separated list of ClickHouse host:port addresses.")
@@ -43,6 +45,12 @@ var (
 
 func main() {
 	flag.Parse()
+	var lOpts []log.Option
+	if *devMode {
+		lOpts = append(lOpts, log.WithDevMode())
+	}
+	log.Init(lOpts...)
+
 	projUUID, err := uuid.Parse(*projectID)
 	if err != nil {
 		log.Fatalf("invalid project UUID: %v", err)

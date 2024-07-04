@@ -353,7 +353,10 @@ allowing you to test and develop your proxy infrastructure.`,
 			cmd.Context(),
 			projID,
 			proxyName,
-			bpdrivers.WithArgs("--ch_addrs", chAddr+":9000"),
+			bpdrivers.WithArgs(
+				"--ch_addrs", chAddr+":9000",
+				"--dev", "true",
+			),
 		)
 		if err != nil {
 			return err

@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sync"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -36,8 +37,17 @@ func setLogger(level LogLevel, json bool, w io.Writer) {
 	slog.SetDefault(logger)
 }
 
+var (
+	initTime                 time.Time
+	createLogFileIfNotExists func() (io.Writer, error)
+)
+
 func init() {
-	setLogger(slog.LevelInfo, false, io.Discard)
+	initTime = time.Now()
+	lpath := filepath.Join(os.TempDir(), fmt.Sprintf("apoxy-cli-%s.log", initTime.Format("2006-01-02T15:04:05.000Z")))
+	createLogFileIfNotExists = sync.OnceValues(func() (io.Writer, error) {
+		return os.OpenFile(lpath, os.O_CREATE|os.O_WRONLY, 0644)
+	})
 }
 
 type LogLevel = slog.Level
@@ -52,9 +62,66 @@ const (
 // DefaultLogger is the default logger.
 var DefaultLogger = slog.Default()
 
+// Option is a logger option.
+type Option func(*options)
+
+type options struct {
+	level           LogLevel
+	json            bool
+	alsoLogToStderr bool
+}
+
+func defaultOptions() *options {
+	return &options{
+		level:           InfoLevel,
+		json:            false,
+		alsoLogToStderr: false,
+	}
+}
+
+// WithDevMode sets the logger to development mode.
+// In development mode, the logger logs in human-readable format, the level is set to DebugLevel,
+// and logs are also written to stderr.
+func WithDevMode() Option {
+	return func(o *options) {
+		o.json = false
+		o.level = DebugLevel
+		o.alsoLogToStderr = true
+	}
+}
+
+// WithAlsoLogToStderr also logs to stderr.
+func WithAlsoLogToStderr() Option {
+	return func(o *options) {
+		o.alsoLogToStderr = true
+	}
+}
+
+// WithLevel sets the log level.
+// The default log level is InfoLevel.
+func WithLevel(level LogLevel) Option {
+	return func(o *options) {
+		o.level = level
+	}
+}
+
 // Init initializes the logger.
-func Init(level slog.Level, json bool, w io.Writer) {
-	setLogger(level, json, w)
+func Init(opts ...Option) error {
+	sOpts := defaultOptions()
+	for _, opt := range opts {
+		opt(sOpts)
+	}
+	logW, err := createLogFileIfNotExists()
+	if err != nil {
+		return fmt.Errorf("failed to open log file: %v", err)
+	}
+	if sOpts.alsoLogToStderr {
+		logW = io.MultiWriter(os.Stderr, logW)
+	}
+
+	setLogger(sOpts.level, sOpts.json, logW)
+
+	return nil
 }
 
 func Disable() {

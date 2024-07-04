@@ -99,7 +99,7 @@ func (d *dockerDriver) Start(
 	log.Infof("Starting container %s", cname)
 	cmd := exec.CommandContext(ctx,
 		"docker", "run",
-		"--rm",
+		//"--rm",
 		"--name", cname,
 		"--label", "org.apoxy.project_id="+orgID.String(),
 		"--label", "org.apoxy.proxy="+proxyName,
@@ -124,7 +124,7 @@ func (d *dockerDriver) Start(
 	}
 
 	if err := dockerutils.WaitForStatus(ctx, cname, "running"); err != nil {
-		return "", fmt.Errorf("failed to start clickhouse server: %w", err)
+		return "", fmt.Errorf("failed to start backplane server: %w", err)
 	}
 
 	return cname, nil

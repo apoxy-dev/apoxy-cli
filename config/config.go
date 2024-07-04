@@ -6,8 +6,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"sync"
-	"time"
 
 	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
@@ -28,17 +26,7 @@ var (
 		APIBaseURL:   "https://api.apoxy.dev",
 		DashboardURL: "https://dashboard.apoxy.dev",
 	}
-	initTime                 time.Time
-	createLogFileIfNotExists func() (*os.File, error)
 )
-
-func init() {
-	initTime = time.Now()
-	lpath := filepath.Join(os.TempDir(), fmt.Sprintf("apoxy-cli-%s.log", initTime.Format("2006-01-02T15:04:05.000Z")))
-	createLogFileIfNotExists = sync.OnceValues(func() (*os.File, error) {
-		return os.OpenFile(lpath, os.O_CREATE|os.O_WRONLY, 0644)
-	})
-}
 
 type Config struct {
 	// The API key to use for authentication.
@@ -80,12 +68,9 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("failed to unmarshal YAML: %v", err)
 	}
 
-	logW := os.Stderr
-	if !AlsoLogToStderr {
-		logW, err = createLogFileIfNotExists()
-		if err != nil {
-			return nil, fmt.Errorf("failed to open log file: %v", err)
-		}
+	var lOpts []log.Option
+	if AlsoLogToStderr {
+		lOpts = append(lOpts, log.WithAlsoLogToStderr())
 	}
 
 	if Verbose || cfg.Verbose {
@@ -93,12 +78,14 @@ func Load() (*Config, error) {
 		slog.SetDefault(logger)
 		klog.SetSlogLogger(logger)
 		slog.Debug("Verbose logging enabled")
-		log.Init(slog.LevelDebug, false, logW)
+		lOpts = append(lOpts, log.WithLevel(log.DebugLevel))
 	} else {
 		klog.SetOutput(ioutil.Discard)
 		klog.LogToStderr(false)
-		log.Init(slog.LevelInfo, false, logW)
+		lOpts = append(lOpts, log.WithLevel(log.InfoLevel))
 	}
+
+	log.Init(lOpts...)
 
 	return cfg, nil
 }
