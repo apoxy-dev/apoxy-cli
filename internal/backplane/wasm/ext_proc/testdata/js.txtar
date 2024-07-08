@@ -1,0 +1,48 @@
+-- hello.js --
+Apoxy.serve((req, res) => {
+    console.log("Hello, world!");
+});
+
+-- echo.js --
+Apoxy.serve((req, res) => {
+    console.log("Echoing request body...");
+
+    let body = req.body();
+    res.send(body);
+
+    console.log("done");
+});
+
+-- env.js --
+let foo = Apoxy.env.get("sdk_version");
+Apoxy.serve((req, res) => {
+    res.send(foo);
+});
+
+-- fetch.js --
+// Fetch from a URL obtained from the downstream request body and returns
+// fetched response back to downstream.
+dec = new TextDecoder();
+Apoxy.serve(async (req, res) => {
+    let b = dec.decode(req.body());
+    const f = JSON.parse(b);
+    console.log("Fetching from: ", f.url);
+    let resp = await fetch(f.url, {
+        method: "POST",
+        body: f.content,
+    });
+
+    console.log("Fetched response status: " + resp.status);
+    console.log("Body: " + await resp.text());
+
+    if (resp.status != 200) {
+        res.status(500);
+        res.send("Failed to fetch from: " + f.url);
+        return;
+    }
+
+    // Read fetch body and send it back to downstream.
+    res.send(resp.text());
+
+    console.log("done");
+});

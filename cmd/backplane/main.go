@@ -3,11 +3,17 @@ package main
 import (
 	"crypto/tls"
 	"flag"
+	"fmt"
+	"net"
+	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/google/uuid"
+	"google.golang.org/grpc"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/utils/pointer"
@@ -18,6 +24,8 @@ import (
 
 	"github.com/apoxy-dev/apoxy-cli/internal/apiserver"
 	bpctrl "github.com/apoxy-dev/apoxy-cli/internal/backplane/controllers"
+	"github.com/apoxy-dev/apoxy-cli/internal/backplane/wasm/ext_proc"
+	"github.com/apoxy-dev/apoxy-cli/internal/backplane/wasm/manifest"
 	"github.com/apoxy-dev/apoxy-cli/internal/log"
 
 	ctrlv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
@@ -43,6 +51,8 @@ var (
 	chAddrs  = flag.String("ch_addrs", "", "Comma-separated list of ClickHouse host:port addresses.")
 	chSecure = flag.Bool("ch_secure", false, "Whether to connect to Clickhouse using TLS.")
 	chDebug  = flag.Bool("ch_debug", false, "Enables debug prints for ClickHouse client.")
+
+	wasmExtProcPort = flag.Int("wasm_ext_proc_port", 2020, "Port for the WASM extension processor.")
 )
 
 func main() {
@@ -89,6 +99,36 @@ func main() {
 		log.Fatalf("Failed to ping ClickHouse: %v", err)
 	}
 
+	log.Infof("Setting up WASM runtime")
+
+	ls, err := net.Listen("tcp", fmt.Sprintf(":%d", *wasmExtProcPort))
+	if err != nil {
+		log.Fatalf("Failed to listen: %v", err)
+	}
+	defer ls.Close()
+	srv := grpc.NewServer()
+	mp := manifest.NewMemoryProvider()
+	wasmSrv := ext_proc.NewServer(mp)
+	wasmSrv.Register(srv)
+	// Stop gracefully on SIGTERM.
+	ch := make(chan os.Signal, 1)
+	done := make(chan struct{})
+	signal.Notify(ch, syscall.SIGTERM)
+	go func() {
+		<-ch
+		log.Infof("Shutting down WASM runtime server")
+		srv.GracefulStop()
+		close(done)
+	}()
+	go func() {
+		log.Infof("Starting WASM runtime server on %v", ls.Addr())
+		if err := srv.Serve(ls); err != nil {
+			log.Fatalf("Failed to start WASM runtime server: %v", err)
+		}
+	}()
+
+	log.Infof("Setting up managers")
+
 	rC := apiserver.NewLocalClientConfig(*apiserverHost)
 	ctrl.SetLogger(zap.New(zap.UseDevMode(true))) // TODO(dilyevsky): Use default golang logger.
 	mgr, err := ctrl.NewManager(rC, ctrl.Options{
@@ -126,4 +166,5 @@ func main() {
 	if err := mgr.Start(ctx); err != nil {
 		log.Fatalf("unable to start manager: %v", err)
 	}
+	<-done
 }
