@@ -53,6 +53,7 @@ var (
 	chDebug  = flag.Bool("ch_debug", false, "Enables debug prints for ClickHouse client.")
 
 	wasmExtProcPort = flag.Int("wasm_ext_proc_port", 2020, "Port for the WASM extension processor.")
+	wasmStorePort   = flag.Int("wasm_store_port", 8081, "Port for the remote WASM store.")
 )
 
 func main() {
@@ -107,8 +108,8 @@ func main() {
 	}
 	defer ls.Close()
 	srv := grpc.NewServer()
-	mp := manifest.NewMemoryProvider()
-	wasmSrv := ext_proc.NewServer(mp)
+	ms := manifest.NewMemory()
+	wasmSrv := ext_proc.NewServer(ms)
 	wasmSrv.Register(srv)
 	// Stop gracefully on SIGTERM.
 	ch := make(chan os.Signal, 1)
@@ -157,6 +158,8 @@ func main() {
 	}
 	if err := bpctrl.NewEdgeFuncReconciler(
 		mgr.GetClient(),
+		fmt.Sprintf("%s:%d", *apiserverHost, *wasmStorePort),
+		ms,
 	).SetupWithManager(ctx, mgr, *proxyName); err != nil {
 		log.Errorf("failed to set up EdgeFunction controller: %v", err)
 		return

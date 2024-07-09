@@ -3,6 +3,8 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"io"
+	"net/http"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -14,6 +16,7 @@ import (
 
 	ctrlv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
 	"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1"
+	"github.com/apoxy-dev/apoxy-cli/internal/backplane/wasm/manifest"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
@@ -22,15 +25,48 @@ var _ reconcile.Reconciler = &EdgeFunctionReconciler{}
 // EdgeFunctionReconciler reconciles a Proxy object.
 type EdgeFunctionReconciler struct {
 	client.Client
+
+	apiserverHost string
+	store         manifest.Store
 }
 
 // NewEdgeFuncReconciler returns a new reconcile.Reconciler.
 func NewEdgeFuncReconciler(
 	c client.Client,
+	apiserverHost string,
+	store manifest.Store,
 ) *EdgeFunctionReconciler {
 	return &EdgeFunctionReconciler{
-		Client: c,
+		Client:        c,
+		apiserverHost: apiserverHost,
+		store:         store,
 	}
+}
+
+func (r *EdgeFunctionReconciler) downloadWasmData(
+	ctx context.Context,
+	ref string,
+) ([]byte, error) {
+	log := clog.FromContext(ctx)
+
+	resp, err := http.Get(fmt.Sprintf("http://%s/wasm/%s", r.apiserverHost, ref))
+	if err != nil {
+		return nil, fmt.Errorf("failed to download Wasm module: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to download Wasm module: %s", resp.Status)
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read Wasm module: %w", err)
+	}
+
+	log.Info("Downloaded Wasm module", "size", len(data))
+
+	return data, nil
 }
 
 // Reconcile implements reconcile.Reconciler.
@@ -46,6 +82,45 @@ func (r *EdgeFunctionReconciler) Reconcile(ctx context.Context, request reconcil
 
 	log := clog.FromContext(ctx, "name", f.Name)
 	log.Info("Reconciling EdgeFunction", "phase", f.Status.Phase)
+
+	if !f.DeletionTimestamp.IsZero() {
+		if len(f.Status.Revisions) == 0 {
+			log.Info("No revisions found, nothing to delete")
+			return ctrl.Result{}, nil
+		}
+		log.Info("Deleting Wasm data", "ref", f.Status.Revisions[0].Ref)
+		if err := r.store.Delete(ctx, f.Status.Revisions[0].Ref); err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to delete Wasm data: %w", err)
+		}
+		return ctrl.Result{}, nil
+	}
+
+	switch f.Status.Phase {
+	case v1alpha1.EdgeFunctionPhaseReady:
+		// Download the Wasm module and store it locally.
+		if len(f.Status.Revisions) == 0 {
+			log.Info("No revisions found")
+			return ctrl.Result{}, nil
+		}
+		ref := f.Status.Revisions[0].Ref
+		if r.store.Exists(ctx, ref) {
+			log.Info("Wasm module already exists for ref", "ref", ref)
+			return ctrl.Result{}, nil
+		}
+
+		wasmData, err := r.downloadWasmData(clog.IntoContext(ctx, log), ref)
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to download Wasm data: %w", err)
+		}
+
+		if err := r.store.Set(ctx, ref, manifest.WithWasmData(wasmData)); err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to set Wasm data: %w", err)
+		}
+
+		log.Info("Stored Wasm data", "ref", ref)
+	default:
+		return ctrl.Result{}, nil
+	}
 
 	return ctrl.Result{}, nil
 }
@@ -73,21 +148,6 @@ func targetRefPredicate(proxyName string) predicate.Funcs {
 	})
 }
 
-func statusReadyPredicate() predicate.Funcs {
-	return predicate.NewPredicateFuncs(func(obj client.Object) bool {
-		if obj == nil {
-			return false
-		}
-
-		f, ok := obj.(*v1alpha1.EdgeFunction)
-		if !ok {
-			return false
-		}
-
-		return f.Status.Phase == v1alpha1.EdgeFunctionPhaseReady
-	})
-}
-
 // SetupWithManager sets up the controller with the Controller Manager.
 func (r *EdgeFunctionReconciler) SetupWithManager(
 	ctx context.Context,
@@ -99,7 +159,6 @@ func (r *EdgeFunctionReconciler) SetupWithManager(
 			builder.WithPredicates(
 				&predicate.ResourceVersionChangedPredicate{},
 				targetRefPredicate(proxyName),
-				statusReadyPredicate(),
 			),
 		).
 		Complete(r)

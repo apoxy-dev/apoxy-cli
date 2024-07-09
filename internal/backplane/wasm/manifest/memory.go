@@ -12,8 +12,8 @@ type memory struct {
 	m sync.Map
 }
 
-// NewMemoryProvider creates a new memory provider.
-func NewMemoryProvider() Provider {
+// NewMemory creates a new memory provider.
+func NewMemory() *memory {
 	return &memory{}
 }
 
@@ -24,7 +24,18 @@ func (m *memory) Get(ctx context.Context, host string) (*extism.Manifest, error)
 	return nil, fmt.Errorf("manifest not found")
 }
 
-func (m *memory) Set(host string, manifest *extism.Manifest) error {
-	m.m.Store(host, manifest)
+func (m *memory) Set(ctx context.Context, name string, opts ...Option) error {
+	manifest := newManifestWithOptions(opts...)
+	m.m.Store(name, manifest)
+	return nil
+}
+
+func (m *memory) Exists(ctx context.Context, name string) bool {
+	_, ok := m.m.Load(name)
+	return ok
+}
+
+func (m *memory) Delete(ctx context.Context, name string) error {
+	m.m.Delete(name)
 	return nil
 }
