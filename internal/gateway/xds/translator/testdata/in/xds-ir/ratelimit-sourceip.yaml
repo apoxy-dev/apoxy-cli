@@ -1,0 +1,84 @@
+http:
+- name: "first-listener"
+  address: "0.0.0.0"
+  port: 10080
+  hostnames:
+  - "*"
+  path:
+    mergeSlashes: true
+    escapedSlashesAction: UnescapeAndRedirect
+  routes:
+  - name: "first-route"
+    hostname: "*"
+    rateLimit:
+      global:
+        rules:
+        - cidrMatch:
+            cidr: 192.168.0.0/16
+            maskLen: 16
+          limit:
+            requests: 5
+            unit: second
+    pathMatch:
+      exact: "foo/bar"
+    destination:
+      name: "first-route-dest"
+      settings:
+      - endpoints:
+        - host: "1.2.3.4"
+          port: 50000
+  - name: "second-route"
+    hostname: "*"
+    rateLimit:
+      global:
+        rules:
+        - cidrMatch:
+            cidr: 192.168.0.0/24
+            maskLen: 24
+          limit:
+            requests: 5
+            unit: second
+    pathMatch:
+      exact: "example"
+    destination:
+      name: "second-route-dest"
+      settings:
+      - endpoints:
+        - host: "1.2.3.4"
+          port: 50000
+  - name: "third-route"
+    hostname: "*"
+    rateLimit:
+      global:
+        rules:
+        - limit:
+            requests: 5
+            unit: second
+    pathMatch:
+      exact: "test"
+    destination:
+      name: "third-route-dest"
+      settings:
+      - endpoints:
+        - host: "1.2.3.4"
+          port: 50000
+  - name: "fourth-route"
+    hostname: "*"
+    rateLimit:
+      global:
+        rules:
+        - cidrMatch:
+            cidr: 192.168.0.0/16
+            maskLen: 16
+            distinct: true
+          limit:
+            requests: 5
+            unit: second
+    pathMatch:
+      exact: "distinct"
+    destination:
+      name: "fourth-route-dest"
+      settings:
+      - endpoints:
+        - host: "1.2.3.4"
+          port: 50000

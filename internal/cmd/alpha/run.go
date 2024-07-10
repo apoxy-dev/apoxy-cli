@@ -35,6 +35,7 @@ import (
 	bpdrivers "github.com/apoxy-dev/apoxy-cli/internal/backplane/drivers"
 	"github.com/apoxy-dev/apoxy-cli/internal/backplane/portforward"
 	chdrivers "github.com/apoxy-dev/apoxy-cli/internal/clickhouse/drivers"
+	"github.com/apoxy-dev/apoxy-cli/internal/gateway"
 	"github.com/apoxy-dev/apoxy-cli/internal/log"
 	ratelimitdrivers "github.com/apoxy-dev/apoxy-cli/internal/ratelimit/drivers"
 
@@ -304,6 +305,13 @@ allowing you to test and develop your proxy infrastructure.`,
 			go func() {
 				if err := pr.ServeXDS(); err != nil {
 					log.Errorf("failed to serve XDS: %v", err)
+					ctxCancel(&runError{Err: err})
+				}
+			}()
+
+			go func() {
+				if err := gateway.Serve(cmd.Context()); err != nil {
+					log.Errorf("failed to serve Gateway APIs: %v", err)
 					ctxCancel(&runError{Err: err})
 				}
 			}()
