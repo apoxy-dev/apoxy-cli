@@ -10,6 +10,7 @@ import (
 	svcext_procv3 "github.com/envoyproxy/go-control-plane/envoy/service/ext_proc/v3"
 
 	"github.com/apoxy-dev/apoxy-cli/internal/backplane/wasm/abi"
+	"github.com/apoxy-dev/apoxy-cli/internal/log"
 )
 
 var (
@@ -111,7 +112,7 @@ func (s *ResponseSendState) Next(
 	srv svcext_procv3.ExternalProcessor_ProcessServer,
 ) (ExecState, error) {
 	abiResp := s.msg.Arg
-	fmt.Printf("ResponseSendState.Next: %v\n", abiResp)
+	log.Debugf("Sending response to the proxy: %v", abiResp.StatusCode)
 	pr := &svcext_procv3.ProcessingResponse{}
 	abiResp.Header[string(ResponseStatus)] = fmt.Sprintf("%d", abiResp.StatusCode)
 	cr := &svcext_procv3.CommonResponse{
@@ -123,7 +124,6 @@ func (s *ResponseSendState) Next(
 		},
 		ClearRouteCache: true, // TBD
 	}
-	fmt.Printf("Body mutation: %v\n", string(cr.BodyMutation.Mutation.(*svcext_procv3.BodyMutation_Body).Body))
 	if s.bodyPhase {
 		pr.Response = &svcext_procv3.ProcessingResponse_ResponseBody{
 			ResponseBody: &svcext_procv3.BodyResponse{
@@ -141,8 +141,8 @@ func (s *ResponseSendState) Next(
 	}
 	err := srv.Send(pr)
 	if err != nil {
-		fmt.Printf("Error sending response: %v\n", err)
 		err = fmt.Errorf("failed sending response body: %w", err)
+		log.Errorf(err.Error())
 	}
 
 	select {

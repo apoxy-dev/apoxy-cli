@@ -12,6 +12,7 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/apoxy-dev/apoxy-cli/internal/backplane/wasm/abi"
+	"github.com/apoxy-dev/apoxy-cli/internal/log"
 )
 
 var (
@@ -127,6 +128,7 @@ func (s *RequestSendState) Next(
 	srv svcext_procv3.ExternalProcessor_ProcessServer,
 ) (ExecState, error) {
 	abiReq := s.msg.Arg
+	log.Debugf("Sending request reply to Proxy")
 	pr := &svcext_procv3.ProcessingResponse{}
 	cr := &svcext_procv3.CommonResponse{
 		HeaderMutation: headerMutation(s.hdrs, abiReq.Header, int64(len(abiReq.Body))),
@@ -161,14 +163,12 @@ func (s *RequestSendState) Next(
 	if err != nil {
 		return nil, fmt.Errorf("failed receiving response headers: %w", err)
 	}
-	fmt.Printf("Response headers: %v\n", req)
 	respHdrs := req.GetResponseHeaders()
 	if respHdrs == nil {
 		return nil, fmt.Errorf("expected response headers, got %T", req)
 	}
 	hdrs := respHdrs.GetHeaders().GetHeaders()
 
-	fmt.Printf("Attributes: %v\n", req.Attributes)
 	abiResp := abiRespFromProto(hdrs, req.Attributes)
 
 	select {

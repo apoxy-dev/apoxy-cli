@@ -17,6 +17,7 @@ import (
 
 	"github.com/apoxy-dev/apoxy-cli/internal/backplane/wasm/abi"
 	"github.com/apoxy-dev/apoxy-cli/internal/backplane/wasm/runtime/fetch"
+	"github.com/apoxy-dev/apoxy-cli/internal/log"
 )
 
 const (
@@ -127,24 +128,26 @@ func abiReqFromProto(
 
 func (s *StartState) initExec(
 	ctx context.Context,
-	req *svcext_procv3.ProcessingRequest,
+	_ *svcext_procv3.ProcessingRequest,
 ) error {
-	m, ok := req.MetadataContext.FilterMetadata[ApoxyMetadataNamespace]
-	if !ok {
-		return fmt.Errorf("metadata context missing %s", ApoxyMetadataNamespace)
-	}
-	fn, ok := m.Fields[ApoxyMetadataFunction]
-	if !ok {
-		return fmt.Errorf("metadata context missing %s", ApoxyMetadataFunction)
-	}
-	fns := fn.GetStructValue()
-	if fns == nil {
-		return fmt.Errorf("metadata context field %s is not a struct", ApoxyMetadataFunction)
-	}
-	fnName := fns.Fields[ApoxyMetadataFunctionName]
-	if fnName == nil || fnName.GetStringValue() == "" {
-		return fmt.Errorf("metadata context field %s missing %s", ApoxyMetadataFunction, ApoxyMetadataFunctionName)
-	}
+	/*
+		m, ok := req.MetadataContext.FilterMetadata[ApoxyMetadataNamespace]
+		if !ok {
+			return fmt.Errorf("metadata context missing %s", ApoxyMetadataNamespace)
+		}
+		fn, ok := m.Fields[ApoxyMetadataFunction]
+		if !ok {
+			return fmt.Errorf("metadata context missing %s", ApoxyMetadataFunction)
+		}
+		fns := fn.GetStructValue()
+		if fns == nil {
+			return fmt.Errorf("metadata context field %s is not a struct", ApoxyMetadataFunction)
+		}
+		fnName := fns.Fields[ApoxyMetadataFunctionName]
+		if fnName == nil || fnName.GetStringValue() == "" {
+			return fmt.Errorf("metadata context field %s missing %s", ApoxyMetadataFunction, ApoxyMetadataFunctionName)
+		}
+	*/
 
 	s.exec = &exec{
 		exitCh:           make(chan error),
@@ -171,7 +174,12 @@ func (s *StartState) initExec(
 	if !s.exec.p.FunctionExists("_apoxy_sdk_" + sdkVersion) {
 		return fmt.Errorf("required SDK version %q is not supported", sdkVersion)
 	}
-	s.exec.p.Config["sdk_version"] = sdkVersion
+	cfg := s.exec.p.Config
+	if cfg == nil {
+		cfg = make(map[string]string)
+		s.exec.p.Config = cfg
+	}
+	cfg["sdk_version"] = sdkVersion
 
 	return nil
 }
@@ -182,6 +190,7 @@ func (s *StartState) Next(
 	ctx context.Context,
 	srv svcext_procv3.ExternalProcessor_ProcessServer,
 ) (ExecState, error) {
+	log.Debugf("Starting plugin execution")
 	req, err := srv.Recv()
 	if err != nil {
 		return nil, fmt.Errorf("failed to receive ext_proc request: %w", err)
@@ -195,21 +204,24 @@ func (s *StartState) Next(
 	switch req.Request.(type) {
 	case *svcext_procv3.ProcessingRequest_RequestHeaders:
 		reqHdrs = req.GetRequestHeaders()
+		log.Debugf("Received request headers: %v", reqHdrs.GetHeaders().GetHeaders())
 	case *svcext_procv3.ProcessingRequest_ResponseHeaders:
 		// If we get response headers here, it means that Envoy filter
 		// chain got interrupted and we are getting response headers
 		// for the immediate response. Do nothing for now.
+		log.Debugf("Received response headers")
 		return nil, nil
 	}
 	hdrs := reqHdrs.GetHeaders().GetHeaders()
 
-	fmt.Printf("Attrs: %v\n", req.GetAttributes())
 	abiReq := abiReqFromProto(hdrs, req.GetAttributes())
 	reqJson, err := json.Marshal(abiReq)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal abi request: %w", err)
 	}
-	fmt.Printf("Request: %s\n", reqJson)
+
+	log.Infof("Starting plugin with request %s -> %s %s/%s",
+		abiReq.RemoteAddr, abiReq.Method, abiReq.Host, abiReq.URL)
 
 	_, _, err = s.exec.p.CallWithContext(ctx, "_start", nil)
 	if err != nil {
@@ -217,6 +229,7 @@ func (s *StartState) Next(
 	}
 
 	go func() {
+		log.Debugf("Calling _apoxy_start")
 		exit, _, err := s.exec.p.CallWithContext(ctx, "_apoxy_start", reqJson)
 		if err != nil {
 			s.exec.exitCh <- fmt.Errorf("failed to call _apoxy_start: %w", err)
@@ -225,7 +238,8 @@ func (s *StartState) Next(
 			s.exec.exitCh <- fmt.Errorf("plugin exited with code %d", exit)
 		}
 
-		fmt.Printf("Plugin exited with code %d\n", exit)
+		log.Infof("Plugin exited with code %d", exit)
+
 		s.exec.exitCh <- nil
 	}()
 
@@ -236,10 +250,12 @@ func (s *StartState) Next(
 		case <-s.exec.exitCh:
 			return nil, nil
 		case msg := <-s.exec.reqBodyCh:
+			log.Debugf("Received request body")
 			if msg.Err != nil {
 				return nil, msg.Err
 			}
 			if reqHdrs.EndOfStream {
+				log.Debugf("End of stream, no body provided")
 				// No body was provided by the downstream, return to the plugin
 				// immediately with empty body and wait for Send message.
 				select {
@@ -253,13 +269,16 @@ func (s *StartState) Next(
 			}
 			return &RequestBodyState{exec: s.exec, hdrs: hdrs, msg: msg}, nil
 		case msg := <-s.exec.reqSendCh:
+			log.Debugf("Received send request message")
 			if msg.Err != nil {
+				log.Debugf("Error in send request: %v", msg.Err)
 				return nil, msg.Err
 			}
 			return &RequestSendState{exec: s.exec, hdrs: hdrs, msg: msg}, nil
 		case msg := <-s.exec.sendDownstreamCh:
-			fmt.Printf("SendDownstream: %v", msg.Arg)
+			log.Debugf("Received send downstream message, code: %d", msg.Arg.StatusCode)
 			if msg.Err != nil {
+				log.Debugf("Error in send downstream: %v", msg.Err)
 				return nil, msg.Err
 			}
 			return &SendDownstreamState{exec: s.exec, msg: msg}, nil
@@ -344,6 +363,7 @@ func (s *SendDownstreamState) Next(
 	})
 	if err != nil {
 		err = fmt.Errorf("failed to send immediate response: %w", err)
+		log.Errorf(err.Error())
 	}
 
 	select {
