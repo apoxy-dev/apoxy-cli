@@ -7,7 +7,7 @@ import (
 	"k8s.io/apiserver/pkg/registry/rest"
 	"sigs.k8s.io/apiserver-runtime/pkg/builder/resource"
 
-	gwapiv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
 type SourceFile struct {
@@ -113,10 +113,23 @@ type RuntimeConfig struct {
 	Capabilities *RuntimeCapabilities `json:"capabilities"`
 }
 
+type EdgeFunctionTargetReference struct {
+	// Group is the group of the target resource.
+	// Currently only controllers.apoxy.dev/v1alpha1 is supported.
+	Group gwapiv1.Group `json:"group"`
+
+	// Kind is kind of the target resource.
+	// Currently only Proxy is supported.
+	Kind gwapiv1.Kind `json:"kind"`
+
+	// Name is the name of the target resource.
+	Name gwapiv1.ObjectName `json:"name"`
+}
+
 type EdgeFunctionSpec struct {
 	// TargetRefs are the resources that the function is associated with.
-	// Currently we only support Proxy targets and not Routes or
-	TargetRefs []gwapiv1alpha2.LocalPolicyTargetReference `json:"targetRefs"`
+	// Currently we only support Proxy targets and not Routes or Backends.
+	TargetRefs []EdgeFunctionTargetReference `json:"targetRefs"`
 
 	// Code is the source of the function code/binary.
 	Code EdgeFunctionCodeSource `json:"code"`
