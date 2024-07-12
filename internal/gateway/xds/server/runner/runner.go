@@ -18,6 +18,7 @@ import (
 	"strconv"
 	"time"
 
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
 
 	clusterv3 "github.com/envoyproxy/go-control-plane/envoy/service/cluster/v3"
@@ -29,7 +30,6 @@ import (
 	secretv3 "github.com/envoyproxy/go-control-plane/envoy/service/secret/v3"
 	serverv3 "github.com/envoyproxy/go-control-plane/pkg/server/v3"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 
 	"github.com/apoxy-dev/apoxy-cli/internal/gateway/message"
 	"github.com/apoxy-dev/apoxy-cli/internal/gateway/xds/bootstrap"
@@ -79,11 +79,16 @@ func (r *Runner) Start(ctx context.Context) (err error) {
 	// Set up the gRPC server and register the xDS handler.
 	// Create SnapshotCache before start subscribeAndTranslate,
 	// prevent panics in case cache is nil.
-	cfg := r.tlsConfig(xdsTLSCertFilename, xdsTLSKeyFilename, xdsTLSCaFilename)
-	r.grpc = grpc.NewServer(grpc.Creds(credentials.NewTLS(cfg)), grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{
-		MinTime:             15 * time.Second,
-		PermitWithoutStream: true,
-	}))
+	// cfg := r.tlsConfig(xdsTLSCertFilename, xdsTLSKeyFilename, xdsTLSCaFilename)
+	// TODO(dilyevsky): Use supplied x509 key pair and CA certificate.
+	r.grpc = grpc.NewServer(
+		//grpc.Creds(credentials.NewTLS(cfg)),
+		grpc.Creds(insecure.NewCredentials()),
+		grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{
+			MinTime:             15 * time.Second,
+			PermitWithoutStream: true,
+		}),
+	)
 
 	r.cache = cache.NewSnapshotCache(true)
 	registerServer(serverv3.NewServer(ctx, r.cache, r.cache), r.grpc)

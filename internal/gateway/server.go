@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/apoxy-dev/apoxy-cli/internal/gateway/message"
+	xdsserverrunner "github.com/apoxy-dev/apoxy-cli/internal/gateway/xds/server/runner"
 	xdstranslatorrunner "github.com/apoxy-dev/apoxy-cli/internal/gateway/xds/translator/runner"
 )
 
@@ -24,6 +25,13 @@ func Serve(ctx context.Context) error {
 		ProviderResources: pResources,
 	})
 	if err := xdsTranslatorRunner.Start(ctx); err != nil {
+		return err
+	}
+
+	xdsServerRunner := xdsserverrunner.New(&xdsserverrunner.Config{
+		Xds: xds,
+	})
+	if err := xdsServerRunner.Start(ctx); err != nil {
 		return err
 	}
 
