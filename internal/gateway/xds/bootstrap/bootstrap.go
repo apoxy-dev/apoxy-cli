@@ -12,10 +12,11 @@ import (
 	"strings"
 	"text/template"
 
+	egv1a1 "github.com/envoyproxy/gateway/api/v1alpha1"
 	"k8s.io/apimachinery/pkg/util/sets"
 
+	"github.com/apoxy-dev/apoxy-cli/internal/gateway/utils/net"
 	"github.com/apoxy-dev/apoxy-cli/internal/gateway/utils/regex"
-	egv1a1 "github.com/envoyproxy/gateway/api/v1alpha1"
 )
 
 const (
@@ -82,7 +83,7 @@ type metricSink struct {
 	// Address is the address of the XDS Server that Envoy is managed by.
 	Address string
 	// Port is the port of the XDS Server that Envoy is managed by.
-	Port int32
+	Port uint32
 }
 
 type adminServerParameters struct {
@@ -141,15 +142,23 @@ func GetRenderedBootstrapConfig(proxyMetrics *egv1a1.ProxyMetrics) (string, erro
 			}
 
 			// skip duplicate sinks
-			addr := fmt.Sprintf("%s:%d", sink.OpenTelemetry.Host, sink.OpenTelemetry.Port)
+			var host string
+			var port uint32
+			if sink.OpenTelemetry.Host != nil {
+				host, port = *sink.OpenTelemetry.Host, uint32(sink.OpenTelemetry.Port)
+			}
+			if len(sink.OpenTelemetry.BackendRefs) > 0 {
+				host, port = net.BackendHostAndPort(sink.OpenTelemetry.BackendRefs[0].BackendObjectReference, "")
+			}
+			addr := fmt.Sprintf("%s:%d", host, port)
 			if addresses.Has(addr) {
 				continue
 			}
 			addresses.Insert(addr)
 
 			metricSinks = append(metricSinks, metricSink{
-				Address: sink.OpenTelemetry.Host,
-				Port:    sink.OpenTelemetry.Port,
+				Address: host,
+				Port:    port,
 			})
 		}
 

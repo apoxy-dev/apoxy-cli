@@ -240,12 +240,6 @@ func isStatusEqual(objA, objB interface{}) bool {
 				return true
 			}
 		}
-	case gwapiv1a2.BackendTLSPolicy:
-		if b, ok := objB.(*gwapiv1a2.BackendTLSPolicy); ok {
-			if cmp.Equal(a.Status, b.Status, opts) {
-				return true
-			}
-		}
 	}
 
 	return false

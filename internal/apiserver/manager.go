@@ -39,15 +39,17 @@ import (
 	extensionsv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1"
 	apoxyopenapi "github.com/apoxy-dev/apoxy-cli/api/generated"
 	policyv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/policy/v1alpha1"
+	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
 var scheme = runtime.NewScheme()
 
 func init() {
-	utilruntime.Must(corev1alpha.AddToScheme(scheme))
-	utilruntime.Must(ctrlv1alpha1.AddToScheme(scheme))
-	utilruntime.Must(policyv1alpha1.AddToScheme(scheme))
-	utilruntime.Must(extensionsv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(corev1alpha.Install(scheme))
+	utilruntime.Must(ctrlv1alpha1.Install(scheme))
+	utilruntime.Must(policyv1alpha1.Install(scheme))
+	utilruntime.Must(extensionsv1alpha1.Install(scheme))
+	utilruntime.Must(gwapiv1.Install(scheme))
 
 	// Disable feature gates here. Example:
 	// feature.DefaultMutableFeatureGate.Set(string(features.APIPriorityAndFairness) + "=false")
@@ -216,6 +218,14 @@ func Start(
 			WithResourceAndStorage(&ctrlv1alpha1.Proxy{}, NewKineStorage(ctx, "sqlite://"+dOpts.sqlitePath)).
 			WithResourceAndStorage(&policyv1alpha1.RateLimit{}, NewKineStorage(ctx, "sqlite://"+dOpts.sqlitePath)).
 			WithResourceAndStorage(&extensionsv1alpha1.EdgeFunction{}, NewKineStorage(ctx, "sqlite://"+dOpts.sqlitePath)).
+			WithResourceAndStorage(
+				&resourceObjWrapper{
+					Object:       &gwapiv1.HTTPRoute{},
+					List:         &gwapiv1.HTTPRouteList{},
+					GroupVersion: gwapiv1.GroupVersion,
+					Resource:     "httproutes",
+				},
+				NewKineStorage(ctx, "sqlite://"+dOpts.sqlitePath)).
 			DisableAuthorization().
 			WithOptionsFns(func(o *builder.ServerOptions) *builder.ServerOptions {
 				o.StdErr = io.Discard

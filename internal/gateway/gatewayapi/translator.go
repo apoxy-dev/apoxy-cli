@@ -9,7 +9,6 @@ import (
 	"golang.org/x/exp/maps"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
-	egv1a2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/apoxy-dev/apoxy-cli/internal/gateway/ir"
 )
@@ -108,7 +107,6 @@ func newTranslateResult(gateways []*GatewayContext,
 	tlsRoutes []*TLSRouteContext,
 	tcpRoutes []*TCPRouteContext,
 	udpRoutes []*UDPRouteContext,
-	backendTLSPolicies []*egv1a2.BackendTLSPolicy,
 	xdsIR XdsIRMap) *TranslateResult {
 	translateResult := &TranslateResult{
 		XdsIR: xdsIR,
@@ -132,8 +130,6 @@ func newTranslateResult(gateways []*GatewayContext,
 	for _, udpRoute := range udpRoutes {
 		translateResult.UDPRoutes = append(translateResult.UDPRoutes, udpRoute.UDPRoute)
 	}
-
-	translateResult.BackendTLSPolicies = append(translateResult.BackendTLSPolicies, backendTLSPolicies...)
 
 	return translateResult
 }
@@ -191,7 +187,7 @@ func (t *Translator) Translate(resources *Resources) *TranslateResult {
 	sortXdsIRMap(xdsIR)
 
 	return newTranslateResult(gateways, httpRoutes, grpcRoutes, tlsRoutes,
-		tcpRoutes, udpRoutes, resources.BackendTLSPolicies, xdsIR)
+		tcpRoutes, udpRoutes, xdsIR)
 
 }
 

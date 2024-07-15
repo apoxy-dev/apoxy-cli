@@ -29,22 +29,21 @@ type XdsIRMap map[string]*ir.Xds
 type Resources struct {
 	// This field is only used for marshalling/unmarshalling purposes and is not used by
 	// the translator
-	GatewayClass        *gwapiv1.GatewayClass         `json:"gatewayClass,omitempty" yaml:"gatewayClass,omitempty"`
-	Gateways            []*gwapiv1.Gateway            `json:"gateways,omitempty" yaml:"gateways,omitempty"`
-	HTTPRoutes          []*gwapiv1.HTTPRoute          `json:"httpRoutes,omitempty" yaml:"httpRoutes,omitempty"`
-	GRPCRoutes          []*gwapiv1a2.GRPCRoute        `json:"grpcRoutes,omitempty" yaml:"grpcRoutes,omitempty"`
-	TLSRoutes           []*gwapiv1a2.TLSRoute         `json:"tlsRoutes,omitempty" yaml:"tlsRoutes,omitempty"`
-	TCPRoutes           []*gwapiv1a2.TCPRoute         `json:"tcpRoutes,omitempty" yaml:"tcpRoutes,omitempty"`
-	UDPRoutes           []*gwapiv1a2.UDPRoute         `json:"udpRoutes,omitempty" yaml:"udpRoutes,omitempty"`
-	ReferenceGrants     []*gwapiv1b1.ReferenceGrant   `json:"referenceGrants,omitempty" yaml:"referenceGrants,omitempty"`
-	Namespaces          []*v1.Namespace               `json:"namespaces,omitempty" yaml:"namespaces,omitempty"`
-	Services            []*v1.Service                 `json:"services,omitempty" yaml:"services,omitempty"`
-	ServiceImports      []*mcsapi.ServiceImport       `json:"serviceImports,omitempty" yaml:"serviceImports,omitempty"`
-	EndpointSlices      []*discoveryv1.EndpointSlice  `json:"endpointSlices,omitempty" yaml:"endpointSlices,omitempty"`
-	Secrets             []*v1.Secret                  `json:"secrets,omitempty" yaml:"secrets,omitempty"`
-	ConfigMaps          []*v1.ConfigMap               `json:"configMaps,omitempty" yaml:"configMaps,omitempty"`
-	ExtensionRefFilters []unstructured.Unstructured   `json:"extensionRefFilters,omitempty" yaml:"extensionRefFilters,omitempty"`
-	BackendTLSPolicies  []*gwapiv1a2.BackendTLSPolicy `json:"backendTLSPolicies,omitempty" yaml:"backendTLSPolicies,omitempty"`
+	GatewayClass        *gwapiv1.GatewayClass        `json:"gatewayClass,omitempty" yaml:"gatewayClass,omitempty"`
+	Gateways            []*gwapiv1.Gateway           `json:"gateways,omitempty" yaml:"gateways,omitempty"`
+	HTTPRoutes          []*gwapiv1.HTTPRoute         `json:"httpRoutes,omitempty" yaml:"httpRoutes,omitempty"`
+	GRPCRoutes          []*gwapiv1a2.GRPCRoute       `json:"grpcRoutes,omitempty" yaml:"grpcRoutes,omitempty"`
+	TLSRoutes           []*gwapiv1a2.TLSRoute        `json:"tlsRoutes,omitempty" yaml:"tlsRoutes,omitempty"`
+	TCPRoutes           []*gwapiv1a2.TCPRoute        `json:"tcpRoutes,omitempty" yaml:"tcpRoutes,omitempty"`
+	UDPRoutes           []*gwapiv1a2.UDPRoute        `json:"udpRoutes,omitempty" yaml:"udpRoutes,omitempty"`
+	ReferenceGrants     []*gwapiv1b1.ReferenceGrant  `json:"referenceGrants,omitempty" yaml:"referenceGrants,omitempty"`
+	Namespaces          []*v1.Namespace              `json:"namespaces,omitempty" yaml:"namespaces,omitempty"`
+	Services            []*v1.Service                `json:"services,omitempty" yaml:"services,omitempty"`
+	ServiceImports      []*mcsapi.ServiceImport      `json:"serviceImports,omitempty" yaml:"serviceImports,omitempty"`
+	EndpointSlices      []*discoveryv1.EndpointSlice `json:"endpointSlices,omitempty" yaml:"endpointSlices,omitempty"`
+	Secrets             []*v1.Secret                 `json:"secrets,omitempty" yaml:"secrets,omitempty"`
+	ConfigMaps          []*v1.ConfigMap              `json:"configMaps,omitempty" yaml:"configMaps,omitempty"`
+	ExtensionRefFilters []unstructured.Unstructured  `json:"extensionRefFilters,omitempty" yaml:"extensionRefFilters,omitempty"`
 }
 
 func NewResources() *Resources {
@@ -60,7 +59,6 @@ func NewResources() *Resources {
 		ReferenceGrants:     []*gwapiv1b1.ReferenceGrant{},
 		Namespaces:          []*v1.Namespace{},
 		ExtensionRefFilters: []unstructured.Unstructured{},
-		BackendTLSPolicies:  []*gwapiv1a2.BackendTLSPolicy{},
 	}
 }
 

@@ -512,7 +512,7 @@ func (t *Translator) processGRPCRouteRules(grpcRoute *GRPCRouteContext, parentRe
 	return routeRoutes, nil
 }
 
-func (t *Translator) processGRPCRouteRule(grpcRoute *GRPCRouteContext, ruleIdx int, httpFiltersContext *HTTPFiltersContext, rule gwapiv1a2.GRPCRouteRule) ([]*ir.HTTPRoute, error) {
+func (t *Translator) processGRPCRouteRule(grpcRoute *GRPCRouteContext, ruleIdx int, httpFiltersContext *HTTPFiltersContext, rule gwapiv1.GRPCRouteRule) ([]*ir.HTTPRoute, error) {
 	var ruleRoutes []*ir.HTTPRoute
 
 	// If no matches are specified, the implementation MUST match every gRPC request.
@@ -552,10 +552,10 @@ func (t *Translator) processGRPCRouteRule(grpcRoute *GRPCRouteContext, ruleIdx i
 
 		if match.Method != nil {
 			// GRPC's path is in the form of "/<service>/<method>"
-			switch GRPCMethodMatchTypeDerefOr(match.Method.Type, gwapiv1a2.GRPCMethodMatchExact) {
-			case gwapiv1a2.GRPCMethodMatchExact:
+			switch GRPCMethodMatchTypeDerefOr(match.Method.Type, gwapiv1.GRPCMethodMatchExact) {
+			case gwapiv1.GRPCMethodMatchExact:
 				t.processGRPCRouteMethodExact(match.Method, irRoute)
-			case gwapiv1a2.GRPCMethodMatchRegularExpression:
+			case gwapiv1.GRPCMethodMatchRegularExpression:
 				if match.Method.Service != nil {
 					if err := regex.Validate(*match.Method.Service); err != nil {
 						return nil, err
@@ -576,7 +576,7 @@ func (t *Translator) processGRPCRouteRule(grpcRoute *GRPCRouteContext, ruleIdx i
 	return ruleRoutes, nil
 }
 
-func (t *Translator) processGRPCRouteMethodExact(method *gwapiv1a2.GRPCMethodMatch, irRoute *ir.HTTPRoute) {
+func (t *Translator) processGRPCRouteMethodExact(method *gwapiv1.GRPCMethodMatch, irRoute *ir.HTTPRoute) {
 	switch {
 	case method.Service != nil && method.Method != nil:
 		irRoute.PathMatch = &ir.StringMatch{
@@ -595,7 +595,7 @@ func (t *Translator) processGRPCRouteMethodExact(method *gwapiv1a2.GRPCMethodMat
 	}
 }
 
-func (t *Translator) processGRPCRouteMethodRegularExpression(method *gwapiv1a2.GRPCMethodMatch, irRoute *ir.HTTPRoute) {
+func (t *Translator) processGRPCRouteMethodRegularExpression(method *gwapiv1.GRPCMethodMatch, irRoute *ir.HTTPRoute) {
 	switch {
 	case method.Service != nil && method.Method != nil:
 		irRoute.PathMatch = &ir.StringMatch{
@@ -1097,7 +1097,6 @@ func (t *Translator) processDestination(backendRefContext BackendRefContext,
 		addrType  *ir.DestinationAddressType
 	)
 	protocol := inspectAppProtocolByRouteKind(routeType)
-	var backendTLS *ir.TLSUpstreamConfig
 	switch KindDerefOr(backendRef.Kind, KindService) {
 	case KindServiceImport:
 		serviceImport := resources.GetServiceImport(backendNamespace, string(backendRef.Name))
@@ -1148,19 +1147,6 @@ func (t *Translator) processDestination(backendRefContext BackendRefContext,
 				uint32(*backendRef.Port))
 			endpoints = append(endpoints, ep)
 		}
-
-		backendTLS = t.processBackendTLSPolicy(
-			backendRef.BackendObjectReference,
-			backendNamespace,
-			gwapiv1a2.ParentReference{
-				Group:       parentRef.Group,
-				Kind:        parentRef.Kind,
-				Namespace:   parentRef.Namespace,
-				Name:        parentRef.Name,
-				SectionName: parentRef.SectionName,
-				Port:        parentRef.Port,
-			},
-			resources)
 	}
 
 	// TODO: support mixed endpointslice address type for the same backendRef
@@ -1177,7 +1163,6 @@ func (t *Translator) processDestination(backendRefContext BackendRefContext,
 		Protocol:    protocol,
 		Endpoints:   endpoints,
 		AddressType: addrType,
-		TLS:         backendTLS,
 	}
 	return ds, weight
 }
@@ -1332,9 +1317,9 @@ func getIREndpointsFromEndpointSlice(endpointSlice *discoveryv1.EndpointSlice, p
 	return endpoints
 }
 
-func GetTargetBackendReference(backendRef gwapiv1a2.BackendObjectReference, namespace string) gwapiv1a2.PolicyTargetReferenceWithSectionName {
-	ref := gwapiv1a2.PolicyTargetReferenceWithSectionName{
-		PolicyTargetReference: gwapiv1a2.PolicyTargetReference{
+func GetTargetBackendReference(backendRef gwapiv1a2.BackendObjectReference) gwapiv1a2.LocalPolicyTargetReferenceWithSectionName {
+	ref := gwapiv1a2.LocalPolicyTargetReferenceWithSectionName{
+		LocalPolicyTargetReference: gwapiv1a2.LocalPolicyTargetReference{
 			Group: func() gwapiv1a2.Group {
 				if backendRef.Group == nil {
 					return ""
@@ -1347,8 +1332,7 @@ func GetTargetBackendReference(backendRef gwapiv1a2.BackendObjectReference, name
 				}
 				return *backendRef.Kind
 			}(),
-			Name:      backendRef.Name,
-			Namespace: NamespacePtr(NamespaceDerefOr(backendRef.Namespace, namespace)),
+			Name: backendRef.Name,
 		},
 		SectionName: func() *gwapiv1.SectionName {
 			if backendRef.Port != nil {
