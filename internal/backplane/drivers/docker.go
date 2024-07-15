@@ -99,6 +99,7 @@ func (d *dockerDriver) Start(
 	log.Infof("Starting container %s", cname)
 	cmd := exec.CommandContext(ctx,
 		"docker", "run",
+		"--detach",
 		//"--rm",
 		"--name", cname,
 		"--label", "org.apoxy.project_id="+orgID.String(),
@@ -119,12 +120,15 @@ func (d *dockerDriver) Start(
 
 	log.Debugf("Running command: %v", cmd.String())
 
-	if err := cmd.Start(); err != nil {
-		return "", fmt.Errorf("failed to start clickhouse server: %w", err)
+	if err := cmd.Run(); err != nil {
+		if execErr, ok := err.(*exec.ExitError); ok {
+			return "", fmt.Errorf("failed to start Envoy backplane: %s", execErr.Stderr)
+		}
+		return "", fmt.Errorf("failed to start Envoy backplane: %w", err)
 	}
 
 	if err := dockerutils.WaitForStatus(ctx, cname, "running"); err != nil {
-		return "", fmt.Errorf("failed to start backplane server: %w", err)
+		return "", fmt.Errorf("failed to start Envoy backplane: %w", err)
 	}
 
 	return cname, nil

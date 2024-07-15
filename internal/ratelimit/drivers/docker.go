@@ -78,6 +78,7 @@ func (d *dockerDriver) setupRedis(ctx context.Context, orgID uuid.UUID) (string,
 
 	cmd := exec.CommandContext(ctx,
 		"docker", "run",
+		"--detach",
 		"--rm",
 		"--name", cname,
 		"--label", "org.apoxy.project_id="+orgID.String(),
@@ -86,7 +87,12 @@ func (d *dockerDriver) setupRedis(ctx context.Context, orgID uuid.UUID) (string,
 		redisImage,
 	)
 
-	if err := cmd.Start(); err != nil {
+	log.Infof("running command: %v", cmd.Args)
+
+	if err := cmd.Run(); err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			return "", fmt.Errorf("failed to start redis server: %v", exitErr.Stderr)
+		}
 		return "", fmt.Errorf("failed to start redis server: %w", err)
 	}
 
@@ -105,6 +111,13 @@ func (d *dockerDriver) setupRedis(ctx context.Context, orgID uuid.UUID) (string,
 
 // Start starts the RateLimit service container in Docker.
 func (d *dockerDriver) Start(ctx context.Context, orgID uuid.UUID, xdsURL string) error {
+	// Check for network and create if not exists.
+	if err := exec.CommandContext(ctx, "docker", "network", "inspect", dockerutils.NetworkName).Run(); err != nil {
+		if err := exec.CommandContext(ctx, "docker", "network", "create", dockerutils.NetworkName).Run(); err != nil {
+			return fmt.Errorf("failed to create network apoxy: %w", err)
+		}
+	}
+
 	rc, err := d.setupRedis(ctx, orgID)
 	if err != nil {
 		return fmt.Errorf("failed to setup redis: %w", err)
@@ -123,17 +136,11 @@ func (d *dockerDriver) Start(ctx context.Context, orgID uuid.UUID, xdsURL string
 		return nil
 	}
 
-	// Check for network and create if not exists.
-	if err := exec.CommandContext(ctx, "docker", "network", "inspect", dockerutils.NetworkName).Run(); err != nil {
-		if err := exec.CommandContext(ctx, "docker", "network", "create", dockerutils.NetworkName).Run(); err != nil {
-			return fmt.Errorf("failed to create network apoxy: %w", err)
-		}
-	}
-
 	log.Infof("starting ratelimite service...")
 
 	cmd := exec.CommandContext(ctx,
 		"docker", "run",
+		"--detach",
 		"--rm",
 		"--name", cname,
 		"--label", "org.apoxy.project_id="+orgID.String(),
@@ -154,7 +161,10 @@ func (d *dockerDriver) Start(ctx context.Context, orgID uuid.UUID, xdsURL string
 
 	log.Debugf("running command: %v", cmd.Args)
 
-	if err := cmd.Start(); err != nil {
+	if err := cmd.Run(); err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			return fmt.Errorf("failed to start clickhouse server: %v", exitErr.Stderr)
+		}
 		return fmt.Errorf("failed to start clickhouse server: %w", err)
 	}
 
