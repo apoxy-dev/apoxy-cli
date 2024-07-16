@@ -37,6 +37,7 @@ import (
 	chdrivers "github.com/apoxy-dev/apoxy-cli/internal/clickhouse/drivers"
 	"github.com/apoxy-dev/apoxy-cli/internal/gateway"
 	"github.com/apoxy-dev/apoxy-cli/internal/log"
+	ratelimitdrivers "github.com/apoxy-dev/apoxy-cli/internal/ratelimit/drivers"
 
 	ctrlv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
 	extensionsv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1"
@@ -245,21 +246,19 @@ allowing you to test and develop your proxy infrastructure.`,
 		ingest.RegisterWorkflows(w)
 		ww := ingest.NewWorker(c, os.Getenv("TMPDIR"))
 		ww.RegisterActivities(w)
-		/*
-			go func() {
-				if err = ww.ListenAndServeWasm("localhost", 8081); err != nil {
-					log.Errorf("failed to start Wasm server: %v", err)
-					ctxCancel(&runError{Err: err})
-				}
-			}()
-			go func() {
-				err = w.Run(stopCh(cmd.Context()))
-				if err != nil {
-					log.Errorf("failed running Temporal worker: %v", err)
-					ctxCancel(&runError{Err: err})
-				}
-			}()
-		*/
+		go func() {
+			if err = ww.ListenAndServeWasm("localhost", 8081); err != nil {
+				log.Errorf("failed to start Wasm server: %v", err)
+				ctxCancel(&runError{Err: err})
+			}
+		}()
+		go func() {
+			err = w.Run(stopCh(cmd.Context()))
+			if err != nil {
+				log.Errorf("failed running Temporal worker: %v", err)
+				ctxCancel(&runError{Err: err})
+			}
+		}()
 
 		startCh := make(chan error)
 		go func() {
@@ -330,19 +329,17 @@ allowing you to test and develop your proxy infrastructure.`,
 			return nil
 		}
 
-		/*
-			rlDriver, err := ratelimitdrivers.GetDriver("docker")
-			if err != nil {
-				return err
-			}
-			if err := rlDriver.Start(
-				cmd.Context(),
-				projID,
-				fmt.Sprintf("host.docker.internal:%d", apiserverpolicy.XDSPort),
-			); err != nil {
-				return err
-			}
-		*/
+		rlDriver, err := ratelimitdrivers.GetDriver("docker")
+		if err != nil {
+			return err
+		}
+		if err := rlDriver.Start(
+			cmd.Context(),
+			projID,
+			fmt.Sprintf("host.docker.internal:%d", apiserverpolicy.XDSPort),
+		); err != nil {
+			return err
+		}
 
 		chDriver, err := chdrivers.GetDriver("docker")
 		if err != nil {
