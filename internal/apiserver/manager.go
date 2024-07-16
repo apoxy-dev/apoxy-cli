@@ -49,6 +49,8 @@ func init() {
 	utilruntime.Must(ctrlv1alpha1.Install(scheme))
 	utilruntime.Must(policyv1alpha1.Install(scheme))
 	utilruntime.Must(extensionsv1alpha1.Install(scheme))
+
+	// Gateway API
 	utilruntime.Must(gwapiv1.Install(scheme))
 
 	// Disable feature gates here. Example:
@@ -225,7 +227,35 @@ func Start(
 					GroupVersion: gwapiv1.GroupVersion,
 					Resource:     "httproutes",
 				},
-				NewKineStorage(ctx, "sqlite://"+dOpts.sqlitePath)).
+				NewKineStorage(ctx, "sqlite://"+dOpts.sqlitePath),
+			).
+			WithResourceAndStorage(
+				&resourceObjWrapper{
+					Object:       &gwapiv1.GRPCRoute{},
+					List:         &gwapiv1.GRPCRouteList{},
+					GroupVersion: gwapiv1.GroupVersion,
+					Resource:     "grpcroutes",
+				},
+				NewKineStorage(ctx, "sqlite://"+dOpts.sqlitePath),
+			).
+			WithResourceAndStorage(
+				&resourceObjWrapper{
+					Object:       &gwapiv1.Gateway{},
+					List:         &gwapiv1.GatewayList{},
+					GroupVersion: gwapiv1.GroupVersion,
+					Resource:     "gateways",
+				},
+				NewKineStorage(ctx, "sqlite://"+dOpts.sqlitePath),
+			).
+			WithResourceAndStorage(
+				&resourceObjWrapper{
+					Object:       &gwapiv1.GatewayClass{},
+					List:         &gwapiv1.GatewayClassList{},
+					GroupVersion: gwapiv1.GroupVersion,
+					Resource:     "gatewayclasses",
+				},
+				NewKineStorage(ctx, "sqlite://"+dOpts.sqlitePath),
+			).
 			DisableAuthorization().
 			WithOptionsFns(func(o *builder.ServerOptions) *builder.ServerOptions {
 				o.StdErr = io.Discard
