@@ -30,6 +30,7 @@ import (
 	"github.com/apoxy-dev/apoxy-cli/internal/apiserver"
 	apiserverctrl "github.com/apoxy-dev/apoxy-cli/internal/apiserver/controllers"
 	apiserverext "github.com/apoxy-dev/apoxy-cli/internal/apiserver/extensions"
+	apiservergw "github.com/apoxy-dev/apoxy-cli/internal/apiserver/gateway"
 	"github.com/apoxy-dev/apoxy-cli/internal/apiserver/ingest"
 	apiserverpolicy "github.com/apoxy-dev/apoxy-cli/internal/apiserver/policy"
 	bpdrivers "github.com/apoxy-dev/apoxy-cli/internal/backplane/drivers"
@@ -253,16 +254,24 @@ allowing you to test and develop your proxy infrastructure.`,
 			}
 		}()
 		go func() {
-			err = w.Run(stopCh(cmd.Context()))
+			err = w.Run(stopCh(ctx))
 			if err != nil {
 				log.Errorf("failed running Temporal worker: %v", err)
 				ctxCancel(&runError{Err: err})
 			}
 		}()
 
+		gwSrv := gateway.NewServer()
+		go func() {
+			if err := gwSrv.Run(ctx); err != nil {
+				log.Errorf("failed to serve Gateway APIs: %v", err)
+				ctxCancel(&runError{Err: err})
+			}
+		}()
+
 		startCh := make(chan error)
 		go func() {
-			mgr, err := apiserver.Start(cmd.Context(), apiserver.WithSQLitePath("file::memory:?cache=shared"))
+			mgr, err := apiserver.Start(ctx, apiserver.WithSQLitePath("file::memory:?cache=shared"))
 			if err != nil {
 				log.Errorf("failed to start API server: %v", err)
 				startCh <- err
@@ -272,7 +281,7 @@ allowing you to test and develop your proxy infrastructure.`,
 
 			if err := apiserverctrl.NewProxyReconciler(
 				mgr.GetClient(),
-			).SetupWithManager(cmd.Context(), mgr); err != nil {
+			).SetupWithManager(ctx, mgr); err != nil {
 				log.Errorf("failed to set up Project controller: %v", err)
 				return
 			}
@@ -281,10 +290,18 @@ allowing you to test and develop your proxy infrastructure.`,
 				return
 			}
 
+			if err := apiservergw.NewGatewayReconciler(
+				mgr.GetClient(),
+				gwSrv.Resources,
+			).SetupWithManager(ctx, mgr); err != nil {
+				log.Errorf("failed to set up Project controller: %v", err)
+				return
+			}
+
 			if err := apiserverext.NewEdgeFuncReconciler(
 				mgr.GetClient(),
 				tc,
-			).SetupWithManager(cmd.Context(), mgr); err != nil {
+			).SetupWithManager(ctx, mgr); err != nil {
 				log.Errorf("failed to set up Project controller: %v", err)
 				return
 			}
@@ -293,30 +310,7 @@ allowing you to test and develop your proxy infrastructure.`,
 				return
 			}
 
-			pr := apiserverpolicy.NewRateLimitReconciler(
-				cmd.Context(),
-				mgr.GetClient(),
-				projID,
-			)
-			if err := pr.SetupWithManager(cmd.Context(), mgr); err != nil {
-				log.Errorf("failed to set up RateLimit controller: %v", err)
-				return
-			}
-			go func() {
-				if err := pr.ServeXDS(); err != nil {
-					log.Errorf("failed to serve XDS: %v", err)
-					ctxCancel(&runError{Err: err})
-				}
-			}()
-
-			go func() {
-				if err := gateway.Serve(cmd.Context()); err != nil {
-					log.Errorf("failed to serve Gateway APIs: %v", err)
-					ctxCancel(&runError{Err: err})
-				}
-			}()
-
-			if err := mgr.Start(cmd.Context()); err != nil {
+			if err := mgr.Start(ctx); err != nil {
 				log.Errorf("failed to start manager: %v", err)
 			}
 		}()
@@ -325,7 +319,7 @@ allowing you to test and develop your proxy infrastructure.`,
 			if err != nil {
 				return err
 			}
-		case <-cmd.Context().Done():
+		case <-ctx.Done():
 			return nil
 		}
 
@@ -334,7 +328,7 @@ allowing you to test and develop your proxy infrastructure.`,
 			return err
 		}
 		if err := rlDriver.Start(
-			cmd.Context(),
+			ctx,
 			projID,
 			fmt.Sprintf("host.docker.internal:%d", apiserverpolicy.XDSPort),
 		); err != nil {
@@ -345,10 +339,10 @@ allowing you to test and develop your proxy infrastructure.`,
 		if err != nil {
 			return err
 		}
-		if err := chDriver.Start(cmd.Context(), projID); err != nil {
+		if err := chDriver.Start(ctx, projID); err != nil {
 			return err
 		}
-		chAddr, err := chDriver.GetAddr(cmd.Context())
+		chAddr, err := chDriver.GetAddr(ctx)
 		if err != nil {
 			return err
 		}
@@ -358,7 +352,7 @@ allowing you to test and develop your proxy infrastructure.`,
 			return err
 		}
 		cname, err := bpDriver.Start(
-			cmd.Context(),
+			ctx,
 			projID,
 			proxyName,
 			bpdrivers.WithArgs(
@@ -384,10 +378,10 @@ allowing you to test and develop your proxy infrastructure.`,
 			// If err is nil, it means context has been cancelled.
 		}()
 
-		if err := watchAndReloadConfig(cmd.Context(), path); err != nil {
+		if err := watchAndReloadConfig(ctx, path); err != nil {
 			return err
 		}
-		<-cmd.Context().Done()
+		<-ctx.Done()
 
 		var runErr *runError
 		if err := context.Cause(ctx); goerrors.As(err, &runErr) {

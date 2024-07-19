@@ -79,10 +79,6 @@ type Translator struct {
 	// instead.
 	EndpointRoutingDisabled bool
 
-	// MergeGateways is true when all Gateway Listeners
-	// should be merged under the parent GatewayClass.
-	MergeGateways bool
-
 	// EnvoyPatchPolicyEnabled when the EnvoyPatchPolicy
 	// feature is enabled.
 	EnvoyPatchPolicyEnabled bool
@@ -256,10 +252,5 @@ func infrastructureLabels(gtw *gwapiv1.Gateway) map[string]string {
 
 // XdsIR and InfraIR map keys by default are {GatewayNamespace}/{GatewayName}, but if mergeGateways is set, they are merged under {GatewayClassName} key.
 func (t *Translator) getIRKey(gateway *gwapiv1.Gateway) string {
-	irKey := irStringKey(gateway.Namespace, gateway.Name)
-	if t.MergeGateways {
-		return string(t.GatewayClassName)
-	}
-
-	return irKey
+	return irStringKey(gateway.Namespace, gateway.Name)
 }
