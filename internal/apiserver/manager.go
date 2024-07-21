@@ -37,9 +37,9 @@ import (
 	ctrlv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
 	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
 	extensionsv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1"
+	gatewayv1 "github.com/apoxy-dev/apoxy-cli/api/gateway/v1"
 	apoxyopenapi "github.com/apoxy-dev/apoxy-cli/api/generated"
 	policyv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/policy/v1alpha1"
-	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
 var scheme = runtime.NewScheme()
@@ -49,9 +49,7 @@ func init() {
 	utilruntime.Must(ctrlv1alpha1.Install(scheme))
 	utilruntime.Must(policyv1alpha1.Install(scheme))
 	utilruntime.Must(extensionsv1alpha1.Install(scheme))
-
-	// Gateway API
-	utilruntime.Must(gwapiv1.Install(scheme))
+	utilruntime.Must(gatewayv1.Install(scheme))
 
 	// Disable feature gates here. Example:
 	// feature.DefaultMutableFeatureGate.Set(string(features.APIPriorityAndFairness) + "=false")
@@ -220,42 +218,10 @@ func Start(
 			WithResourceAndStorage(&ctrlv1alpha1.Proxy{}, NewKineStorage(ctx, "sqlite://"+dOpts.sqlitePath)).
 			WithResourceAndStorage(&policyv1alpha1.RateLimit{}, NewKineStorage(ctx, "sqlite://"+dOpts.sqlitePath)).
 			WithResourceAndStorage(&extensionsv1alpha1.EdgeFunction{}, NewKineStorage(ctx, "sqlite://"+dOpts.sqlitePath)).
-			WithResourceAndStorage(
-				&resourceObjWrapper{
-					Object:       &gwapiv1.HTTPRoute{},
-					List:         &gwapiv1.HTTPRouteList{},
-					GroupVersion: gwapiv1.GroupVersion,
-					Resource:     "httproutes",
-				},
-				NewKineStorage(ctx, "sqlite://"+dOpts.sqlitePath),
-			).
-			WithResourceAndStorage(
-				&resourceObjWrapper{
-					Object:       &gwapiv1.GRPCRoute{},
-					List:         &gwapiv1.GRPCRouteList{},
-					GroupVersion: gwapiv1.GroupVersion,
-					Resource:     "grpcroutes",
-				},
-				NewKineStorage(ctx, "sqlite://"+dOpts.sqlitePath),
-			).
-			WithResourceAndStorage(
-				&resourceObjWrapper{
-					Object:       &gwapiv1.Gateway{},
-					List:         &gwapiv1.GatewayList{},
-					GroupVersion: gwapiv1.GroupVersion,
-					Resource:     "gateways",
-				},
-				NewKineStorage(ctx, "sqlite://"+dOpts.sqlitePath),
-			).
-			WithResourceAndStorage(
-				&resourceObjWrapper{
-					Object:       &gwapiv1.GatewayClass{},
-					List:         &gwapiv1.GatewayClassList{},
-					GroupVersion: gwapiv1.GroupVersion,
-					Resource:     "gatewayclasses",
-				},
-				NewKineStorage(ctx, "sqlite://"+dOpts.sqlitePath),
-			).
+			WithResourceAndStorage(&gatewayv1.GatewayClass{}, NewKineStorage(ctx, "sqlite://"+dOpts.sqlitePath)).
+			WithResourceAndStorage(&gatewayv1.Gateway{}, NewKineStorage(ctx, "sqlite://"+dOpts.sqlitePath)).
+			WithResourceAndStorage(&gatewayv1.HTTPRoute{}, NewKineStorage(ctx, "sqlite://"+dOpts.sqlitePath)).
+			WithResourceAndStorage(&gatewayv1.GRPCRoute{}, NewKineStorage(ctx, "sqlite://"+dOpts.sqlitePath)).
 			DisableAuthorization().
 			WithOptionsFns(func(o *builder.ServerOptions) *builder.ServerOptions {
 				o.StdErr = io.Discard

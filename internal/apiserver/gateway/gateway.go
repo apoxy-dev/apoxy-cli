@@ -19,6 +19,8 @@ import (
 	"github.com/apoxy-dev/apoxy-cli/internal/gateway/gatewayapi"
 	gatewayapirunner "github.com/apoxy-dev/apoxy-cli/internal/gateway/gatewayapi/runner"
 	"github.com/apoxy-dev/apoxy-cli/internal/gateway/message"
+
+	gatewayv1 "github.com/apoxy-dev/apoxy-cli/api/gateway/v1"
 )
 
 const (
@@ -51,11 +53,11 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, request reconcile.Req
 	log := clog.FromContext(ctx, "controller", request.Name)
 	log.Info("Reconciling the GatewayClass")
 
-	var gwcsl gwapiv1.GatewayClassList
+	var gwcsl gatewayv1.GatewayClassList
 	if err := r.List(ctx, &gwcsl); err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to list GatewayClasses: %w", err)
 	}
-	var gwcs []*gwapiv1.GatewayClass
+	var gwcs []*gatewayv1.GatewayClass
 	for _, gwc := range gwcsl.Items {
 		if !gwc.DeletionTimestamp.IsZero() {
 			log.V(1).Info("GatewayClass is being deleted", "name", gwc.Name)
@@ -68,14 +70,19 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, request reconcile.Req
 	}
 
 	if len(gwcs) == 0 {
-		log.Info("No GatewayClass found")
+		log.Info("No matching GatewayClass objects found for controller")
 		return ctrl.Result{}, nil
 	}
 
 	ress := make(gatewayapi.ControllerResources, 0, len(gwcs))
 	for _, gwc := range gwcs {
 		res := gatewayapi.NewResources()
-		res.GatewayClass = gwc
+		res.GatewayClass = &gwapiv1.GatewayClass{
+			TypeMeta:   gwc.TypeMeta,
+			ObjectMeta: gwc.ObjectMeta,
+			Spec:       gwc.Spec,
+			Status:     gwc.Status,
+		}
 		if err := r.reconcileGatewayClass(clog.IntoContext(ctx, log), gwc, res); err != nil {
 			log.Error(err, "Failed to reconcile GatewayClass", "name", gwc.Name)
 			continue
@@ -90,16 +97,16 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, request reconcile.Req
 
 func (r *GatewayReconciler) reconcileGatewayClass(
 	ctx context.Context,
-	gwc *gwapiv1.GatewayClass,
+	gwc *gatewayv1.GatewayClass,
 	res *gatewayapi.Resources,
 ) error {
 	log := clog.FromContext(ctx, "GatewayClass", gwc.Name)
 
-	var gwsl gwapiv1.GatewayList
+	var gwsl gatewayv1.GatewayList
 	if err := r.List(ctx, &gwsl, client.MatchingFields{classGatewayIndex: string(gwc.Name)}); err != nil {
 		return fmt.Errorf("failed to list Gateways: %w", err)
 	}
-	var gws []*gwapiv1.Gateway
+	var gws []*gatewayv1.Gateway
 	for _, gw := range gwsl.Items {
 		if !gw.DeletionTimestamp.IsZero() {
 			log.V(1).Info("Gateway is being deleted", "name", gw.Name)
@@ -110,7 +117,7 @@ func (r *GatewayReconciler) reconcileGatewayClass(
 	}
 
 	if len(gws) == 0 {
-		log.Info("No Gateway found")
+		log.Info("No matching Gateway objects found for GatewayClass")
 		return nil
 	}
 
@@ -119,7 +126,12 @@ func (r *GatewayReconciler) reconcileGatewayClass(
 			log.Error(err, "Failed to reconcile Gateway", "name", gw.Name)
 			continue
 		}
-		res.Gateways = append(res.Gateways, gw)
+		res.Gateways = append(res.Gateways, &gwapiv1.Gateway{
+			TypeMeta:   gw.TypeMeta,
+			ObjectMeta: gw.ObjectMeta,
+			Spec:       gw.Spec,
+			Status:     gw.Status,
+		})
 	}
 
 	return nil
@@ -127,17 +139,17 @@ func (r *GatewayReconciler) reconcileGatewayClass(
 
 func (r *GatewayReconciler) reconcileGateway(
 	ctx context.Context,
-	gw *gwapiv1.Gateway,
+	gw *gatewayv1.Gateway,
 	res *gatewayapi.Resources,
 ) error {
 	log := clog.FromContext(ctx, "Gateway", gw.Name)
 
-	var hrsl gwapiv1.HTTPRouteList
+	var hrsl gatewayv1.HTTPRouteList
 	if err := r.List(ctx, &hrsl, client.MatchingFields{gatewayHTTPRouteIndex: string(gw.Name)}); err != nil {
 		return fmt.Errorf("failed to list HTTPRoutes: %w", err)
 	}
 
-	var hrs []*gwapiv1.HTTPRoute
+	var hrs []*gatewayv1.HTTPRoute
 	for _, hr := range hrsl.Items {
 		if !hr.DeletionTimestamp.IsZero() {
 			log.V(1).Info("HTTPRoute is being deleted", "name", hr.Name)
@@ -149,7 +161,12 @@ func (r *GatewayReconciler) reconcileGateway(
 	}
 
 	for _, hr := range hrs {
-		res.HTTPRoutes = append(res.HTTPRoutes, hr)
+		res.HTTPRoutes = append(res.HTTPRoutes, &gwapiv1.HTTPRoute{
+			TypeMeta:   hr.TypeMeta,
+			ObjectMeta: hr.ObjectMeta,
+			Spec:       hr.Spec,
+			Status:     hr.Status,
+		})
 	}
 
 	return nil
@@ -157,13 +174,13 @@ func (r *GatewayReconciler) reconcileGateway(
 
 // SetupWithManager sets up the controller with the Controller Manager.
 func (r *GatewayReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
-	if err := mgr.GetFieldIndexer().IndexField(ctx, &gwapiv1.Gateway{}, classGatewayIndex, func(obj client.Object) []string {
-		return []string{string(obj.(*gwapiv1.Gateway).Spec.GatewayClassName)}
+	if err := mgr.GetFieldIndexer().IndexField(ctx, &gatewayv1.Gateway{}, classGatewayIndex, func(obj client.Object) []string {
+		return []string{string(obj.(*gatewayv1.Gateway).Spec.GatewayClassName)}
 	}); err != nil {
 		return fmt.Errorf("failed to setup field indexer: %w", err)
 	}
-	if err := mgr.GetFieldIndexer().IndexField(ctx, &gwapiv1.HTTPRoute{}, gatewayHTTPRouteIndex, func(obj client.Object) []string {
-		route := obj.(*gwapiv1.HTTPRoute)
+	if err := mgr.GetFieldIndexer().IndexField(ctx, &gatewayv1.HTTPRoute{}, gatewayHTTPRouteIndex, func(obj client.Object) []string {
+		route := obj.(*gatewayv1.HTTPRoute)
 		var gateways []string
 		for _, ref := range route.Spec.ParentRefs {
 			if ref.Kind == nil || *ref.Kind == "Gateway" {
@@ -176,14 +193,19 @@ func (r *GatewayReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manag
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&gwapiv1.GatewayClass{}).
+		For(&gatewayv1.GatewayClass{}).
 		Watches(
-			&gwapiv1.GatewayClass{},
+			&gatewayv1.GatewayClass{},
 			handler.EnqueueRequestsFromMapFunc(r.enqueueClass),
 			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
 		).
 		Watches(
-			&gwapiv1.HTTPRoute{},
+			&gatewayv1.Gateway{},
+			handler.EnqueueRequestsFromMapFunc(r.enqueueClass),
+			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
+		).
+		Watches(
+			&gatewayv1.HTTPRoute{},
 			handler.EnqueueRequestsFromMapFunc(r.enqueueClass),
 			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
 		).
