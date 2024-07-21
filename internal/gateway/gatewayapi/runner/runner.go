@@ -54,11 +54,12 @@ func (r *Runner) subscribeAndTranslate(ctx context.Context) {
 		},
 		r.ProviderResources.GatewayAPIResources.Subscribe(ctx),
 		func(update message.Update[string, *gatewayapi.ControllerResources], errChan chan error) {
-			log.Info("received an update")
+			log.Info("received an update", "key", update.Key)
 			val := update.Value
 			// There is only 1 key which is the controller name
 			// so when a delete is triggered, delete all IR keys
 			if update.Delete || val == nil {
+				log.Info("deleting all IR keys")
 				r.deleteAllIRKeys()
 				r.deleteAllStatusKeys()
 				return
@@ -77,22 +78,27 @@ func (r *Runner) subscribeAndTranslate(ctx context.Context) {
 			statusesToDelete := r.getAllStatuses()
 
 			for _, resources := range *val {
+				log.Debug("Initiating translation for GWC", "GatewayClass", resources.GatewayClass.Name)
 				// Translate and publish IRs.
 				t := &gatewayapi.Translator{
 					GatewayControllerName: ControllerName,
 					GatewayClassName:      gwapiv1.ObjectName(resources.GatewayClass.Name),
 				}
 
+				log.Info("translating resources", "resources", resources)
+
 				// Translate to IR
 				result := t.Translate(resources)
 				for key, val := range result.XdsIR {
-					log.Info("received an update", "xds-ir", key, "value", val.YAMLString())
+					log.Info("translated resources", "key", key, "value", val.YAMLString())
 					if err := val.Validate(); err != nil {
 						log.Error("unable to validate xds ir, skipped sending it", "error", err)
 						errChan <- err
-					} else {
-						r.XdsIR.Store(key, val)
+						continue
 					}
+
+					log.Info("storing xds ir", "key", key)
+					r.XdsIR.Store(key, val)
 				}
 
 				// Update Status

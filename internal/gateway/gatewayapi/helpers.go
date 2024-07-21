@@ -19,6 +19,7 @@ import (
 
 	"github.com/apoxy-dev/apoxy-cli/internal/gateway/ir"
 	"github.com/apoxy-dev/apoxy-cli/internal/gateway/utils"
+	"github.com/apoxy-dev/apoxy-cli/internal/log"
 )
 
 const (
@@ -128,6 +129,7 @@ func GetReferencedListeners(parentRef gwapiv1.ParentReference, gateways []*Gatew
 
 	for _, gateway := range gateways {
 		if !IsRefToGateway(parentRef, utils.NamespacedName(gateway)) {
+			log.Debugf("ParentRef does not reference Gateway %s", utils.NamespacedName(gateway))
 			continue
 		}
 
@@ -137,6 +139,8 @@ func GetReferencedListeners(parentRef gwapiv1.ParentReference, gateways []*Gatew
 		for _, listener := range gateway.listeners {
 			if (parentRef.SectionName == nil || *parentRef.SectionName == listener.Name) && (parentRef.Port == nil || *parentRef.Port == listener.Port) {
 				referencedListeners = append(referencedListeners, listener)
+			} else {
+				log.Debugf("ParentRef does not reference Listener %s", listener.Name)
 			}
 		}
 	}

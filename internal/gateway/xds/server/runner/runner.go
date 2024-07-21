@@ -140,12 +140,17 @@ func registerServer(srv serverv3.Server, g *grpc.Server) {
 
 func (r *Runner) subscribeAndTranslate(ctx context.Context) {
 	// Subscribe to resources
-	message.HandleSubscription(message.Metadata{Runner: string(v1alpha1.LogComponentXdsServerRunner), Message: "xds"}, r.Xds.Subscribe(ctx),
+	message.HandleSubscription(
+		message.Metadata{
+			Runner:  string(v1alpha1.LogComponentXdsServerRunner),
+			Message: "xds",
+		},
+		r.Xds.Subscribe(ctx),
 		func(update message.Update[string, *xdstypes.ResourceVersionTable], errChan chan error) {
+			r.Logger.Info("received an update", "key", update.Key, "isDelete", update.Delete, "isNil", update.Value == nil)
 			key := update.Key
 			val := update.Value
 
-			r.Logger.Info("received an update")
 			var err error
 			if update.Delete {
 				err = r.cache.GenerateNewSnapshot(key, nil)
@@ -154,10 +159,12 @@ func (r *Runner) subscribeAndTranslate(ctx context.Context) {
 					err = errors.New("snapshot cache is nil")
 					r.Logger.Error("failed to init snapshot cache", "error", err)
 					errChan <- err
-				} else {
-					// Update snapshot cache
-					err = r.cache.GenerateNewSnapshot(key, val.XdsResources)
+					return
 				}
+
+				r.Logger.Info("generating a new snapshot", "key", key, "resources", val.XdsResources)
+				// Update snapshot cache
+				err = r.cache.GenerateNewSnapshot(key, val.XdsResources)
 			}
 			if err != nil {
 				r.Logger.Error("failed to generate a snapshot", "error", err)

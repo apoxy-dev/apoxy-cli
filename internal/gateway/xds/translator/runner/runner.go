@@ -48,9 +48,11 @@ func (r *Runner) Start(ctx context.Context) (err error) {
 
 func (r *Runner) subscribeAndTranslate(ctx context.Context) {
 	// Subscribe to resources
-	message.HandleSubscription(message.Metadata{Runner: r.Name(), Message: "xds-ir"}, r.XdsIR.Subscribe(ctx),
+	message.HandleSubscription(
+		message.Metadata{Runner: r.Name(), Message: "xds-ir"},
+		r.XdsIR.Subscribe(ctx),
 		func(update message.Update[string, *ir.Xds], errChan chan error) {
-			r.Logger.Info("received an update")
+			r.Logger.Info("received an update", "key", update.Key, "isDelete", update.Delete, "isNil", update.Value == nil)
 			key := update.Key
 			val := update.Value
 
@@ -60,22 +62,24 @@ func (r *Runner) subscribeAndTranslate(ctx context.Context) {
 				// Translate to xds resources
 				t := &translator.Translator{}
 
+				r.Logger.Info("translating xds ir", "key", key, "xds", val)
+
 				result, err := t.Translate(val)
 				if err != nil {
-					r.Logger.Error(err.Error(), "failed to translate xds ir")
+					r.Logger.Error("failed to translate xds ir", "error", err)
 					errChan <- err
+					return
 				}
 
 				// xDS translation is done in a best-effort manner, so the result
 				// may contain partial resources even if there are errors.
-				if result == nil {
+				if result == nil || result.XdsResources == nil {
 					r.Logger.Info("no xds resources to publish")
 					return
 				}
 
 				// Publish
 				r.Xds.Store(key, result)
-
 			}
 		},
 	)

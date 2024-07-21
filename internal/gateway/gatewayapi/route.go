@@ -22,6 +22,7 @@ import (
 	"github.com/apoxy-dev/apoxy-cli/internal/gateway/gatewayapi/status"
 	"github.com/apoxy-dev/apoxy-cli/internal/gateway/ir"
 	"github.com/apoxy-dev/apoxy-cli/internal/gateway/utils/regex"
+	"github.com/apoxy-dev/apoxy-cli/internal/log"
 )
 
 const (
@@ -57,11 +58,14 @@ func (t *Translator) ProcessHTTPRoutes(httpRoutes []*gwapiv1.HTTPRoute, gateways
 			HTTPRoute:             h.DeepCopy(),
 		}
 
+		log.Debugf("Processing HTTPRoute %q", httpRoute.HTTPRoute.Name)
+
 		// Find out if this route attaches to one of our Gateway's listeners,
 		// and if so, get the list of listeners that allow it to attach for each
 		// parentRef.
 		relevantRoute := t.processAllowedListenersForParentRefs(httpRoute, gateways, resources)
 		if !relevantRoute {
+			log.Debugf("HTTPRoute %s does not attach to any of the Gateway's Listeners", httpRoute.HTTPRoute.Name)
 			continue
 		}
 
@@ -102,12 +106,14 @@ func (t *Translator) ProcessGRPCRoutes(grpcRoutes []*gwapiv1a2.GRPCRoute, gatewa
 }
 
 func (t *Translator) processHTTPRouteParentRefs(httpRoute *HTTPRouteContext, resources *Resources, xdsIR XdsIRMap) {
+	log.Infof("Processing HTTPRoute %s", httpRoute.HTTPRoute.Name)
 	for _, parentRef := range httpRoute.ParentRefs {
 		// Need to compute Route rules within the parentRef loop because
 		// any conditions that come out of it have to go on each RouteParentStatus,
 		// not on the Route as a whole.
 		routeRoutes, err := t.processHTTPRouteRules(httpRoute, parentRef, resources)
 		if err != nil {
+			log.Errorf("Error processing HTTPRoute rules: %v", err)
 			parentRef.SetCondition(httpRoute,
 				gwapiv1.RouteConditionAccepted,
 				metav1.ConditionFalse,
@@ -119,6 +125,7 @@ func (t *Translator) processHTTPRouteParentRefs(httpRoute *HTTPRouteContext, res
 
 		// If no negative condition has been set for ResolvedRefs, set "ResolvedRefs=True"
 		if !parentRef.HasCondition(httpRoute, gwapiv1.RouteConditionResolvedRefs, metav1.ConditionFalse) {
+			log.Infof("Resolved all the Object references for the Route")
 			parentRef.SetCondition(httpRoute,
 				gwapiv1.RouteConditionResolvedRefs,
 				metav1.ConditionTrue,
@@ -129,11 +136,13 @@ func (t *Translator) processHTTPRouteParentRefs(httpRoute *HTTPRouteContext, res
 
 		// Skip parent refs that did not accept the route
 		if parentRef.HasCondition(httpRoute, gwapiv1.RouteConditionAccepted, metav1.ConditionFalse) {
+			log.Infof("ParentRef did not accept the Route")
 			continue
 		}
 
 		var hasHostnameIntersection = t.processHTTPRouteParentRefListener(httpRoute, routeRoutes, parentRef, xdsIR)
 		if !hasHostnameIntersection {
+			log.Infof("No hostname intersections between the HTTPRoute and this parent ref's Listener(s).")
 			parentRef.SetCondition(httpRoute,
 				gwapiv1.RouteConditionAccepted,
 				metav1.ConditionFalse,
@@ -145,6 +154,7 @@ func (t *Translator) processHTTPRouteParentRefs(httpRoute *HTTPRouteContext, res
 		// If no negative conditions have been set, the route is considered "Accepted=True".
 		if parentRef.HTTPRoute != nil &&
 			len(parentRef.HTTPRoute.Status.Parents[parentRef.routeParentStatusIdx].Conditions) == 0 {
+			log.Infof("Route is accepted")
 			parentRef.SetCondition(httpRoute,
 				gwapiv1.RouteConditionAccepted,
 				metav1.ConditionTrue,
@@ -152,7 +162,6 @@ func (t *Translator) processHTTPRouteParentRefs(httpRoute *HTTPRouteContext, res
 				"Route is accepted",
 			)
 		}
-
 	}
 }
 
@@ -616,6 +625,7 @@ func (t *Translator) processHTTPRouteParentRefListener(route RouteContext, route
 	var hasHostnameIntersection bool
 
 	for _, listener := range parentRef.listeners {
+		log.Debugf("Processing parent listener %q for route %q", listener.Name, route.GetName())
 		hosts := computeHosts(GetHostnames(route), listener.Hostname)
 		if len(hosts) == 0 {
 			continue
@@ -1190,19 +1200,24 @@ func (t *Translator) processAllowedListenersForParentRefs(routeContext RouteCont
 	var relevantRoute bool
 
 	for _, parentRef := range GetParentReferences(routeContext) {
+		log.Debugf("Processing parentRef %q", parentRef.Name)
 		isRelevantParentRef, selectedListeners := GetReferencedListeners(parentRef, gateways)
 
 		// Parent ref is not to a Gateway that we control: skip it
 		if !isRelevantParentRef {
+			log.Debugf("ParentRef %q is not relevant", parentRef.Name)
 			continue
 		}
 		relevantRoute = true
+
+		log.Debugf("ParentRef %q is relevant", parentRef.Name)
 
 		parentRefCtx := GetRouteParentContext(routeContext, parentRef)
 		// Reset conditions since they will be recomputed during translation
 		parentRefCtx.ResetConditions(routeContext)
 
 		if len(selectedListeners) == 0 {
+			log.Debugf("No listeners match this parent ref")
 			parentRefCtx.SetCondition(routeContext,
 				gwapiv1.RouteConditionAccepted,
 				metav1.ConditionFalse,
@@ -1222,6 +1237,7 @@ func (t *Translator) processAllowedListenersForParentRefs(routeContext RouteCont
 		}
 
 		if len(allowedListeners) == 0 {
+			log.Debugf("No listeners included by this parent ref allowed this attachment.")
 			parentRefCtx.SetCondition(routeContext,
 				gwapiv1.RouteConditionAccepted,
 				metav1.ConditionFalse,
@@ -1242,6 +1258,7 @@ func (t *Translator) processAllowedListenersForParentRefs(routeContext RouteCont
 		}
 
 		if !HasReadyListener(selectedListeners) {
+			log.Debugf("No ready listeners for this parent ref")
 			parentRefCtx.SetCondition(routeContext,
 				gwapiv1.RouteConditionAccepted,
 				metav1.ConditionFalse,
@@ -1259,6 +1276,8 @@ func (t *Translator) processAllowedListenersForParentRefs(routeContext RouteCont
 			gwapiv1.RouteReasonAccepted,
 			"Route is accepted",
 		)
+
+		log.Debugf("Route %v is accepted", routeContext.GetName())
 	}
 	return relevantRoute
 }

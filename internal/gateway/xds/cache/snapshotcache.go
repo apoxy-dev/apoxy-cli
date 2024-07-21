@@ -64,6 +64,8 @@ func (s *snapshotCache) GenerateNewSnapshot(irKey string, resources types.XdsRes
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	log.Infof("Generating a new snapshot for ir key: %s", irKey)
+
 	version := s.newSnapshotVersion()
 
 	// Create a snapshot with all xDS resources.
@@ -157,7 +159,7 @@ func (s *snapshotCache) OnStreamRequest(streamID int64, req *discoveryv3.Discove
 		if req.Node.Id == "" {
 			return fmt.Errorf("couldn't get the node ID from the first discovery request on stream %d", streamID)
 		}
-		log.Debugf("First discovery request on stream %d, got nodeID %s", streamID, req.Node.Id)
+		log.Debugf("First discovery request on stream %d, got nodeID %s, nodeCluster %s", streamID, req.Node.Id, req.Node.Cluster)
 		s.streamIDNodeInfo[streamID] = req.Node
 	}
 	nodeID := s.streamIDNodeInfo[streamID].Id

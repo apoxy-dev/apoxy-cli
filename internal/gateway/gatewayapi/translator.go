@@ -11,6 +11,7 @@ import (
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/apoxy-dev/apoxy-cli/internal/gateway/ir"
+	"github.com/apoxy-dev/apoxy-cli/internal/log"
 )
 
 const (
@@ -138,7 +139,7 @@ func (t *Translator) Translate(resources *Resources) *TranslateResult {
 	xdsIR := t.InitIRs(gateways, resources)
 
 	// Process all Listeners for all relevant Gateways.
-	//t.ProcessListeners(gateways, xdsIR, resources)
+	t.ProcessListeners(gateways, xdsIR, resources)
 
 	//t.ProcessAddresses(gateways, xdsIR, resources)
 
@@ -194,10 +195,14 @@ func (t *Translator) GetRelevantGateways(gateways []*gwapiv1.Gateway) []*Gateway
 
 	for _, gateway := range gateways {
 		if gateway == nil {
-			panic("received nil gateway")
+			log.Errorf("nil Gateway in GatewayList")
+			continue
 		}
 
+		log.Debugf("Checking Gateway %q", gateway.Name)
+
 		if gateway.Spec.GatewayClassName == t.GatewayClassName {
+			log.Debugf("Gateway %q is relevant", gateway.Name)
 			gc := &GatewayContext{
 				Gateway: gateway.DeepCopy(),
 			}
@@ -219,7 +224,7 @@ func (t *Translator) InitIRs(gateways []*GatewayContext, resources *Resources) m
 		gwXdsIR := &ir.Xds{}
 		labels := infrastructureLabels(gateway.Gateway)
 
-		irKey = irStringKey(gateway.Gateway.Namespace, gateway.Gateway.Name)
+		irKey = t.getIRKey(gateway.Gateway)
 		maps.Copy(labels, GatewayOwnerLabels(gateway.Namespace, gateway.Name))
 
 		// save the IR references in the map before the translation starts
@@ -252,5 +257,5 @@ func infrastructureLabels(gtw *gwapiv1.Gateway) map[string]string {
 
 // XdsIR and InfraIR map keys by default are {GatewayNamespace}/{GatewayName}, but if mergeGateways is set, they are merged under {GatewayClassName} key.
 func (t *Translator) getIRKey(gateway *gwapiv1.Gateway) string {
-	return irStringKey(gateway.Namespace, gateway.Name)
+	return gateway.Name
 }
