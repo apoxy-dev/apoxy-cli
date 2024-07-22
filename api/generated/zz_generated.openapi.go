@@ -27,11 +27,18 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.AddressList":                        schema_apoxy_cli_api_core_v1alpha_AddressList(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.AddressSpec":                        schema_apoxy_cli_api_core_v1alpha_AddressSpec(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.AddressStatus":                      schema_apoxy_cli_api_core_v1alpha_AddressStatus(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.Backend":                            schema_apoxy_cli_api_core_v1alpha_Backend(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.BackendEndpoint":                    schema_apoxy_cli_api_core_v1alpha_BackendEndpoint(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.BackendList":                        schema_apoxy_cli_api_core_v1alpha_BackendList(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.BackendSpec":                        schema_apoxy_cli_api_core_v1alpha_BackendSpec(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.BackendStatus":                      schema_apoxy_cli_api_core_v1alpha_BackendStatus(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.Domain":                             schema_apoxy_cli_api_core_v1alpha_Domain(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainList":                         schema_apoxy_cli_api_core_v1alpha_DomainList(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainSpec":                         schema_apoxy_cli_api_core_v1alpha_DomainSpec(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainStatus":                       schema_apoxy_cli_api_core_v1alpha_DomainStatus(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.FQDNEndpoint":                       schema_apoxy_cli_api_core_v1alpha_FQDNEndpoint(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.FileAccessLog":                      schema_apoxy_cli_api_core_v1alpha_FileAccessLog(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.IPEndpoint":                         schema_apoxy_cli_api_core_v1alpha_IPEndpoint(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.PeerStatus":                         schema_apoxy_cli_api_core_v1alpha_PeerStatus(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.Proxy":                              schema_apoxy_cli_api_core_v1alpha_Proxy(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.ProxyList":                          schema_apoxy_cli_api_core_v1alpha_ProxyList(ref),
@@ -858,6 +865,208 @@ func schema_apoxy_cli_api_core_v1alpha_AddressStatus(ref common.ReferenceCallbac
 	}
 }
 
+func schema_apoxy_cli_api_core_v1alpha_Backend(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "Backend configures a backend (upstream) endpoint for a Proxy.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
+						},
+					},
+					"spec": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.BackendSpec"),
+						},
+					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.BackendStatus"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.BackendSpec", "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.BackendStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+	}
+}
+
+func schema_apoxy_cli_api_core_v1alpha_BackendEndpoint(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"fqdn": {
+						SchemaProps: spec.SchemaProps{
+							Description: "FQDN is the fully qualified domain name of the endpoint.",
+							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.FQDNEndpoint"),
+						},
+					},
+					"ip": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Endpoint defined as an IPv4/IPv6 address.",
+							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.IPEndpoint"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.FQDNEndpoint", "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.IPEndpoint"},
+	}
+}
+
+func schema_apoxy_cli_api_core_v1alpha_BackendList(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "BackendList contains a list of Backend objects.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
+						},
+					},
+					"items": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.Backend"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"items"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.Backend", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+	}
+}
+
+func schema_apoxy_cli_api_core_v1alpha_BackendSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"endpoints": {
+						SchemaProps: spec.SchemaProps{
+							Description: "List of endpoints to connect to.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.BackendEndpoint"),
+									},
+								},
+							},
+						},
+					},
+					"protocols": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Protocol defines the protocol to use for the backend.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"endpoints", "protocols"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.BackendEndpoint"},
+	}
+}
+
+func schema_apoxy_cli_api_core_v1alpha_BackendStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"conditions": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-map-keys": []interface{}{
+									"type",
+								},
+								"x-kubernetes-list-type": "map",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "Conditions describe the current conditions of the Backend.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.Condition"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/apimachinery/pkg/apis/meta/v1.Condition"},
+	}
+}
+
 func schema_apoxy_cli_api_core_v1alpha_Domain(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -1031,6 +1240,34 @@ func schema_apoxy_cli_api_core_v1alpha_DomainStatus(ref common.ReferenceCallback
 	}
 }
 
+func schema_apoxy_cli_api_core_v1alpha_FQDNEndpoint(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"fqdn": {
+						SchemaProps: spec.SchemaProps{
+							Description: "FQDN is the fully qualified domain name of the endpoint.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"port": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Port is the port number of the endpoint. Acceptable values are 1-65535. If not specified",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+				},
+				Required: []string{"fqdn"},
+			},
+		},
+	}
+}
+
 func schema_apoxy_cli_api_core_v1alpha_FileAccessLog(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -1046,6 +1283,34 @@ func schema_apoxy_cli_api_core_v1alpha_FileAccessLog(ref common.ReferenceCallbac
 						},
 					},
 				},
+			},
+		},
+	}
+}
+
+func schema_apoxy_cli_api_core_v1alpha_IPEndpoint(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"address": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Address is the IP address of the endpoint.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"port": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Port is the port number of the endpoint. Acceptable values are 1-65535. If not specified the default port is 443.",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+				},
+				Required: []string{"address"},
 			},
 		},
 	}

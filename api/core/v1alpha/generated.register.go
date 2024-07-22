@@ -47,6 +47,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
 		&Address{},
 		&AddressList{},
+		&Backend{},
+		&BackendList{},
 		&Domain{},
 		&DomainList{},
 		&Proxy{},
