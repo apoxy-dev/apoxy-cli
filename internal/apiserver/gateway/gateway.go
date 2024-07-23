@@ -20,12 +20,14 @@ import (
 	gatewayapirunner "github.com/apoxy-dev/apoxy-cli/internal/gateway/gatewayapi/runner"
 	"github.com/apoxy-dev/apoxy-cli/internal/gateway/message"
 
+	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
 	gatewayv1 "github.com/apoxy-dev/apoxy-cli/api/gateway/v1"
 )
 
 const (
 	classGatewayIndex     = "classGatewayIndex"
 	gatewayHTTPRouteIndex = "gatewayHTTPRouteIndex"
+	backendHTTPRouteIndex = "backendHTTPRouteIndex"
 )
 
 var _ reconcile.Reconciler = &GatewayReconciler{}
@@ -83,10 +85,14 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, request reconcile.Req
 			Spec:       gwc.Spec,
 			Status:     gwc.Status,
 		}
+
 		if err := r.reconcileGatewayClass(clog.IntoContext(ctx, log), gwc, res); err != nil {
 			log.Error(err, "Failed to reconcile GatewayClass", "name", gwc.Name)
-			continue
 		}
+		if err := r.reconcileBackends(clog.IntoContext(ctx, log), res); err != nil {
+			log.Error(err, "Failed to reconcile BackendRefs for GatewayClass", "name", gwc.Name)
+		}
+
 		ress = append(ress, res)
 	}
 
@@ -149,24 +155,53 @@ func (r *GatewayReconciler) reconcileGateway(
 		return fmt.Errorf("failed to list HTTPRoutes: %w", err)
 	}
 
-	var hrs []*gatewayv1.HTTPRoute
 	for _, hr := range hrsl.Items {
 		if !hr.DeletionTimestamp.IsZero() {
 			log.V(1).Info("HTTPRoute is being deleted", "name", hr.Name)
 			continue
 		}
+
 		log.Info("Reconciling HTTPRoute", "name", hr.Name)
 
-		hrs = append(hrs, &hr) // No longer requires copy since 1.22. See: https://go.dev/blog/loopvar-preview
-	}
-
-	for _, hr := range hrs {
 		res.HTTPRoutes = append(res.HTTPRoutes, &gwapiv1.HTTPRoute{
 			TypeMeta:   hr.TypeMeta,
 			ObjectMeta: hr.ObjectMeta,
 			Spec:       hr.Spec,
 			Status:     hr.Status,
 		})
+	}
+
+	return nil
+}
+
+func (r *GatewayReconciler) reconcileBackends(
+	ctx context.Context,
+	res *gatewayapi.Resources,
+) error {
+	log := clog.FromContext(ctx)
+
+	var bl corev1alpha.BackendList
+	if err := r.List(ctx, &bl); err != nil {
+		return fmt.Errorf("failed to list Backends: %w", err)
+	}
+
+	for _, b := range bl.Items {
+		if !b.DeletionTimestamp.IsZero() {
+			log.V(1).Info("Backend is being deleted", "name", b.Name)
+			continue
+		}
+
+		var hrsl gatewayv1.HTTPRouteList
+		if err := r.List(ctx, &hrsl, client.MatchingFields{backendHTTPRouteIndex: string(b.Name)}); err != nil {
+			return fmt.Errorf("failed to list HTTPRoutes for Backend %s: %w", b.Name, err)
+		} else if len(hrsl.Items) == 0 {
+			log.Info("No matching HTTPRoute objects found for Backend", "name", b.Name)
+			continue
+		}
+
+		log.Info("Reconciling Backend", "name", b.Name)
+
+		res.Backends = append(res.Backends, &b) // No longer requires copy since 1.22. See: https://go.dev/blog/loopvar-preview
 	}
 
 	return nil
@@ -191,6 +226,20 @@ func (r *GatewayReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manag
 	}); err != nil {
 		return fmt.Errorf("failed to setup field indexer: %w", err)
 	}
+	if err := mgr.GetFieldIndexer().IndexField(ctx, &gatewayv1.HTTPRoute{}, backendHTTPRouteIndex, func(obj client.Object) []string {
+		route := obj.(*gatewayv1.HTTPRoute)
+		var backends []string
+		for _, ref := range route.Spec.Rules {
+			for _, backend := range ref.BackendRefs {
+				if backend.Kind != nil && *backend.Kind == "Backend" {
+					backends = append(backends, string(backend.Name))
+				}
+			}
+		}
+		return backends
+	}); err != nil {
+		return fmt.Errorf("failed to setup field indexer: %w", err)
+	}
 
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&gatewayv1.GatewayClass{}).
@@ -206,6 +255,11 @@ func (r *GatewayReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manag
 		).
 		Watches(
 			&gatewayv1.HTTPRoute{},
+			handler.EnqueueRequestsFromMapFunc(r.enqueueClass),
+			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
+		).
+		Watches(
+			&corev1alpha.Backend{},
 			handler.EnqueueRequestsFromMapFunc(r.enqueueClass),
 			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
 		).

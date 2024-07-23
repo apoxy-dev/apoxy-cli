@@ -18,6 +18,7 @@ import (
 	gwapiv1b1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 	mcsapi "sigs.k8s.io/mcs-api/pkg/apis/v1alpha1"
 
+	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
 	"github.com/apoxy-dev/apoxy-cli/internal/gateway/ir"
 )
 
@@ -44,6 +45,7 @@ type Resources struct {
 	Secrets             []*v1.Secret                 `json:"secrets,omitempty" yaml:"secrets,omitempty"`
 	ConfigMaps          []*v1.ConfigMap              `json:"configMaps,omitempty" yaml:"configMaps,omitempty"`
 	ExtensionRefFilters []unstructured.Unstructured  `json:"extensionRefFilters,omitempty" yaml:"extensionRefFilters,omitempty"`
+	Backends            []*corev1alpha.Backend       `json:"backends,omitempty" yaml:"backends,omitempty"`
 }
 
 func NewResources() *Resources {
@@ -128,6 +130,15 @@ func (r *Resources) GetEndpointSlicesForBackend(svcNamespace, svcName string, ba
 		}
 	}
 	return endpointSlices
+}
+
+func (r *Resources) GetBackend(name string) *corev1alpha.Backend {
+	for _, backend := range r.Backends {
+		if backend.Name == name {
+			return backend
+		}
+	}
+	return nil
 }
 
 // ControllerResources holds all the GatewayAPI resources per GatewayClass

@@ -51,43 +51,17 @@ type BackendSpec struct {
 
 type BackendEndpoint struct {
 	// FQDN is the fully qualified domain name of the endpoint.
-	// +optional
-	FQDN *FQDNEndpoint `json:"fqdn"`
-
-	// Endpoint defined as an IPv4/IPv6 address.
-	// +optional
-	IPEndpoint *IPEndpoint `json:"ip"`
-}
-
-type FQDNEndpoint struct {
-	// FQDN is the fully qualified domain name of the endpoint.
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
 	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9]))*$`
-	FQDN string `json:"fqdn"`
-
-	// Port is the port number of the endpoint. Acceptable values are 1-65535.
-	// If not specified
-	// +kubebuilder:validation:Minimum=1
-	// +kubebuilder:validation:Maximum=65535
-	// +kubebuilder:default=443
 	// +optional
-	Port *int `json:"port"`
-}
+	FQDN string `json:"fqdn,omitempty"`
 
-type IPEndpoint struct {
-	// Address is the IP address of the endpoint.
+	// Endpoint defined as an IPv4/IPv6 address.
 	// +kubebuilder:validation:Format=ipv4
 	// +kubebuilder:validation:Format=ipv6
-	Address string `json:"address"`
-
-	// Port is the port number of the endpoint. Acceptable values are 1-65535.
-	// If not specified the default port is 443.
-	// +kubebuilder:validation:Minimum=1
-	// +kubebuilder:validation:Maximum=65535
-	// +kubebuilder:default=443
 	// +optional
-	Port *int `json:"port"`
+	IP string `json:"ip,omitempty"`
 }
 
 type BackendStatus struct {

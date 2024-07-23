@@ -36,9 +36,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainList":                         schema_apoxy_cli_api_core_v1alpha_DomainList(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainSpec":                         schema_apoxy_cli_api_core_v1alpha_DomainSpec(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainStatus":                       schema_apoxy_cli_api_core_v1alpha_DomainStatus(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.FQDNEndpoint":                       schema_apoxy_cli_api_core_v1alpha_FQDNEndpoint(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.FileAccessLog":                      schema_apoxy_cli_api_core_v1alpha_FileAccessLog(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.IPEndpoint":                         schema_apoxy_cli_api_core_v1alpha_IPEndpoint(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.PeerStatus":                         schema_apoxy_cli_api_core_v1alpha_PeerStatus(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.Proxy":                              schema_apoxy_cli_api_core_v1alpha_Proxy(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.ProxyList":                          schema_apoxy_cli_api_core_v1alpha_ProxyList(ref),
@@ -921,20 +919,20 @@ func schema_apoxy_cli_api_core_v1alpha_BackendEndpoint(ref common.ReferenceCallb
 					"fqdn": {
 						SchemaProps: spec.SchemaProps{
 							Description: "FQDN is the fully qualified domain name of the endpoint.",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.FQDNEndpoint"),
+							Type:        []string{"string"},
+							Format:      "",
 						},
 					},
 					"ip": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Endpoint defined as an IPv4/IPv6 address.",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.IPEndpoint"),
+							Type:        []string{"string"},
+							Format:      "",
 						},
 					},
 				},
 			},
 		},
-		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.FQDNEndpoint", "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.IPEndpoint"},
 	}
 }
 
@@ -1240,34 +1238,6 @@ func schema_apoxy_cli_api_core_v1alpha_DomainStatus(ref common.ReferenceCallback
 	}
 }
 
-func schema_apoxy_cli_api_core_v1alpha_FQDNEndpoint(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
-				Properties: map[string]spec.Schema{
-					"fqdn": {
-						SchemaProps: spec.SchemaProps{
-							Description: "FQDN is the fully qualified domain name of the endpoint.",
-							Default:     "",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"port": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Port is the port number of the endpoint. Acceptable values are 1-65535. If not specified",
-							Type:        []string{"integer"},
-							Format:      "int32",
-						},
-					},
-				},
-				Required: []string{"fqdn"},
-			},
-		},
-	}
-}
-
 func schema_apoxy_cli_api_core_v1alpha_FileAccessLog(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -1283,34 +1253,6 @@ func schema_apoxy_cli_api_core_v1alpha_FileAccessLog(ref common.ReferenceCallbac
 						},
 					},
 				},
-			},
-		},
-	}
-}
-
-func schema_apoxy_cli_api_core_v1alpha_IPEndpoint(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
-				Properties: map[string]spec.Schema{
-					"address": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Address is the IP address of the endpoint.",
-							Default:     "",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"port": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Port is the port number of the endpoint. Acceptable values are 1-65535. If not specified the default port is 443.",
-							Type:        []string{"integer"},
-							Format:      "int32",
-						},
-					},
-				},
-				Required: []string{"address"},
 			},
 		},
 	}

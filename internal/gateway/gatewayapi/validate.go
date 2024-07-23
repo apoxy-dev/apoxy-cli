@@ -19,6 +19,7 @@ import (
 	gwapiv1a2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	gwapiv1b1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
+	"github.com/apoxy-dev/apoxy-cli/internal/gateway/gatewayapi/status"
 	egv1a1 "github.com/envoyproxy/gateway/api/v1alpha1"
 )
 
@@ -27,8 +28,8 @@ func (t *Translator) validateBackendRef(backendRefContext BackendRefContext, par
 	if !t.validateBackendRefFilters(backendRefContext, parentRef, route, routeKind) {
 		return false
 	}
-	backendRef := GetBackendRef(backendRefContext)
 
+	backendRef := GetBackendRef(backendRefContext)
 	if !t.validateBackendRefGroup(backendRef, parentRef, route) {
 		return false
 	}
@@ -86,24 +87,35 @@ func (t *Translator) validateBackendRefKind(backendRef *gwapiv1a2.BackendRef, pa
 }
 
 func (t *Translator) validateBackendRefFilters(backendRef BackendRefContext, parentRef *RouteParentContext, route RouteContext, routeKind gwapiv1.Kind) bool {
-	var filtersLen int
+	filters := GetFilters(backendRef)
+	var unsupportedFilters bool
+
 	switch routeKind {
 	case KindHTTPRoute:
-		filters := GetFilters(backendRef).([]gwapiv1.HTTPRouteFilter)
-		filtersLen = len(filters)
+		for _, filter := range filters.([]gwapiv1.HTTPRouteFilter) {
+			if filter.Type != gwapiv1.HTTPRouteFilterRequestHeaderModifier && filter.Type != gwapiv1.HTTPRouteFilterResponseHeaderModifier {
+				unsupportedFilters = true
+			}
+		}
 	case KindGRPCRoute:
-		filters := GetFilters(backendRef).([]gwapiv1.GRPCRouteFilter)
-		filtersLen = len(filters)
+		for _, filter := range filters.([]gwapiv1.GRPCRouteFilter) {
+			if filter.Type != gwapiv1.GRPCRouteFilterRequestHeaderModifier && filter.Type != gwapiv1.GRPCRouteFilterResponseHeaderModifier {
+				unsupportedFilters = true
+			}
+		}
 	default:
 		return true
 	}
 
-	if filtersLen > 0 {
-		parentRef.SetCondition(route,
+	if unsupportedFilters {
+		routeStatus := GetRouteStatus(route)
+		status.SetRouteStatusCondition(routeStatus,
+			parentRef.routeParentStatusIdx,
+			route.GetGeneration(),
 			gwapiv1.RouteConditionResolvedRefs,
 			metav1.ConditionFalse,
 			"UnsupportedRefValue",
-			"The filters field within BackendRef is not supported",
+			"Specific filter is not supported within BackendRef, only RequestHeaderModifier and ResponseHeaderModifier are supported",
 		)
 		return false
 	}

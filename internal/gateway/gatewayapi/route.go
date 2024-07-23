@@ -6,7 +6,9 @@
 package gatewayapi
 
 import (
+	"errors"
 	"fmt"
+	"net/netip"
 	"strconv"
 	"strings"
 	"time"
@@ -19,6 +21,7 @@ import (
 	gwapiv1a2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	mcsapi "sigs.k8s.io/mcs-api/pkg/apis/v1alpha1"
 
+	"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
 	"github.com/apoxy-dev/apoxy-cli/internal/gateway/gatewayapi/status"
 	"github.com/apoxy-dev/apoxy-cli/internal/gateway/ir"
 	"github.com/apoxy-dev/apoxy-cli/internal/gateway/utils/regex"
@@ -1095,7 +1098,6 @@ func (t *Translator) processDestination(
 		addrType  *ir.DestinationAddressType
 	)
 	protocol := inspectAppProtocolByRouteKind(routeType)
-	var backendTLS *ir.TLSUpstreamConfig
 	switch KindDerefOr(backendRef.Kind, KindService) {
 	case KindServiceImport:
 		serviceImport := resources.GetServiceImport(backendNamespace, string(backendRef.Name))
@@ -1119,34 +1121,35 @@ func (t *Translator) processDestination(
 				endpoints = append(endpoints, ep)
 			}
 		}
+
+		ds = &ir.DestinationSetting{
+			Weight:      &weight,
+			Protocol:    protocol,
+			Endpoints:   endpoints,
+			AddressType: addrType,
+		}
 	case KindService:
-		service := resources.GetService(backendNamespace, string(backendRef.Name))
-		var servicePort corev1.ServicePort
-		for _, port := range service.Spec.Ports {
-			if port.Port == int32(*backendRef.Port) {
-				servicePort = port
-				break
-			}
-		}
-
-		// support HTTPRouteBackendProtocolH2C
-		if servicePort.AppProtocol != nil &&
-			*servicePort.AppProtocol == "kubernetes.io/h2c" {
-			protocol = ir.HTTP2
-		}
-
-		// Route to endpoints by default
-		if !t.EndpointRoutingDisabled {
-			endpointSlices := resources.GetEndpointSlicesForBackend(backendNamespace, string(backendRef.Name), KindDerefOr(backendRef.Kind, KindService))
-			endpoints, addrType = getIREndpointsFromEndpointSlices(endpointSlices, servicePort.Name, servicePort.Protocol)
-		} else {
-			// Fall back to Service ClusterIP routing
-			ep := ir.NewDestEndpoint(
-				service.Spec.ClusterIP,
-				uint32(*backendRef.Port))
-			endpoints = append(endpoints, ep)
-		}
+		ds = t.processServiceDestinationSetting(backendRef.BackendObjectReference, backendNamespace, protocol, resources)
+		ds.Filters = t.processDestinationFilters(routeType, backendRefContext, parentRef, route, resources)
 	case KindBackend:
+		var err error
+		ds, err = t.processBackendDestinationSetting(backendRef.BackendObjectReference, resources)
+		if err != nil {
+			parentRef.SetCondition(route,
+				gwapiv1.RouteConditionResolvedRefs,
+				metav1.ConditionFalse,
+				gwapiv1a2.RouteReasonResolvedRefs,
+				err.Error())
+			return nil
+		} else if ds == nil {
+			parentRef.SetCondition(route,
+				gwapiv1.RouteConditionResolvedRefs,
+				metav1.ConditionFalse,
+				gwapiv1a2.RouteReasonResolvedRefs,
+				"Backend not found")
+			return nil
+		}
+		ds.Filters = t.processDestinationFilters(routeType, backendRefContext, parentRef, route, resources)
 	}
 
 	// TODO: support mixed endpointslice address type for the same backendRef
@@ -1158,13 +1161,7 @@ func (t *Translator) processDestination(
 			"Mixed endpointslice address type for the same backendRef is not supported")
 	}
 
-	ds = &ir.DestinationSetting{
-		Weight:      &weight,
-		Protocol:    protocol,
-		Endpoints:   endpoints,
-		AddressType: addrType,
-		TLS:         backendTLS,
-	}
+	ds.Weight = &weight
 	return ds
 }
 
@@ -1182,6 +1179,104 @@ func inspectAppProtocolByRouteKind(kind gwapiv1.Kind) ir.AppProtocol {
 		return ir.HTTPS
 	}
 	return ir.TCP
+}
+
+func (t *Translator) processServiceDestinationSetting(
+	backendRef gwapiv1.BackendObjectReference,
+	backendNamespace string,
+	protocol ir.AppProtocol,
+	resources *Resources,
+) *ir.DestinationSetting {
+	var (
+		endpoints []*ir.DestinationEndpoint
+		addrType  *ir.DestinationAddressType
+	)
+
+	service := resources.GetService(backendNamespace, string(backendRef.Name))
+	var servicePort corev1.ServicePort
+	for _, port := range service.Spec.Ports {
+		if port.Port == int32(*backendRef.Port) {
+			servicePort = port
+			break
+		}
+	}
+
+	// support HTTPRouteBackendProtocolH2C/GRPC
+	if servicePort.AppProtocol != nil {
+		switch *servicePort.AppProtocol {
+		case "kubernetes.io/h2c":
+			protocol = ir.HTTP2
+		case "grpc":
+			protocol = ir.GRPC
+		}
+	}
+
+	// Route to endpoints by default
+	if !t.EndpointRoutingDisabled {
+		endpointSlices := resources.GetEndpointSlicesForBackend(backendNamespace, string(backendRef.Name), KindDerefOr(backendRef.Kind, KindService))
+		endpoints, addrType = getIREndpointsFromEndpointSlices(endpointSlices, servicePort.Name, servicePort.Protocol)
+	} else {
+		// Fall back to Service ClusterIP routing
+		ep := ir.NewDestEndpoint(
+			service.Spec.ClusterIP,
+			uint32(*backendRef.Port))
+		endpoints = append(endpoints, ep)
+	}
+
+	return &ir.DestinationSetting{
+		Protocol:    protocol,
+		Endpoints:   endpoints,
+		AddressType: addrType,
+	}
+}
+
+func getBackendFilters(routeType gwapiv1.Kind, backendRefContext BackendRefContext) (backendFilters any) {
+	filters := GetFilters(backendRefContext)
+	switch routeType {
+	case KindHTTPRoute:
+		if len(filters.([]gwapiv1.HTTPRouteFilter)) > 0 {
+			return filters.([]gwapiv1.HTTPRouteFilter)
+		}
+	case KindGRPCRoute:
+		if len(filters.([]gwapiv1.GRPCRouteFilter)) > 0 {
+			return filters.([]gwapiv1.GRPCRouteFilter)
+		}
+	}
+
+	return nil
+}
+
+func (t *Translator) processDestinationFilters(routeType gwapiv1.Kind, backendRefContext BackendRefContext, parentRef *RouteParentContext, route RouteContext, resources *Resources) *ir.DestinationFilters {
+	backendFilters := getBackendFilters(routeType, backendRefContext)
+	if backendFilters == nil {
+		return nil
+	}
+
+	var httpFiltersContext *HTTPFiltersContext
+	var destFilters ir.DestinationFilters
+
+	switch filters := backendFilters.(type) {
+	case []gwapiv1.HTTPRouteFilter:
+		httpFiltersContext = t.ProcessHTTPFilters(parentRef, route, filters, 0, resources)
+
+	case []gwapiv1.GRPCRouteFilter:
+		httpFiltersContext = t.ProcessGRPCFilters(parentRef, route, filters, resources)
+	}
+
+	if len(httpFiltersContext.AddRequestHeaders) > 0 {
+		destFilters.AddRequestHeaders = httpFiltersContext.AddRequestHeaders
+	}
+	if len(httpFiltersContext.RemoveRequestHeaders) > 0 {
+		destFilters.RemoveRequestHeaders = httpFiltersContext.RemoveRequestHeaders
+	}
+	if len(httpFiltersContext.AddResponseHeaders) > 0 {
+		destFilters.AddResponseHeaders = httpFiltersContext.AddResponseHeaders
+	}
+	if len(httpFiltersContext.RemoveResponseHeaders) > 0 {
+		destFilters.RemoveResponseHeaders = httpFiltersContext.RemoveResponseHeaders
+	}
+
+	return &destFilters
 }
 
 // processAllowedListenersForParentRefs finds out if the route attaches to one of our
@@ -1271,6 +1366,79 @@ func (t *Translator) processAllowedListenersForParentRefs(routeContext RouteCont
 		log.Debugf("Route %v is accepted", routeContext.GetName())
 	}
 	return relevantRoute
+}
+
+func (t *Translator) processBackendDestinationSetting(backendRef gwapiv1.BackendObjectReference, resources *Resources) (*ir.DestinationSetting, error) {
+	if backendRef.Port == nil {
+		return nil, errors.New("port is required for backend reference")
+	}
+	backend := resources.GetBackend(string(backendRef.Name))
+	if backend == nil {
+		return nil, fmt.Errorf("backend %q not found", backendRef.Name)
+	}
+
+	var (
+		dstEndpoints []*ir.DestinationEndpoint
+		dstAddrType  *ir.DestinationAddressType
+	)
+	addrTypeMap := make(map[ir.DestinationAddressType]int)
+	for _, bep := range backend.Spec.Endpoints {
+		var host string
+		switch {
+		case bep.FQDN != "":
+			addrTypeMap[ir.FQDN]++
+			host = bep.FQDN
+		case bep.IP != "":
+			ip, err := netip.ParseAddr(bep.IP)
+			if err != nil {
+				return nil, fmt.Errorf("invalid IP address %q: %v", bep.IP, err)
+			}
+			if ip.IsUnspecified() {
+				return nil, fmt.Errorf("invalid IP address %q: unspecified IP", bep.IP)
+			}
+			host = ip.String()
+		}
+
+		port := int(*backendRef.Port)
+		if port < 1 || port > 65535 {
+			return nil, fmt.Errorf("invalid port %d", port)
+		}
+
+		dstEndpoints = append(dstEndpoints, &ir.DestinationEndpoint{
+			Host: host,
+			Port: uint32(port),
+		})
+	}
+
+	for addrTypeState, addrTypeCounts := range addrTypeMap {
+		if addrTypeCounts == len(backend.Spec.Endpoints) {
+			dstAddrType = ptr.To(addrTypeState)
+			break
+		}
+	}
+	if len(addrTypeMap) > 0 && dstAddrType == nil {
+		dstAddrType = ptr.To(ir.MIXED)
+	}
+
+	ds := &ir.DestinationSetting{
+		Endpoints:   dstEndpoints,
+		AddressType: dstAddrType,
+	}
+
+	for _, p := range backend.Spec.Protocols {
+		switch p {
+		case v1alpha.BackendProtoH2:
+			ds.Protocol = ir.HTTP2
+			ds.TLS = &ir.TLSUpstreamConfig{}
+		case v1alpha.BackendProtoH2C:
+			ds.Protocol = ir.HTTP2
+		case v1alpha.BackendProtoTLS:
+			ds.Protocol = ir.HTTP
+			ds.TLS = &ir.TLSUpstreamConfig{}
+		}
+	}
+
+	return ds, nil
 }
 
 func getIREndpointsFromEndpointSlices(endpointSlices []*discoveryv1.EndpointSlice, portName string, portProtocol corev1.Protocol) ([]*ir.DestinationEndpoint, *ir.DestinationAddressType) {
