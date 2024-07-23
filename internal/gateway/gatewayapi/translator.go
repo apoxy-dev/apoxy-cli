@@ -29,6 +29,7 @@ const (
 	KindUDPRoute            = "UDPRoute"
 	KindService             = "Service"
 	KindServiceImport       = "ServiceImport"
+	KindBackend             = "Backend"
 	KindSecret              = "Secret"
 	KindSecurityPolicy      = "SecurityPolicy"
 
