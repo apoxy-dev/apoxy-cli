@@ -33,7 +33,9 @@ const (
 	KindSecret              = "Secret"
 	KindSecurityPolicy      = "SecurityPolicy"
 
+	GroupApoxyCore           = "core.apoxy.dev"
 	GroupMultiClusterService = "multicluster.x-k8s.io"
+
 	// OwningGatewayNamespaceLabel is the owner reference label used for managed infra.
 	// The value should be the namespace of the accepted Envoy Gateway.
 	OwningGatewayNamespaceLabel = "gateway.envoyproxy.io/owning-gateway-namespace"

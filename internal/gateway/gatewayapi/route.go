@@ -22,6 +22,7 @@ import (
 	mcsapi "sigs.k8s.io/mcs-api/pkg/apis/v1alpha1"
 
 	"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
+	agwapiv1a1 "github.com/apoxy-dev/apoxy-cli/api/gateway/v1"
 	"github.com/apoxy-dev/apoxy-cli/internal/gateway/gatewayapi/status"
 	"github.com/apoxy-dev/apoxy-cli/internal/gateway/ir"
 	"github.com/apoxy-dev/apoxy-cli/internal/gateway/utils/regex"
@@ -1084,6 +1085,7 @@ func (t *Translator) processDestination(
 
 	backendNamespace := NamespaceDerefOr(backendRef.Namespace, route.GetNamespace())
 	if !t.validateBackendRef(backendRefContext, parentRef, route, resources, backendNamespace, routeType) {
+		log.Infof("Skipping invalid backend %s/%s", backendNamespace, backendRef.Name)
 		// return with empty endpoint means the backend is invalid
 		return &ir.DestinationSetting{Weight: &weight}
 	}
@@ -1135,6 +1137,7 @@ func (t *Translator) processDestination(
 		var err error
 		ds, err = t.processBackendDestinationSetting(backendRef.BackendObjectReference, resources)
 		if err != nil {
+			log.Infof("Error processing backend %s/%s: %v", backendNamespace, backendRef.Name, err)
 			parentRef.SetCondition(route,
 				gwapiv1.RouteConditionResolvedRefs,
 				metav1.ConditionFalse,
@@ -1142,6 +1145,7 @@ func (t *Translator) processDestination(
 				err.Error())
 			return nil
 		} else if ds == nil {
+			log.Infof("Backend %s/%s not found", backendNamespace, backendRef.Name)
 			parentRef.SetCondition(route,
 				gwapiv1.RouteConditionResolvedRefs,
 				metav1.ConditionFalse,
@@ -1316,8 +1320,8 @@ func (t *Translator) processAllowedListenersForParentRefs(routeContext RouteCont
 		var allowedListeners []*ListenerContext
 		for _, listener := range selectedListeners {
 			acceptedKind := GetRouteType(routeContext)
-			if listener.AllowsKind(gwapiv1.RouteGroupKind{Group: GroupPtr(gwapiv1.GroupName), Kind: acceptedKind}) &&
-				listener.AllowsNamespace(resources.GetNamespace(routeContext.GetNamespace())) {
+			log.Debugf("Checking if listener %q allows kind %q", listener.Name, acceptedKind)
+			if listener.AllowsKind(gwapiv1.RouteGroupKind{Group: GroupPtr(agwapiv1a1.GroupName), Kind: acceptedKind}) {
 				allowedListeners = append(allowedListeners, listener)
 			}
 		}

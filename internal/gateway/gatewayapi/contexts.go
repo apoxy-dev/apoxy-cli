@@ -109,29 +109,6 @@ func (l *ListenerContext) AllowsKind(kind gwapiv1.RouteGroupKind) bool {
 	return false
 }
 
-func (l *ListenerContext) AllowsNamespace(namespace *v1.Namespace) bool {
-	if namespace == nil {
-		return false
-	}
-
-	if l.AllowedRoutes == nil || l.AllowedRoutes.Namespaces == nil || l.AllowedRoutes.Namespaces.From == nil {
-		return l.gateway.Namespace == namespace.Name
-	}
-
-	switch *l.AllowedRoutes.Namespaces.From {
-	case gwapiv1.NamespacesFromAll:
-		return true
-	case gwapiv1.NamespacesFromSelector:
-		if l.namespaceSelector == nil {
-			return false
-		}
-		return l.namespaceSelector.Matches(labels.Set(namespace.Labels))
-	default:
-		// NamespacesFromSame is the default
-		return l.gateway.Namespace == namespace.Name
-	}
-}
-
 func (l *ListenerContext) IsReady() bool {
 	for _, cond := range l.gateway.Status.Listeners[l.listenerStatusIdx].Conditions {
 		if cond.Type == string(gwapiv1.ListenerConditionProgrammed) && cond.Status == metav1.ConditionTrue {

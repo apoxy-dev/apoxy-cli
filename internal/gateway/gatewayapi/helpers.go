@@ -17,6 +17,7 @@ import (
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 	"sigs.k8s.io/gateway-api/apis/v1alpha2"
 
+	agwapiv1a1 "github.com/apoxy-dev/apoxy-cli/api/gateway/v1"
 	"github.com/apoxy-dev/apoxy-cli/internal/gateway/ir"
 	"github.com/apoxy-dev/apoxy-cli/internal/gateway/utils"
 	"github.com/apoxy-dev/apoxy-cli/internal/log"
@@ -104,7 +105,7 @@ func KindDerefOr(kind *gwapiv1.Kind, defaultKind string) string {
 // section/listener name has been specified (i.e. a parent ref to a listener
 // on the specified gateway will return "true").
 func IsRefToGateway(parentRef gwapiv1.ParentReference, gateway types.NamespacedName) bool {
-	if parentRef.Group != nil && string(*parentRef.Group) != gwapiv1.GroupName {
+	if parentRef.Group != nil && string(*parentRef.Group) != agwapiv1a1.GroupName {
 		return false
 	}
 
@@ -413,7 +414,7 @@ func protocolSliceToStringSlice(protocols []gwapiv1.ProtocolType) []string {
 
 func getAncestorRefForPolicy(gatewayNN types.NamespacedName, sectionName *v1alpha2.SectionName) v1alpha2.ParentReference {
 	return v1alpha2.ParentReference{
-		Group:       GroupPtr(gwapiv1.GroupName),
+		Group:       GroupPtr(agwapiv1a1.GroupName),
 		Kind:        KindPtr(KindGateway),
 		Namespace:   NamespacePtr(gatewayNN.Namespace),
 		Name:        gwapiv1.ObjectName(gatewayNN.Name),

@@ -19,7 +19,9 @@ import (
 	gwapiv1a2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	gwapiv1b1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
+	agwapiv1a1 "github.com/apoxy-dev/apoxy-cli/api/gateway/v1"
 	"github.com/apoxy-dev/apoxy-cli/internal/gateway/gatewayapi/status"
+	"github.com/apoxy-dev/apoxy-cli/internal/log"
 	egv1a1 "github.com/envoyproxy/gateway/api/v1alpha1"
 )
 
@@ -61,7 +63,10 @@ func (t *Translator) validateBackendRef(backendRefContext BackendRefContext, par
 }
 
 func (t *Translator) validateBackendRefGroup(backendRef *gwapiv1a2.BackendRef, parentRef *RouteParentContext, route RouteContext) bool {
-	if backendRef.Group != nil && *backendRef.Group != "" && *backendRef.Group != GroupMultiClusterService {
+	if backendRef.Group != nil &&
+		*backendRef.Group != "" &&
+		*backendRef.Group != GroupApoxyCore &&
+		*backendRef.Group != GroupMultiClusterService {
 		parentRef.SetCondition(route,
 			gwapiv1.RouteConditionResolvedRefs,
 			metav1.ConditionFalse,
@@ -74,12 +79,15 @@ func (t *Translator) validateBackendRefGroup(backendRef *gwapiv1a2.BackendRef, p
 }
 
 func (t *Translator) validateBackendRefKind(backendRef *gwapiv1a2.BackendRef, parentRef *RouteParentContext, route RouteContext) bool {
-	if backendRef.Kind != nil && *backendRef.Kind != KindService && *backendRef.Kind != KindServiceImport {
+	if backendRef.Kind != nil &&
+		*backendRef.Kind != KindService &&
+		*backendRef.Kind != KindServiceImport &&
+		*backendRef.Kind != KindBackend {
 		parentRef.SetCondition(route,
 			gwapiv1.RouteConditionResolvedRefs,
 			metav1.ConditionFalse,
 			gwapiv1.RouteReasonInvalidKind,
-			"Kind is invalid, only Service and MCS ServiceImport are supported",
+			fmt.Sprintf("Kind is invalid, accepting: %v", []string{KindService, KindServiceImport, KindBackend}),
 		)
 		return false
 	}
@@ -128,7 +136,7 @@ func (t *Translator) validateBackendNamespace(backendRef *gwapiv1a2.BackendRef, 
 	if backendRef.Namespace != nil && string(*backendRef.Namespace) != "" && string(*backendRef.Namespace) != route.GetNamespace() {
 		if !t.validateCrossNamespaceRef(
 			crossNamespaceFrom{
-				group:     gwapiv1.GroupName,
+				group:     agwapiv1a1.GroupName,
 				kind:      string(routeKind),
 				namespace: route.GetNamespace(),
 			},
@@ -355,7 +363,7 @@ func (t *Translator) validateTerminateModeAndGetTLSSecrets(listener *ListenerCon
 		if certificateRef.Namespace != nil && string(*certificateRef.Namespace) != "" && string(*certificateRef.Namespace) != listener.gateway.Namespace {
 			if !t.validateCrossNamespaceRef(
 				crossNamespaceFrom{
-					group:     gwapiv1.GroupName,
+					group:     agwapiv1a1.GroupName,
 					kind:      KindGateway,
 					namespace: listener.gateway.Namespace,
 				},
@@ -517,7 +525,8 @@ func (t *Translator) validateHostName(listener *ListenerContext) {
 func (t *Translator) validateAllowedRoutes(listener *ListenerContext, routeKinds ...gwapiv1.Kind) {
 	canSupportKinds := make([]gwapiv1.RouteGroupKind, len(routeKinds))
 	for i, routeKind := range routeKinds {
-		canSupportKinds[i] = gwapiv1.RouteGroupKind{Group: GroupPtr(gwapiv1.GroupName), Kind: routeKind}
+		log.Debugf("Adding route kind %s to supported kinds for listener %s", routeKind, listener.Name)
+		canSupportKinds[i] = gwapiv1.RouteGroupKind{Group: GroupPtr(agwapiv1a1.GroupName), Kind: routeKind}
 	}
 	if listener.AllowedRoutes == nil || len(listener.AllowedRoutes.Kinds) == 0 {
 		listener.SetSupportedKinds(canSupportKinds...)
@@ -529,14 +538,13 @@ func (t *Translator) validateAllowedRoutes(listener *ListenerContext, routeKinds
 	unSupportedKinds := make([]gwapiv1.RouteGroupKind, 0)
 
 	for _, kind := range listener.AllowedRoutes.Kinds {
-
 		// if there is a group it must match `gateway.networking.k8s.io`
-		if kind.Group != nil && string(*kind.Group) != gwapiv1.GroupName {
+		if kind.Group != nil && string(*kind.Group) != agwapiv1a1.GroupName {
 			listener.SetCondition(
 				gwapiv1.ListenerConditionResolvedRefs,
 				metav1.ConditionFalse,
 				gwapiv1.ListenerReasonInvalidRouteKinds,
-				fmt.Sprintf("Group is not supported, group must be %s", gwapiv1.GroupName),
+				fmt.Sprintf("Group is not supported, group must be %s", agwapiv1a1.GroupName),
 			)
 			continue
 		}
