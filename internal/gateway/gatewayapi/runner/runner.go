@@ -99,6 +99,7 @@ func (r *Runner) subscribeAndTranslate(ctx context.Context) {
 
 					log.Info("storing xds ir", "key", key)
 					r.XdsIR.Store(key, val)
+					newIRKeys = append(newIRKeys, key)
 				}
 
 				// Update Status
@@ -280,6 +281,8 @@ func (r *Runner) deleteAllStatusKeys() {
 func getIRKeysToDelete(curKeys, newKeys []string) []string {
 	curSet := sets.NewString(curKeys...)
 	newSet := sets.NewString(newKeys...)
+
+	log.Infof("Diffing IR keys, current: %v, new: %v", curSet.List(), newSet.List())
 
 	delSet := curSet.Difference(newSet)
 
