@@ -57,14 +57,15 @@ func init() {
 
 func waitForReadyz(url string, timeout time.Duration) error {
 	t := time.NewTimer(timeout)
-	for {
-		client := &http.Client{
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-			},
-			Timeout: timeout,
-		}
+	retryTimeout := 200 * time.Millisecond
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+		Timeout: retryTimeout,
+	}
 
+	for {
 		resp, err := client.Get(url + "/readyz")
 		if err == nil && resp.StatusCode == http.StatusOK {
 			return nil
@@ -75,7 +76,7 @@ func waitForReadyz(url string, timeout time.Duration) error {
 		select {
 		case <-t.C:
 			return errors.New("timed out waiting for readyz")
-		case <-time.After(100 * time.Millisecond):
+		case <-time.After(retryTimeout):
 		}
 	}
 }
@@ -284,7 +285,7 @@ func Start(
 		}
 	}()
 	go func() {
-		if err := waitForReadyz("https://127.0.0.1:443", 5*time.Second); err != nil {
+		if err := waitForReadyz("https://127.0.0.1:443", 10*time.Second); err != nil {
 			log.Fatalf("Failed to wait for APIServer: %v", err)
 		}
 		log.Infof("APIServer is ready")
