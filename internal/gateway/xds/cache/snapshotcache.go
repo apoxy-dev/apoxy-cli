@@ -133,6 +133,8 @@ func (s *snapshotCache) OnStreamOpen(_ context.Context, streamID int64, _ string
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	log.Infof("Stream %d opened", streamID)
+
 	s.streamIDNodeInfo[streamID] = nil
 
 	return nil
@@ -164,6 +166,8 @@ func (s *snapshotCache) OnStreamRequest(streamID int64, req *discoveryv3.Discove
 	}
 	nodeID := s.streamIDNodeInfo[streamID].Id
 	cluster := s.streamIDNodeInfo[streamID].Cluster
+
+	log.Infof("Stream %d requested resources for node %s in cluster %s", streamID, nodeID, cluster)
 
 	var nodeVersion string
 
