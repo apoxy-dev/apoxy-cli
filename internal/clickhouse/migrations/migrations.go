@@ -133,5 +133,8 @@ func Run(host string, orgID uuid.UUID) error {
 		return err
 	}
 	err = m.Up()
-	return err
+	if err != nil && err != migrate.ErrNoChange {
+		return err
+	}
+	return nil
 }

@@ -73,6 +73,9 @@ func (d *dockerDriver) Start(ctx context.Context, orgID uuid.UUID) error {
 		return err
 	} else if found {
 		log.Infof("clickhouse server is already running: %s", cname)
+		if err := migrations.Run("localhost:9000", orgID); err != nil {
+			return fmt.Errorf("failed to run migrations: %w", err)
+		}
 		return nil
 	}
 
