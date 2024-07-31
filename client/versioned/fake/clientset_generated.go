@@ -10,6 +10,8 @@ import (
 	fakecorev1alpha "github.com/apoxy-dev/apoxy-cli/client/versioned/typed/core/v1alpha/fake"
 	extensionsv1alpha1 "github.com/apoxy-dev/apoxy-cli/client/versioned/typed/extensions/v1alpha1"
 	fakeextensionsv1alpha1 "github.com/apoxy-dev/apoxy-cli/client/versioned/typed/extensions/v1alpha1/fake"
+	gatewayv1 "github.com/apoxy-dev/apoxy-cli/client/versioned/typed/gateway/v1"
+	fakegatewayv1 "github.com/apoxy-dev/apoxy-cli/client/versioned/typed/gateway/v1/fake"
 	policyv1alpha1 "github.com/apoxy-dev/apoxy-cli/client/versioned/typed/policy/v1alpha1"
 	fakepolicyv1alpha1 "github.com/apoxy-dev/apoxy-cli/client/versioned/typed/policy/v1alpha1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -82,6 +84,11 @@ func (c *Clientset) CoreV1alpha() corev1alpha.CoreV1alphaInterface {
 // ExtensionsV1alpha1 retrieves the ExtensionsV1alpha1Client
 func (c *Clientset) ExtensionsV1alpha1() extensionsv1alpha1.ExtensionsV1alpha1Interface {
 	return &fakeextensionsv1alpha1.FakeExtensionsV1alpha1{Fake: &c.Fake}
+}
+
+// GatewayV1 retrieves the GatewayV1Client
+func (c *Clientset) GatewayV1() gatewayv1.GatewayV1Interface {
+	return &fakegatewayv1.FakeGatewayV1{Fake: &c.Fake}
 }
 
 // PolicyV1alpha1 retrieves the PolicyV1alpha1Client

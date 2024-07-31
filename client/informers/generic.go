@@ -8,6 +8,7 @@ import (
 	v1alpha1 "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
 	v1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
 	extensionsv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1"
+	v1 "github.com/apoxy-dev/apoxy-cli/api/gateway/v1"
 	policyv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/policy/v1alpha1"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
@@ -46,6 +47,8 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 		// Group=core.apoxy.dev, Version=v1alpha
 	case v1alpha.SchemeGroupVersion.WithResource("addresses"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Core().V1alpha().Addresses().Informer()}, nil
+	case v1alpha.SchemeGroupVersion.WithResource("backends"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Core().V1alpha().Backends().Informer()}, nil
 	case v1alpha.SchemeGroupVersion.WithResource("domains"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Core().V1alpha().Domains().Informer()}, nil
 	case v1alpha.SchemeGroupVersion.WithResource("proxies"):
@@ -56,6 +59,16 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 		// Group=extensions.apoxy.dev, Version=v1alpha1
 	case extensionsv1alpha1.SchemeGroupVersion.WithResource("edgefunctions"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Extensions().V1alpha1().EdgeFunctions().Informer()}, nil
+
+		// Group=gateway.apoxy.dev, Version=v1
+	case v1.SchemeGroupVersion.WithResource("grpcroutes"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Gateway().V1().GRPCRoutes().Informer()}, nil
+	case v1.SchemeGroupVersion.WithResource("gateways"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Gateway().V1().Gateways().Informer()}, nil
+	case v1.SchemeGroupVersion.WithResource("gatewayclasses"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Gateway().V1().GatewayClasses().Informer()}, nil
+	case v1.SchemeGroupVersion.WithResource("httproutes"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Gateway().V1().HTTPRoutes().Informer()}, nil
 
 		// Group=policy.apoxy.dev, Version=v1alpha1
 	case policyv1alpha1.SchemeGroupVersion.WithResource("ratelimits"):

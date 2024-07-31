@@ -6,6 +6,7 @@ import (
 	controllersv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
 	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
 	extensionsv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1"
+	gatewayv1 "github.com/apoxy-dev/apoxy-cli/api/gateway/v1"
 	policyv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/policy/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
@@ -21,6 +22,7 @@ var localSchemeBuilder = runtime.SchemeBuilder{
 	controllersv1alpha1.AddToScheme,
 	corev1alpha.AddToScheme,
 	extensionsv1alpha1.AddToScheme,
+	gatewayv1.AddToScheme,
 	policyv1alpha1.AddToScheme,
 }
 

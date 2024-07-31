@@ -10,6 +10,8 @@ import (
 type Interface interface {
 	// Addresses returns a AddressInformer.
 	Addresses() AddressInformer
+	// Backends returns a BackendInformer.
+	Backends() BackendInformer
 	// Domains returns a DomainInformer.
 	Domains() DomainInformer
 	// Proxies returns a ProxyInformer.
@@ -32,6 +34,11 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 // Addresses returns a AddressInformer.
 func (v *version) Addresses() AddressInformer {
 	return &addressInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
+}
+
+// Backends returns a BackendInformer.
+func (v *version) Backends() BackendInformer {
+	return &backendInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
 
 // Domains returns a DomainInformer.

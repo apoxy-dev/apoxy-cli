@@ -4,6 +4,8 @@ package v1alpha
 
 type AddressExpansion interface{}
 
+type BackendExpansion interface{}
+
 type DomainExpansion interface{}
 
 type ProxyExpansion interface{}

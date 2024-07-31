@@ -16,6 +16,10 @@ func (c *FakeCoreV1alpha) Addresses() v1alpha.AddressInterface {
 	return &FakeAddresses{c}
 }
 
+func (c *FakeCoreV1alpha) Backends() v1alpha.BackendInterface {
+	return &FakeBackends{c}
+}
+
 func (c *FakeCoreV1alpha) Domains() v1alpha.DomainInterface {
 	return &FakeDomains{c}
 }

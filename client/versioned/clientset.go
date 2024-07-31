@@ -9,6 +9,7 @@ import (
 	controllersv1alpha1 "github.com/apoxy-dev/apoxy-cli/client/versioned/typed/controllers/v1alpha1"
 	corev1alpha "github.com/apoxy-dev/apoxy-cli/client/versioned/typed/core/v1alpha"
 	extensionsv1alpha1 "github.com/apoxy-dev/apoxy-cli/client/versioned/typed/extensions/v1alpha1"
+	gatewayv1 "github.com/apoxy-dev/apoxy-cli/client/versioned/typed/gateway/v1"
 	policyv1alpha1 "github.com/apoxy-dev/apoxy-cli/client/versioned/typed/policy/v1alpha1"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
@@ -20,6 +21,7 @@ type Interface interface {
 	ControllersV1alpha1() controllersv1alpha1.ControllersV1alpha1Interface
 	CoreV1alpha() corev1alpha.CoreV1alphaInterface
 	ExtensionsV1alpha1() extensionsv1alpha1.ExtensionsV1alpha1Interface
+	GatewayV1() gatewayv1.GatewayV1Interface
 	PolicyV1alpha1() policyv1alpha1.PolicyV1alpha1Interface
 }
 
@@ -29,6 +31,7 @@ type Clientset struct {
 	controllersV1alpha1 *controllersv1alpha1.ControllersV1alpha1Client
 	coreV1alpha         *corev1alpha.CoreV1alphaClient
 	extensionsV1alpha1  *extensionsv1alpha1.ExtensionsV1alpha1Client
+	gatewayV1           *gatewayv1.GatewayV1Client
 	policyV1alpha1      *policyv1alpha1.PolicyV1alpha1Client
 }
 
@@ -45,6 +48,11 @@ func (c *Clientset) CoreV1alpha() corev1alpha.CoreV1alphaInterface {
 // ExtensionsV1alpha1 retrieves the ExtensionsV1alpha1Client
 func (c *Clientset) ExtensionsV1alpha1() extensionsv1alpha1.ExtensionsV1alpha1Interface {
 	return c.extensionsV1alpha1
+}
+
+// GatewayV1 retrieves the GatewayV1Client
+func (c *Clientset) GatewayV1() gatewayv1.GatewayV1Interface {
+	return c.gatewayV1
 }
 
 // PolicyV1alpha1 retrieves the PolicyV1alpha1Client
@@ -108,6 +116,10 @@ func NewForConfigAndClient(c *rest.Config, httpClient *http.Client) (*Clientset,
 	if err != nil {
 		return nil, err
 	}
+	cs.gatewayV1, err = gatewayv1.NewForConfigAndClient(&configShallowCopy, httpClient)
+	if err != nil {
+		return nil, err
+	}
 	cs.policyV1alpha1, err = policyv1alpha1.NewForConfigAndClient(&configShallowCopy, httpClient)
 	if err != nil {
 		return nil, err
@@ -136,6 +148,7 @@ func New(c rest.Interface) *Clientset {
 	cs.controllersV1alpha1 = controllersv1alpha1.New(c)
 	cs.coreV1alpha = corev1alpha.New(c)
 	cs.extensionsV1alpha1 = extensionsv1alpha1.New(c)
+	cs.gatewayV1 = gatewayv1.New(c)
 	cs.policyV1alpha1 = policyv1alpha1.New(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClient(c)

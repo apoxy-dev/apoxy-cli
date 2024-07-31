@@ -6,6 +6,10 @@ package v1alpha
 // AddressLister.
 type AddressListerExpansion interface{}
 
+// BackendListerExpansion allows custom methods to be added to
+// BackendLister.
+type BackendListerExpansion interface{}
+
 // DomainListerExpansion allows custom methods to be added to
 // DomainLister.
 type DomainListerExpansion interface{}

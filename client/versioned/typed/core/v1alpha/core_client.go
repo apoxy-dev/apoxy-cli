@@ -13,6 +13,7 @@ import (
 type CoreV1alphaInterface interface {
 	RESTClient() rest.Interface
 	AddressesGetter
+	BackendsGetter
 	DomainsGetter
 	ProxiesGetter
 	TunnelNodesGetter
@@ -25,6 +26,10 @@ type CoreV1alphaClient struct {
 
 func (c *CoreV1alphaClient) Addresses() AddressInterface {
 	return newAddresses(c)
+}
+
+func (c *CoreV1alphaClient) Backends() BackendInterface {
+	return newBackends(c)
 }
 
 func (c *CoreV1alphaClient) Domains() DomainInterface {
