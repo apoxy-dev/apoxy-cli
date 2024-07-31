@@ -20,6 +20,7 @@ import (
 	gatewayapirunner "github.com/apoxy-dev/apoxy-cli/internal/gateway/gatewayapi/runner"
 	"github.com/apoxy-dev/apoxy-cli/internal/gateway/message"
 
+	ctrlv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
 	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
 	gatewayv1 "github.com/apoxy-dev/apoxy-cli/api/gateway/v1"
 )
@@ -28,6 +29,7 @@ const (
 	classGatewayIndex     = "classGatewayIndex"
 	gatewayHTTPRouteIndex = "gatewayHTTPRouteIndex"
 	backendHTTPRouteIndex = "backendHTTPRouteIndex"
+	gatewayInfraRefIndex  = "gatewayInfraRefIndex"
 )
 
 var _ reconcile.Reconciler = &GatewayReconciler{}
@@ -128,6 +130,22 @@ func (r *GatewayReconciler) reconcileGatewayClass(
 	}
 
 	for _, gw := range gws {
+		if gw.Spec.Infrastructure == nil || gw.Spec.Infrastructure.ParametersRef.Kind != "Proxy" {
+			log.Info("Gateway does not have a Proxy reference", "name", gw.Name)
+			continue
+		}
+
+		// Check if the Proxy object actually exists.
+		var proxy ctrlv1alpha1.Proxy
+		pn := types.NamespacedName{Name: gw.Spec.Infrastructure.ParametersRef.Name}
+		if err := r.Get(ctx, pn, &proxy); err != nil {
+			return fmt.Errorf("failed to get Proxy %s: %w", pn, err)
+		}
+		// Add the Proxy object to the resources if it doesn't already exist.
+		if _, ok := res.GetProxy(proxy.Name); !ok {
+			res.Proxies = append(res.Proxies, &proxy)
+		}
+
 		if err := r.reconcileGateway(clog.IntoContext(ctx, log), gw, res); err != nil {
 			log.Error(err, "Failed to reconcile Gateway", "name", gw.Name)
 			continue
@@ -209,11 +227,27 @@ func (r *GatewayReconciler) reconcileBackends(
 
 // SetupWithManager sets up the controller with the Controller Manager.
 func (r *GatewayReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
+	// Indexes Gateway objects by the name of the referenced GatewayClass object.
 	if err := mgr.GetFieldIndexer().IndexField(ctx, &gatewayv1.Gateway{}, classGatewayIndex, func(obj client.Object) []string {
 		return []string{string(obj.(*gatewayv1.Gateway).Spec.GatewayClassName)}
 	}); err != nil {
 		return fmt.Errorf("failed to setup field indexer: %w", err)
 	}
+	// Indexes Gateway objects by the name of the referenced Proxy object.
+	if err := mgr.GetFieldIndexer().IndexField(ctx, &gatewayv1.Gateway{}, gatewayInfraRefIndex, func(obj client.Object) []string {
+		var ref *gwapiv1.LocalParametersReference
+		if obj.(*gatewayv1.Gateway).Spec.Infrastructure != nil {
+			ref = obj.(*gatewayv1.Gateway).Spec.Infrastructure.ParametersRef
+		}
+		if ref != nil && ref.Kind == "Proxy" && ref.Name != "" {
+			return []string{string(ref.Name)}
+		}
+
+		return nil
+	}); err != nil {
+		return fmt.Errorf("failed to setup field indexer: %w", err)
+	}
+	// Indexes HTTPRoute objects by the name of the referenced Gateway object.
 	if err := mgr.GetFieldIndexer().IndexField(ctx, &gatewayv1.HTTPRoute{}, gatewayHTTPRouteIndex, func(obj client.Object) []string {
 		route := obj.(*gatewayv1.HTTPRoute)
 		var gateways []string
@@ -226,6 +260,7 @@ func (r *GatewayReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manag
 	}); err != nil {
 		return fmt.Errorf("failed to setup field indexer: %w", err)
 	}
+	// Indexes HTTPRoute objects by the name of the referenced Backend object.
 	if err := mgr.GetFieldIndexer().IndexField(ctx, &gatewayv1.HTTPRoute{}, backendHTTPRouteIndex, func(obj client.Object) []string {
 		route := obj.(*gatewayv1.HTTPRoute)
 		var backends []string

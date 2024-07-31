@@ -6,7 +6,6 @@
 package gatewayapi
 
 import (
-	"golang.org/x/exp/maps"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
@@ -225,40 +224,17 @@ func (t *Translator) InitIRs(gateways []*GatewayContext, resources *Resources) m
 	var irKey string
 	for _, gateway := range gateways {
 		gwXdsIR := &ir.Xds{}
-		labels := infrastructureLabels(gateway.Gateway)
-
 		irKey = t.getIRKey(gateway.Gateway)
-		maps.Copy(labels, GatewayOwnerLabels(gateway.Namespace, gateway.Name))
-
-		// save the IR references in the map before the translation starts
 		xdsIR[irKey] = gwXdsIR
 	}
 
 	return xdsIR
 }
 
-func infrastructureAnnotations(gtw *gwapiv1.Gateway) map[string]string {
-	if gtw.Spec.Infrastructure != nil && len(gtw.Spec.Infrastructure.Annotations) > 0 {
-		res := make(map[string]string)
-		for k, v := range gtw.Spec.Infrastructure.Annotations {
-			res[string(k)] = string(v)
-		}
-		return res
+// XdsIR extracts IR key from the Gateway object.
+func (t *Translator) getIRKey(gw *gwapiv1.Gateway) string {
+	if gw.Spec.Infrastructure != nil {
+		return gw.Spec.Infrastructure.ParametersRef.Name
 	}
-	return nil
-}
-
-func infrastructureLabels(gtw *gwapiv1.Gateway) map[string]string {
-	res := make(map[string]string)
-	if gtw.Spec.Infrastructure != nil {
-		for k, v := range gtw.Spec.Infrastructure.Labels {
-			res[string(k)] = string(v)
-		}
-	}
-	return res
-}
-
-// XdsIR and InfraIR map keys by default are {GatewayNamespace}/{GatewayName}, but if mergeGateways is set, they are merged under {GatewayClassName} key.
-func (t *Translator) getIRKey(gateway *gwapiv1.Gateway) string {
-	return gateway.Name
+	return gw.Name
 }

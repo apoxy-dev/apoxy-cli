@@ -18,8 +18,10 @@ import (
 	gwapiv1b1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 	mcsapi "sigs.k8s.io/mcs-api/pkg/apis/v1alpha1"
 
-	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
 	"github.com/apoxy-dev/apoxy-cli/internal/gateway/ir"
+
+	ctrlv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
+	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
 )
 
 type XdsIRMap map[string]*ir.Xds
@@ -46,6 +48,7 @@ type Resources struct {
 	ConfigMaps          []*v1.ConfigMap              `json:"configMaps,omitempty" yaml:"configMaps,omitempty"`
 	ExtensionRefFilters []unstructured.Unstructured  `json:"extensionRefFilters,omitempty" yaml:"extensionRefFilters,omitempty"`
 	Backends            []*corev1alpha.Backend       `json:"backends,omitempty" yaml:"backends,omitempty"`
+	Proxies             []*ctrlv1alpha1.Proxy        `json:"proxies,omitempty" yaml:"proxies,omitempty"`
 }
 
 func NewResources() *Resources {
@@ -139,6 +142,15 @@ func (r *Resources) GetBackend(name string) *corev1alpha.Backend {
 		}
 	}
 	return nil
+}
+
+func (r *Resources) GetProxy(name string) (*ctrlv1alpha1.Proxy, bool) {
+	for _, proxy := range r.Proxies {
+		if proxy.Name == name {
+			return proxy, true
+		}
+	}
+	return nil, false
 }
 
 // ControllerResources holds all the GatewayAPI resources per GatewayClass
