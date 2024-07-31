@@ -76,20 +76,19 @@ func (r *Release) DownloadBinaryFromGitHub(ctx context.Context) (io.ReadCloser, 
 // Option configures a Runtime.
 type Option func(*Runtime)
 
-// WithBootstrapConfigPath sets the path to the Envoy bootstrap config.
-// If both this and BootstrapConfigYAML are set, the contents are merged.
-// If neither this nor BootstrapConfigYAML is set, a default bootstrap config is used.
-func WithBootstrapConfigPath(path string) Option {
-	return func(r *Runtime) {
-		r.BootstrapConfigPath = path
-	}
-}
-
 // WithBootstrapConfigYAML sets the Envoy bootstrap config YAML.
-// If both this and BootstrapConfigPath are set, the contents are merged.
 func WithBootstrapConfigYAML(yaml string) Option {
 	return func(r *Runtime) {
 		r.BootstrapConfigYAML = yaml
+	}
+}
+
+// WithCluster sets the Envoy cluster name.
+// If this is not set, a random cluster name is used.
+// The cluster name is used in the Envoy bootstrap config.
+func WithCluster(cluster string) Option {
+	return func(r *Runtime) {
+		r.Cluster = cluster
 	}
 }
 
@@ -119,9 +118,9 @@ func WithLogsCollector(c logs.LogsCollector) Option {
 // Runtime vendors the Envoy binary and runs it.
 type Runtime struct {
 	EnvoyPath           string
-	BootstrapConfigPath string
 	BootstrapConfigYAML string
 	Release             *Release
+	Cluster             string
 	// Args are additional arguments to pass to Envoy.
 	Args []string
 
@@ -140,22 +139,29 @@ func (r *Runtime) setOptions(opts ...Option) {
 	if r.Release == nil {
 		r.Release = &Release{}
 	}
+	if r.Cluster == "" {
+		r.Cluster = uuid.New().String()
+	}
 }
 
 func (r *Runtime) run(ctx context.Context) error {
 	id := uuid.New().String()
-	configYAML := fmt.Sprintf(`node: { id: "%s", cluster: "proximal" }`, id)
-	if r.BootstrapConfigYAML != "" {
-		configYAML = r.BootstrapConfigYAML
-	}
+	configYAML := fmt.Sprintf(`node: { id: "%s", cluster: "%s" }`, id, r.Cluster)
 	log.Infof("envoy YAML config: %s", configYAML)
 
 	args := []string{
 		"--config-yaml", configYAML,
 	}
 
-	if r.BootstrapConfigPath != "" {
-		args = append(args, "-c", r.BootstrapConfigPath)
+	if r.BootstrapConfigYAML != "" {
+		f, err := os.CreateTemp("", "bootstrap-*.yaml")
+		if err != nil {
+			return fmt.Errorf("failed to create bootstrap config file: %w", err)
+		}
+		if _, err := f.WriteString(r.BootstrapConfigYAML); err != nil {
+			return fmt.Errorf("failed to write bootstrap config file: %w", err)
+		}
+		args = append(args, "-c", f.Name())
 	}
 
 	rCtx, cancel := context.WithCancelCause(ctx)
@@ -252,10 +258,6 @@ func (r *Runtime) vendorEnvoyIfNotExists(ctx context.Context) error {
 	}
 	if err := os.Chmod(r.envoyPath(), 0755); err != nil {
 		return fmt.Errorf("failed to chmod envoy: %w", err)
-	}
-
-	if err := os.MkdirAll(filepath.Dir(r.BootstrapConfigPath), 0755); err != nil {
-		return fmt.Errorf("failed to create envoy directory: %w", err)
 	}
 
 	return nil

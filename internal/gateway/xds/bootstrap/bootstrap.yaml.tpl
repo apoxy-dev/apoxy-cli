@@ -37,7 +37,7 @@ layered_runtime:
       re2.max_program_size.warn_level: 1000
 dynamic_resources:
   ads_config:
-    api_type: DELTA_GRPC
+    api_type: GRPC
     transport_api_version: V3
     grpc_services:
     - envoy_grpc:
@@ -49,6 +49,7 @@ dynamic_resources:
   cds_config:
     ads: {}
     resource_api_version: V3
+
 {{- if .OtelMetricSinks }}
 stats_sinks:
 {{- range $idx, $sink := .OtelMetricSinks }}
@@ -60,6 +61,7 @@ stats_sinks:
         cluster_name: otel_metric_sink_{{ $idx }}
 {{- end }}
 {{- end }}
+
 static_resources:
   listeners:
   - name: envoy-gateway-proxy-ready-{{ .ReadyServer.Address }}-{{ .ReadyServer.Port }}
@@ -135,7 +137,10 @@ static_resources:
                 address: {{ $sink.Address }}
                 port_value: {{ $sink.Port }}
   {{- end }}
-  - connect_timeout: 10s
+  - name: xds_cluster
+    connect_timeout: 10s
+    type: STRICT_DNS
+    dns_lookup_family: V4_ONLY
     load_assignment:
       cluster_name: xds_cluster
       endpoints:
@@ -155,24 +160,3 @@ static_resources:
             connection_keepalive:
               interval: 30s
               timeout: 5s
-    name: xds_cluster
-    type: STRICT_DNS
-    transport_socket:
-      name: envoy.transport_sockets.tls
-      typed_config:
-        "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
-        common_tls_context:
-          tls_params:
-            tls_maximum_protocol_version: TLSv1_3
-          tls_certificate_sds_secret_configs:
-          - name: xds_certificate
-            sds_config:
-              path_config_source:
-                path: "/sds/xds-certificate.json"
-              resource_api_version: V3
-          validation_context_sds_secret_config:
-            name: xds_trusted_ca
-            sds_config:
-              path_config_source:
-                path: "/sds/xds-trusted-ca.json"
-              resource_api_version: V3

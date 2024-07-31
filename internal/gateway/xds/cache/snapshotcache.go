@@ -16,6 +16,7 @@ package cache
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"math"
 	"strconv"
 	"sync"
@@ -23,6 +24,7 @@ import (
 	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	discoveryv3 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	cachev3 "github.com/envoyproxy/go-control-plane/pkg/cache/v3"
+	envoylog "github.com/envoyproxy/go-control-plane/pkg/log"
 	serverv3 "github.com/envoyproxy/go-control-plane/pkg/server/v3"
 
 	"github.com/apoxy-dev/apoxy-cli/internal/gateway/xds/types"
@@ -52,10 +54,11 @@ type nodeInfoMap map[int64]*corev3.Node
 
 type snapshotCache struct {
 	cachev3.SnapshotCache
-	streamIDNodeInfo nodeInfoMap
-	snapshotVersion  int64
-	lastSnapshot     snapshotMap
+	snapshotVersion int64
+	lastSnapshot    snapshotMap
+
 	mu               sync.Mutex
+	streamIDNodeInfo nodeInfoMap
 }
 
 // GenerateNewSnapshot takes a table of resources (the output from the IR->xDS
@@ -106,9 +109,23 @@ func (s *snapshotCache) newSnapshotVersion() string {
 // NewSnapshotCache gives you a fresh SnapshotCache.
 // It needs a logger that supports the go-control-plane
 // required interface (Debugf, Infof, Warnf, and Errorf).
-func NewSnapshotCache(ads bool) SnapshotCacheWithCallbacks {
+func NewSnapshotCache(ads bool, logger *slog.Logger) SnapshotCacheWithCallbacks {
+	l := envoylog.LoggerFuncs{
+		DebugFunc: func(f string, args ...interface{}) {
+			logger.Info(fmt.Sprintf(f, args...))
+		},
+		InfoFunc: func(f string, args ...interface{}) {
+			logger.Info(fmt.Sprintf(f, args...))
+		},
+		WarnFunc: func(f string, args ...interface{}) {
+			logger.Warn(fmt.Sprintf(f, args...))
+		},
+		ErrorFunc: func(f string, args ...interface{}) {
+			logger.Error(fmt.Sprintf(f, args...))
+		},
+	}
 	return &snapshotCache{
-		SnapshotCache:    cachev3.NewSnapshotCache(ads, &Hash, nil),
+		SnapshotCache:    cachev3.NewSnapshotCache(ads, &Hash, l),
 		lastSnapshot:     make(snapshotMap),
 		streamIDNodeInfo: make(nodeInfoMap),
 	}
@@ -211,7 +228,7 @@ func (s *snapshotCache) OnStreamRequest(streamID int64, req *discoveryv3.Discove
 	return nil
 }
 
-func (s *snapshotCache) OnStreamResponse(_ context.Context, streamID int64, _ *discoveryv3.DiscoveryRequest, _ *discoveryv3.DiscoveryResponse) {
+func (s *snapshotCache) OnStreamResponse(_ context.Context, streamID int64, _ *discoveryv3.DiscoveryRequest, resp *discoveryv3.DiscoveryResponse) {
 	// No mutex lock required here because no writing to the cache.
 	node := s.streamIDNodeInfo[streamID]
 	if node == nil {
@@ -219,6 +236,8 @@ func (s *snapshotCache) OnStreamResponse(_ context.Context, streamID int64, _ *d
 	} else {
 		log.Debugf("Sending Response on stream %d to node %s", streamID, node.Id)
 	}
+
+	log.Debugf("Stream %d responded with version_info %s, nonce %s, resources %v", streamID, resp.VersionInfo, resp.Nonce, resp.Resources)
 }
 
 // OnDeltaStreamOpen and the other OnDeltaStream*/OnStreamDelta* functions implement
@@ -265,6 +284,8 @@ func (s *snapshotCache) OnStreamDeltaRequest(streamID int64, req *discoveryv3.De
 	}
 	nodeID := s.streamIDNodeInfo[streamID].Id
 	cluster := s.streamIDNodeInfo[streamID].Cluster
+
+	log.Infof("Stream %d requested resources for node %s in cluster %s", streamID, nodeID, cluster)
 
 	// If no snapshot has been written into the snapshotCache yet, we can't do anything, so don't mess with
 	// this request. go-control-plane will respond with an empty response, then send an update when a

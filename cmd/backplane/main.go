@@ -151,6 +151,7 @@ func main() {
 		mgr.GetClient(),
 		projUUID,
 		*replicaName,
+		*apiserverHost,
 		chConn,
 	).SetupWithManager(ctx, mgr, *proxyName); err != nil {
 		log.Errorf("failed to set up Backplane controller: %v", err)

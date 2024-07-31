@@ -32,13 +32,11 @@ import (
 	apiserverext "github.com/apoxy-dev/apoxy-cli/internal/apiserver/extensions"
 	apiservergw "github.com/apoxy-dev/apoxy-cli/internal/apiserver/gateway"
 	"github.com/apoxy-dev/apoxy-cli/internal/apiserver/ingest"
-	apiserverpolicy "github.com/apoxy-dev/apoxy-cli/internal/apiserver/policy"
 	bpdrivers "github.com/apoxy-dev/apoxy-cli/internal/backplane/drivers"
 	"github.com/apoxy-dev/apoxy-cli/internal/backplane/portforward"
 	chdrivers "github.com/apoxy-dev/apoxy-cli/internal/clickhouse/drivers"
 	"github.com/apoxy-dev/apoxy-cli/internal/gateway"
 	"github.com/apoxy-dev/apoxy-cli/internal/log"
-	ratelimitdrivers "github.com/apoxy-dev/apoxy-cli/internal/ratelimit/drivers"
 
 	ctrlv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
 	extensionsv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1"
@@ -323,17 +321,19 @@ allowing you to test and develop your proxy infrastructure.`,
 			return nil
 		}
 
-		rlDriver, err := ratelimitdrivers.GetDriver("docker")
-		if err != nil {
-			return err
-		}
-		if err := rlDriver.Start(
-			ctx,
-			projID,
-			fmt.Sprintf("host.docker.internal:%d", apiserverpolicy.XDSPort),
-		); err != nil {
-			return err
-		}
+		/*
+			rlDriver, err := ratelimitdrivers.GetDriver("docker")
+			if err != nil {
+				return err
+			}
+			if err := rlDriver.Start(
+				ctx,
+				projID,
+				fmt.Sprintf("host.docker.internal:%d", apiserverpolicy.XDSPort),
+			); err != nil {
+				return err
+			}
+		*/
 
 		chDriver, err := chdrivers.GetDriver("docker")
 		if err != nil {

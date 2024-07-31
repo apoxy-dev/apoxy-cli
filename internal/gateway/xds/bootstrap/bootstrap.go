@@ -11,12 +11,6 @@ import (
 	"fmt"
 	"strings"
 	"text/template"
-
-	egv1a1 "github.com/envoyproxy/gateway/api/v1alpha1"
-	"k8s.io/apimachinery/pkg/util/sets"
-
-	"github.com/apoxy-dev/apoxy-cli/internal/gateway/utils/net"
-	"github.com/apoxy-dev/apoxy-cli/internal/gateway/utils/regex"
 )
 
 const (
@@ -122,76 +116,49 @@ func (b *bootstrapConfig) render() error {
 	return nil
 }
 
-// GetRenderedBootstrapConfig renders the bootstrap YAML string
-func GetRenderedBootstrapConfig(proxyMetrics *egv1a1.ProxyMetrics) (string, error) {
-	var (
-		enablePrometheus = true
-		metricSinks      []metricSink
-		StatsMatcher     StatsMatcherParameters
-	)
+type BootstrapConfig struct {
+	// XdsServerHost is the DNS name of the Xds Server within Envoy Gateway.
+	XdsServerHost string
+	// XdsServerPort is the port of the Xds Server within Envoy Gateway.
+	XdsServerPort int32
+}
 
-	if proxyMetrics != nil {
-		if proxyMetrics.Prometheus != nil {
-			enablePrometheus = !proxyMetrics.Prometheus.Disable
-		}
-
-		addresses := sets.NewString()
-		for _, sink := range proxyMetrics.Sinks {
-			if sink.OpenTelemetry == nil {
-				continue
-			}
-
-			// skip duplicate sinks
-			var host string
-			var port uint32
-			if sink.OpenTelemetry.Host != nil {
-				host, port = *sink.OpenTelemetry.Host, uint32(sink.OpenTelemetry.Port)
-			}
-			if len(sink.OpenTelemetry.BackendRefs) > 0 {
-				host, port = net.BackendHostAndPort(sink.OpenTelemetry.BackendRefs[0].BackendObjectReference, "")
-			}
-			addr := fmt.Sprintf("%s:%d", host, port)
-			if addresses.Has(addr) {
-				continue
-			}
-			addresses.Insert(addr)
-
-			metricSinks = append(metricSinks, metricSink{
-				Address: host,
-				Port:    port,
-			})
-		}
-
-		if proxyMetrics.Matches != nil {
-			// Add custom envoy proxy stats
-			for _, match := range proxyMetrics.Matches {
-				// matchType default to exact
-				matchType := egv1a1.StringMatchExact
-				if match.Type != nil {
-					matchType = *match.Type
-				}
-				switch matchType {
-				case egv1a1.StringMatchExact:
-					StatsMatcher.Exacts = append(StatsMatcher.Exacts, match.Value)
-				case egv1a1.StringMatchPrefix:
-					StatsMatcher.Prefixs = append(StatsMatcher.Prefixs, match.Value)
-				case egv1a1.StringMatchSuffix:
-					StatsMatcher.Suffixs = append(StatsMatcher.Suffixs, match.Value)
-				case egv1a1.StringMatchRegularExpression:
-					if err := regex.Validate(match.Value); err != nil {
-						return "", err
-					}
-					StatsMatcher.RegularExpressions = append(StatsMatcher.RegularExpressions, match.Value)
-				}
-			}
-		}
+func defaultBootstrapConfig() *BootstrapConfig {
+	return &BootstrapConfig{
+		XdsServerHost: envoyGatewayXdsServerHost,
+		XdsServerPort: DefaultXdsServerPort,
 	}
+}
 
+// BootstrapOption defines the functional option to configure the bootstrap configuration.
+type BootstrapOption func(*BootstrapConfig)
+
+// WithXdsServerHost sets the Xds Server host.
+func WithXdsServerHost(host string) BootstrapOption {
+	return func(cfg *BootstrapConfig) {
+		cfg.XdsServerHost = host
+	}
+}
+
+// WithXdsServerPort sets the Xds Server port.
+// The default port is 18000.
+func WithXdsServerPort(port int32) BootstrapOption {
+	return func(cfg *BootstrapConfig) {
+		cfg.XdsServerPort = port
+	}
+}
+
+// GetRenderedBootstrapConfig renders the bootstrap YAML string.
+func GetRenderedBootstrapConfig(opts ...BootstrapOption) (string, error) {
+	sOpts := defaultBootstrapConfig()
+	for _, opt := range opts {
+		opt(sOpts)
+	}
 	cfg := &bootstrapConfig{
 		parameters: bootstrapParameters{
 			XdsServer: xdsServerParameters{
-				Address: envoyGatewayXdsServerHost,
-				Port:    DefaultXdsServerPort,
+				Address: sOpts.XdsServerHost,
+				Port:    sOpts.XdsServerPort,
 			},
 			AdminServer: adminServerParameters{
 				Address:       EnvoyAdminAddress,
@@ -203,12 +170,7 @@ func GetRenderedBootstrapConfig(proxyMetrics *egv1a1.ProxyMetrics) (string, erro
 				Port:          EnvoyReadinessPort,
 				ReadinessPath: EnvoyReadinessPath,
 			},
-			EnablePrometheus: enablePrometheus,
-			OtelMetricSinks:  metricSinks,
 		},
-	}
-	if proxyMetrics != nil && proxyMetrics.Matches != nil {
-		cfg.parameters.StatsMatcher = &StatsMatcher
 	}
 
 	if err := cfg.render(); err != nil {

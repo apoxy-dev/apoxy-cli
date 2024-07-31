@@ -28,6 +28,7 @@ import (
 
 	"github.com/apoxy-dev/apoxy-cli/internal/backplane/envoy"
 	"github.com/apoxy-dev/apoxy-cli/internal/backplane/logs"
+	"github.com/apoxy-dev/apoxy-cli/internal/gateway/xds/bootstrap"
 
 	ctrlv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
 )
@@ -43,9 +44,10 @@ type ProxyReconciler struct {
 	client.Client
 	envoy.Runtime
 
-	orgID       uuid.UUID
-	replicaName string
-	chConn      clickhouse.Conn
+	orgID         uuid.UUID
+	replicaName   string
+	apiServerName string
+	chConn        clickhouse.Conn
 }
 
 // NewProxyReconciler returns a new reconcile.Reconciler for Proxy objects.
@@ -53,13 +55,15 @@ func NewProxyReconciler(
 	c client.Client,
 	orgID uuid.UUID,
 	replicaName string,
+	apiServerAddr string,
 	chConn clickhouse.Conn,
 ) *ProxyReconciler {
 	return &ProxyReconciler{
-		Client:      c,
-		orgID:       orgID,
-		replicaName: replicaName,
-		chConn:      chConn,
+		Client:        c,
+		orgID:         orgID,
+		replicaName:   replicaName,
+		apiServerName: apiServerAddr,
+		chConn:        chConn,
 	}
 }
 
@@ -214,8 +218,17 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 		pUUID, _ := uuid.Parse(string(p.UID))
 		logsCollector := logs.NewClickHouseLogsCollector(r.chConn, pUUID)
 
-		// TODO(dsky): Support Starlark config render here.
-		cfg, err := validateBootstrapConfig(nodeID(p), p.Spec.Config)
+		var (
+			cfg string
+			err error
+		)
+		if p.Spec.Config != "" {
+			cfg, err = validateBootstrapConfig(nodeID(p), p.Spec.Config)
+		} else {
+			cfg, err = bootstrap.GetRenderedBootstrapConfig(
+				bootstrap.WithXdsServerHost(r.apiServerName),
+			)
+		}
 		if err != nil {
 			// If the config is invalid, we can't start the proxy.
 			log.Error(err, "failed to validate proxy config")
@@ -233,6 +246,7 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 			ctx,
 			envoy.WithBootstrapConfigYAML(cfg),
 			envoy.WithLogsCollector(logsCollector),
+			envoy.WithCluster(p.Name),
 		); err != nil {
 			if fatalErr, ok := err.(envoy.FatalError); ok {
 				status.Phase = ctrlv1alpha1.ProxyReplicaPhaseFailed
