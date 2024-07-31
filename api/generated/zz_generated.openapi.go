@@ -19,6 +19,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 	return map[string]common.OpenAPIDefinition{
 		"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.Proxy":                      schema_apoxy_cli_api_controllers_v1alpha1_Proxy(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyList":                  schema_apoxy_cli_api_controllers_v1alpha1_ProxyList(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyListener":              schema_apoxy_cli_api_controllers_v1alpha1_ProxyListener(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyReplicaStatus":         schema_apoxy_cli_api_controllers_v1alpha1_ProxyReplicaStatus(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxySpec":                  schema_apoxy_cli_api_controllers_v1alpha1_ProxySpec(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyStatus":                schema_apoxy_cli_api_controllers_v1alpha1_ProxyStatus(ref),
@@ -512,6 +513,36 @@ func schema_apoxy_cli_api_controllers_v1alpha1_ProxyList(ref common.ReferenceCal
 	}
 }
 
+func schema_apoxy_cli_api_controllers_v1alpha1_ProxyListener(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "ProxyListener defines a logical endpoint that the Proxy will receive traffic on.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"protocol": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Protocol is the protocol that the listener will accept traffic on.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"port": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Port is the port that the listener will accept traffic on.",
+							Default:     0,
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+				},
+				Required: []string{"protocol", "port"},
+			},
+		},
+	}
+}
+
 func schema_apoxy_cli_api_controllers_v1alpha1_ProxyReplicaStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -557,21 +588,6 @@ func schema_apoxy_cli_api_controllers_v1alpha1_ProxyReplicaStatus(ref common.Ref
 							Format:      "",
 						},
 					},
-					"ports": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Open ports of the proxy in the format of <port>/<protocol>.",
-							Type:        []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: "",
-										Type:    []string{"string"},
-										Format:  "",
-									},
-								},
-							},
-						},
-					},
 				},
 				Required: []string{"name", "createdAt", "phase"},
 			},
@@ -610,6 +626,20 @@ func schema_apoxy_cli_api_controllers_v1alpha1_ProxySpec(ref common.ReferenceCal
 							},
 						},
 					},
+					"listeners": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Listeners is the list of logical endpoints that the Proxy will receive traffic on. At least one listener MUST be specified. If used with Gateway API, the listeners here must be a superset of the listeners defined in the corresponding Gateway object.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyListener"),
+									},
+								},
+							},
+						},
+					},
 					"config": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Config is the Starlark configuration for the proxy in the txtar format.",
@@ -618,8 +648,11 @@ func schema_apoxy_cli_api_controllers_v1alpha1_ProxySpec(ref common.ReferenceCal
 						},
 					},
 				},
+				Required: []string{"listeners"},
 			},
 		},
+		Dependencies: []string{
+			"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyListener"},
 	}
 }
 

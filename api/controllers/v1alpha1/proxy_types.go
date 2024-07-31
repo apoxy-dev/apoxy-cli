@@ -6,6 +6,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apiserver/pkg/registry/rest"
 	"sigs.k8s.io/apiserver-runtime/pkg/builder/resource"
+	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
 const (
@@ -28,6 +29,15 @@ const (
 	InfraProviderUnmanaged InfraProvider = "unmanaged"
 )
 
+// ProxyListener defines a logical endpoint that the Proxy will receive traffic on.
+type ProxyListener struct {
+	// Protocol is the protocol that the listener will accept traffic on.
+	Protocol gwapiv1.ProtocolType `json:"protocol"`
+
+	// Port is the port that the listener will accept traffic on.
+	Port gwapiv1.PortNumber `json:"port"`
+}
+
 // ProxySpec defines the desired specification of a Proxy.
 type ProxySpec struct {
 	// Provider is the infrastructure provider where the proxy will be deployed.
@@ -42,6 +52,12 @@ type ProxySpec struct {
 	// * kubernetes provider - The list of kubernetes clusters where the proxy will be deployed.
 	// * unmanaged provider - Ignored.
 	Locations []string `json:"locations,omitempty"`
+
+	// Listeners is the list of logical endpoints that the Proxy will receive traffic on.
+	// At least one listener MUST be specified.
+	// If used with Gateway API, the listeners here must be a superset of the listeners
+	// defined in the corresponding Gateway object.
+	Listeners []ProxyListener `json:"listeners"`
 
 	// Config is the Starlark configuration for the proxy in the txtar format.
 	Config string `json:"config,omitempty"`
@@ -87,10 +103,6 @@ type ProxyReplicaStatus struct {
 	// Reason for the current phase.
 	// +optional
 	Reason string `json:"reason,omitempty"`
-
-	// Open ports of the proxy in the format of <port>/<protocol>.
-	// +optional
-	Ports []string `json:"ports,omitempty"`
 }
 
 // ProxyStatus defines the observed state of Proxy.

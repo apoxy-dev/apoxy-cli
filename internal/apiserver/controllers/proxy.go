@@ -193,6 +193,9 @@ func (r *ProxyReconciler) syncProxy(_ context.Context, p *ctrlv1alpha1.Proxy, de
 				})
 				return false, nil
 			}
+			if p.Status.Replicas[0].Phase == ctrlv1alpha1.ProxyReplicaPhaseRunning {
+				return true, nil
+			}
 		default:
 			return false, fmt.Errorf("unknown provider: %s", p.Spec.Provider)
 		}

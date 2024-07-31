@@ -3,11 +3,8 @@ package controllers
 import (
 	"context"
 	"crypto/sha256"
-	"encoding/json"
 	goerrors "errors"
 	"fmt"
-	"net"
-	"net/http"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
@@ -138,30 +135,6 @@ type listeners struct {
 	ListenerStatuses []listenerStatus `json:"listener_statuses"`
 }
 
-func getListenerStatuses(p *ctrlv1alpha1.Proxy) ([]listenerStatus, error) {
-	udsPath := adminUDSPath(nodeID(p))
-	// Connect to the admin UDS and get listener statuses
-	httpClient := http.Client{
-		Transport: &http.Transport{
-			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				return net.Dial("unix", udsPath)
-			},
-		},
-		Timeout: 2 * time.Second,
-	}
-	resp, err := httpClient.Get("http://localhost/listeners?format=json")
-	if err != nil {
-		return nil, fmt.Errorf("failed to get listener statuses: %v", err)
-	}
-	defer resp.Body.Close()
-
-	var ls listeners
-	if err := json.NewDecoder(resp.Body).Decode(&ls); err != nil {
-		return nil, fmt.Errorf("failed to decode listener statuses: %v", err)
-	}
-	return ls.ListenerStatuses, nil
-}
-
 func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
 	p := &ctrlv1alpha1.Proxy{}
 	err := r.Get(ctx, request.NamespacedName, p)
@@ -276,26 +249,8 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 	if ps.Running {
 		// TODO(dsky): Also needs a detach loop.
 		log.Info("Proxy is running", "start_time", ps.StartedAt)
-		//for _, addr := range p.Status.IPs {
-		//	if err := r.attachAddr(ctx, addr); err != nil {
-		//		return reconcile.Result{}, fmt.Errorf("failed to set address: %w", err)
-		//	}
-		//}
 		status.Phase = ctrlv1alpha1.ProxyReplicaPhaseRunning
 		status.Reason = "Running"
-
-		// Update the status with the ports that the proxy is listening on.
-		ls, err := getListenerStatuses(p)
-		if err != nil {
-			return reconcile.Result{}, fmt.Errorf("failed to get admin listeners: %w", err)
-		}
-		ports := make([]string, 0, len(ls))
-		for _, l := range ls {
-			// TODO(dsky): Support UDP protocol - we will need to query the kernel or fix Envoy to report it.
-			proto := "tcp"
-			ports = append(ports, fmt.Sprintf("%d/%s", l.LocalAddress.SocketAddress.PortValue, proto))
-		}
-		status.Ports = ports
 	} else {
 		switch status.Phase {
 		case ctrlv1alpha1.ProxyReplicaPhasePending:
