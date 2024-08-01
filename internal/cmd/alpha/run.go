@@ -240,7 +240,7 @@ allowing you to test and develop your proxy infrastructure.`,
 			return err
 		}
 
-		fmt.Printf("Starting Apoxy server with proxy %s...\n", proxyName)
+		fmt.Printf("Starting Apoxy server with Proxy name=%s ...\n", proxyName)
 
 		ctx, ctxCancel := context.WithCancelCause(cmd.Context())
 
@@ -262,6 +262,7 @@ allowing you to test and develop your proxy infrastructure.`,
 		tc, err := tclient.NewLazyClient(tclient.Options{
 			HostPort:  "localhost:7223",
 			Namespace: "default",
+			Logger:    log.DefaultLogger,
 		})
 		if err != nil {
 			return fmt.Errorf("failed creating Temporal client: %w", err)
@@ -397,8 +398,6 @@ allowing you to test and develop your proxy infrastructure.`,
 			return err
 		}
 
-		fmt.Printf("Proxy is running at %s. Watching %s for changes...\n", cname, path)
-
 		rc := apiserver.NewLocalClientConfig("localhost")
 		fwd, err := portforward.NewPortForwarder(rc, proxyName, proxyName, cname)
 		if err != nil {
@@ -411,9 +410,16 @@ allowing you to test and develop your proxy infrastructure.`,
 			// If err is nil, it means context has been cancelled.
 		}()
 
+		fmt.Printf("Watching %s for Proxy configurations...\n", path)
+
 		if err := watchAndReloadConfig(ctx, proxyName, path); err != nil {
 			return err
 		}
+		go func() {
+			<-cmd.Context().Done()
+			fmt.Printf("\r") // Clear the ^C
+			fmt.Printf("Caught interrupt, shutting down...\n")
+		}()
 		<-ctx.Done()
 
 		var runErr *runError

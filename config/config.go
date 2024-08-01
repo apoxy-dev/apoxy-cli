@@ -2,12 +2,12 @@ package config
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log/slog"
 	"os"
 	"path/filepath"
 
 	"github.com/google/uuid"
+	"google.golang.org/grpc/grpclog"
 	"gopkg.in/yaml.v3"
 	"k8s.io/klog/v2"
 
@@ -73,6 +73,11 @@ func Load() (*Config, error) {
 		lOpts = append(lOpts, log.WithAlsoLogToStderr())
 	}
 
+	grpclog.SetLoggerV2(grpclog.NewLoggerV2(
+		log.NewDefaultLogWriter(log.InfoLevel),
+		log.NewDefaultLogWriter(log.WarnLevel),
+		log.NewDefaultLogWriter(log.ErrorLevel),
+	))
 	if Verbose || cfg.Verbose {
 		logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
 		slog.SetDefault(logger)
@@ -80,7 +85,7 @@ func Load() (*Config, error) {
 		slog.Debug("Verbose logging enabled")
 		lOpts = append(lOpts, log.WithLevel(log.DebugLevel))
 	} else {
-		klog.SetOutput(ioutil.Discard)
+		klog.SetOutput(log.NewDefaultLogWriter(log.InfoLevel))
 		klog.LogToStderr(false)
 		lOpts = append(lOpts, log.WithLevel(log.InfoLevel))
 	}

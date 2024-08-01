@@ -15,6 +15,21 @@ import (
 	"github.com/go-logr/logr"
 )
 
+type logWriterWrapper struct {
+	l     *slog.Logger
+	level LogLevel
+}
+
+func (w *logWriterWrapper) Write(p []byte) (n int, err error) {
+	w.l.Log(context.Background(), w.level, string(p))
+	return len(p), nil
+}
+
+// NewDefaultLogWriter returns a io.Writer that logs to the given logger at the given level.
+func NewDefaultLogWriter(level LogLevel) io.Writer {
+	return &logWriterWrapper{l: DefaultLogger, level: level}
+}
+
 func setLogger(level LogLevel, json bool, w io.Writer) {
 	replace := func(groups []string, a slog.Attr) slog.Attr {
 		// Remove the directory from the source's filename.
