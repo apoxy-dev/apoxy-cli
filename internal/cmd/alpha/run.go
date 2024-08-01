@@ -7,6 +7,7 @@ import (
 	"os"
 	goruntime "runtime"
 	"strings"
+	"time"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/google/uuid"
@@ -63,7 +64,7 @@ func maybeNamespaced(un *unstructured.Unstructured) string {
 	return fmt.Sprintf("%s/%s", ns, un.GetName())
 }
 
-func updateFromFile(ctx context.Context, path string) error {
+func updateFromFile(ctx context.Context, proxyNameOverride, path string) error {
 	cfg, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("failed to read file: %w", err)
@@ -98,24 +99,48 @@ func updateFromFile(ctx context.Context, path string) error {
 			return err
 		}
 
+		log.Debugf("creating object gvk=%v name=%s", unObj.GroupVersionKind(), maybeNamespaced(unObj))
+
+		if unObj.GetKind() == "Proxy" {
+			unObj.SetName(proxyNameOverride)
+		} else if unObj.GetKind() == "Gateway" {
+			// Override .spec.infrastructure.parametersRef.name to proxy name.
+			if err := unstructured.SetNestedField(
+				unObj.Object,
+				proxyNameOverride,
+				"spec", "infrastructure", "parametersRef", "name",
+			); err != nil {
+				return fmt.Errorf("failed to set .spec.infrastructure.parametersRef.name: %w", err)
+			}
+		}
+
 		_, err = dynClient.Resource(mapping.Resource).
 			Namespace(unObj.GetNamespace()).
 			Create(ctx, unObj, metav1.CreateOptions{})
 		if errors.IsAlreadyExists(err) {
-			log.Debugf("object %v %s already exists, updating...", unObj.GroupVersionKind(), maybeNamespaced(unObj))
+			log.Debugf("object gvk=%v name=%s already exists, updating...", unObj.GroupVersionKind(), maybeNamespaced(unObj))
+
+			res, err := dynClient.Resource(mapping.Resource).
+				Namespace(unObj.GetNamespace()).
+				Get(ctx, unObj.GetName(), metav1.GetOptions{})
+			if err != nil {
+				return fmt.Errorf("failed to get object gvk=%v name=%s: %w", unObj.GroupVersionKind(), maybeNamespaced(unObj), err)
+			}
+
+			unObj.SetResourceVersion(res.GetResourceVersion())
 
 			_, err = dynClient.Resource(mapping.Resource).
 				Namespace(unObj.GetNamespace()).
 				Update(ctx, unObj, metav1.UpdateOptions{})
 			if err != nil {
-				return fmt.Errorf("failed to update object %s: %w", maybeNamespaced(unObj), err)
+				return fmt.Errorf("failed to update object gvk=%v name=%s: %w", unObj.GroupVersionKind(), maybeNamespaced(unObj), err)
 			}
 
-			fmt.Printf("updated %v object %s\n", unObj.GroupVersionKind(), maybeNamespaced(unObj))
+			log.Debugf("updated %v object %s\n", unObj.GroupVersionKind(), maybeNamespaced(unObj))
 		} else if err != nil {
-			return fmt.Errorf("failed to create object %s: %w", maybeNamespaced(unObj), err)
+			return fmt.Errorf("failed to create object gvk=%v name=%s: %w", unObj.GroupVersionKind(), maybeNamespaced(unObj), err)
 		} else {
-			fmt.Printf("created %v object %s\n", unObj.GroupVersionKind(), maybeNamespaced(unObj))
+			log.Debugf("created object gvk=%v name=%s\n", unObj.GroupVersionKind(), maybeNamespaced(unObj))
 		}
 	}
 	return err
@@ -123,7 +148,8 @@ func updateFromFile(ctx context.Context, path string) error {
 
 // watchAndReloadConfig watches the given file for changes and reloads the
 // Apoxy configuration when the file changes.
-func watchAndReloadConfig(ctx context.Context, path string) error {
+// Proxy object name will be overridden with the given value.
+func watchAndReloadConfig(ctx context.Context, proxyNameOverride, path string) error {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return err
@@ -133,7 +159,7 @@ func watchAndReloadConfig(ctx context.Context, path string) error {
 		return err
 	}
 
-	if err := updateFromFile(ctx, path); err != nil {
+	if err := updateFromFile(ctx, proxyNameOverride, path); err != nil {
 		return err
 	}
 	for {
@@ -149,7 +175,12 @@ func watchAndReloadConfig(ctx context.Context, path string) error {
 			}
 
 			// Reload the proxy configuration
-			if err := updateFromFile(ctx, path); err != nil {
+			if err := updateFromFile(ctx, proxyNameOverride, path); err != nil {
+				return err
+			}
+		case <-time.After(3 * time.Second):
+			// Reload the proxy configuration
+			if err := updateFromFile(ctx, proxyNameOverride, path); err != nil {
 				return err
 			}
 		case err := <-watcher.Errors:
@@ -269,7 +300,9 @@ allowing you to test and develop your proxy infrastructure.`,
 
 		startCh := make(chan error)
 		go func() {
-			mgr, err := apiserver.Start(ctx, apiserver.WithSQLitePath("file::memory:?cache=shared"))
+			// TODO(dsky): Need to properly structure sqlite options to avoid these
+			// dsn incantations.
+			mgr, err := apiserver.Start(ctx, apiserver.WithSQLitePath("file::memory:?cache=shared&_busy_timeout=30000"))
 			if err != nil {
 				log.Errorf("failed to start API server: %v", err)
 				startCh <- err
@@ -378,7 +411,7 @@ allowing you to test and develop your proxy infrastructure.`,
 			// If err is nil, it means context has been cancelled.
 		}()
 
-		if err := watchAndReloadConfig(ctx, path); err != nil {
+		if err := watchAndReloadConfig(ctx, proxyName, path); err != nil {
 			return err
 		}
 		<-ctx.Done()
