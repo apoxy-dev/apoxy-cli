@@ -398,7 +398,7 @@ allowing you to test and develop your proxy infrastructure.`,
 			return err
 		}
 
-		rc := apiserver.NewLocalClientConfig("localhost")
+		rc := apiserver.NewClientConfig()
 		fwd, err := portforward.NewPortForwarder(rc, proxyName, proxyName, cname)
 		if err != nil {
 			return err

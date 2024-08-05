@@ -135,7 +135,7 @@ func main() {
 
 	log.Infof("Setting up managers")
 
-	rC := apiserver.NewLocalClientConfig(*apiserverHost)
+	rC := apiserver.NewClientConfig(apiserver.WithClientHost(*apiserverHost))
 	ctrl.SetLogger(zap.New(zap.UseDevMode(true))) // TODO(dilyevsky): Use default golang logger.
 	mgr, err := ctrl.NewManager(rC, ctrl.Options{
 		Cache: cache.Options{

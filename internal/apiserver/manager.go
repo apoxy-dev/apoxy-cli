@@ -148,7 +148,7 @@ func WithCerts(certPairName, certDir string) Option {
 // defaultOptions returns default options.
 func defaultOptions() *options {
 	return &options{
-		clientConfig: NewLocalClientConfig("localhost"),
+		clientConfig: NewClientConfig(),
 		enableAuth:   false,
 		sqlitePath:   config.ApoxyDir() + "/apoxy.db",
 		certPairName: "",
