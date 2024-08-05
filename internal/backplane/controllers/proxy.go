@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"crypto/sha256"
+	"crypto/tls"
 	goerrors "errors"
 	"fmt"
 	"time"
@@ -13,7 +14,8 @@ import (
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/encoding/protojson"
 	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/utils/pointer"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -41,26 +43,56 @@ type ProxyReconciler struct {
 	client.Client
 	envoy.Runtime
 
-	orgID         uuid.UUID
 	replicaName   string
-	apiServerName string
-	chConn        clickhouse.Conn
+	apiServerAddr string
+
+	options *options
 }
 
-// NewProxyReconciler returns a new reconcile.Reconciler for Proxy objects.
+type options struct {
+	chConn                   clickhouse.Conn
+	apiServerTLSClientConfig *tls.Config
+}
+
+// Option is a functional option for ProxyReconciler.
+type Option func(*options)
+
+// WithClickHouseConn sets the ClickHouse connection for the ProxyReconciler.
+// If not set, log shipping will be disabled.
+func WithClickHouseConn(chConn clickhouse.Conn) Option {
+	return func(o *options) {
+		o.chConn = chConn
+	}
+}
+
+// WithAPIServerTLSClientConfig sets the TLS client configuration for the API server.
+// If not set, the client will use an insecure connection.
+func WithAPIServerTLSClientConfig(tlsConfig *tls.Config) Option {
+	return func(o *options) {
+		o.apiServerTLSClientConfig = tlsConfig
+	}
+}
+
+func defaultOptions() *options {
+	return &options{}
+}
+
+// NewProxyReconciler returns a new reconcile.Reconciler implementation for the Proxy resource.
 func NewProxyReconciler(
 	c client.Client,
-	orgID uuid.UUID,
 	replicaName string,
 	apiServerAddr string,
-	chConn clickhouse.Conn,
+	opts ...Option,
 ) *ProxyReconciler {
+	sOpts := defaultOptions()
+	for _, opt := range opts {
+		opt(sOpts)
+	}
 	return &ProxyReconciler{
 		Client:        c,
-		orgID:         orgID,
 		replicaName:   replicaName,
-		apiServerName: apiServerAddr,
-		chConn:        chConn,
+		apiServerAddr: apiServerAddr,
+		options:       sOpts,
 	}
 }
 
@@ -150,8 +182,18 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 
 	status, found := findReplicaStatus(p, r.replicaName)
 	if !found {
-		log.Info("status for machine not found")
-		return reconcile.Result{RequeueAfter: 2 * time.Second}, nil
+		log.Info("Replica not found, creating new one")
+		p.Status.Replicas = append(p.Status.Replicas, &ctrlv1alpha1.ProxyReplicaStatus{
+			Name:      r.replicaName,
+			CreatedAt: metav1.Now(),
+			Phase:     ctrlv1alpha1.ProxyReplicaPhasePending,
+			Reason:    "Created by Backplane",
+		})
+
+		if err := r.Status().Update(ctx, p); err != nil {
+			return reconcile.Result{}, fmt.Errorf("failed to update Proxy status: %w", err)
+		}
+		return reconcile.Result{}, nil
 	}
 	ps := r.RuntimeStatus()
 
@@ -188,9 +230,6 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 
 	var requeueAfter time.Duration
 	if ps.StartedAt.IsZero() {
-		pUUID, _ := uuid.Parse(string(p.UID))
-		logsCollector := logs.NewClickHouseLogsCollector(r.chConn, pUUID)
-
 		var (
 			cfg string
 			err error
@@ -199,7 +238,8 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 			cfg, err = validateBootstrapConfig(nodeID(p), p.Spec.Config)
 		} else {
 			cfg, err = bootstrap.GetRenderedBootstrapConfig(
-				bootstrap.WithXdsServerHost(r.apiServerName),
+				bootstrap.WithXdsServerHost(r.apiServerAddr),
+				// TODO(dilyevsky): Add TLS config from r.options.apiServerTLSConfig.
 			)
 		}
 		if err != nil {
@@ -215,12 +255,17 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 			return reconcile.Result{}, nil // Leave the proxy in failed state.
 		}
 
-		if err := r.Start(
-			ctx,
+		opts := []envoy.Option{
 			envoy.WithBootstrapConfigYAML(cfg),
-			envoy.WithLogsCollector(logsCollector),
 			envoy.WithCluster(p.Name),
-		); err != nil {
+		}
+		if r.options.chConn != nil {
+			pUUID, _ := uuid.Parse(string(p.UID))
+			lc := logs.NewClickHouseLogsCollector(r.options.chConn, pUUID)
+			opts = append(opts, envoy.WithLogsCollector(lc))
+		}
+
+		if err := r.Start(ctx, opts...); err != nil {
 			if fatalErr, ok := err.(envoy.FatalError); ok {
 				status.Phase = ctrlv1alpha1.ProxyReplicaPhaseFailed
 				status.Reason = fmt.Sprintf("failed to create proxy replica: %v", fatalErr)
@@ -315,7 +360,7 @@ func (r *ProxyReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager
 		).
 		WithOptions(controller.Options{
 			MaxConcurrentReconciles: 1,
-			RecoverPanic:            pointer.Bool(true),
+			RecoverPanic:            ptr.To(true),
 		}).
 		Complete(r)
 }

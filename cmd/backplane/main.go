@@ -12,11 +12,12 @@ import (
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
+	chdriver "github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
@@ -46,7 +47,7 @@ var (
 
 	devMode = flag.Bool("dev", false, "Enable development mode.")
 
-	apiserverHost = flag.String("apiserver_host", "host.docker.internal", "API server address.")
+	apiserverHost = flag.String("apiserver_host", "host.docker.internal", "APIServer address.")
 
 	chAddrs  = flag.String("ch_addrs", "", "Comma-separated list of ClickHouse host:port addresses.")
 	chSecure = flag.Bool("ch_secure", false, "Whether to connect to Clickhouse using TLS.")
@@ -74,30 +75,34 @@ func main() {
 
 	ctx := ctrl.SetupSignalHandler()
 
-	log.Infof("Connecting to ClickHouse at %v", *chAddrs)
-	chOpts := &clickhouse.Options{
-		Addr: strings.Split(*chAddrs, ","),
-		Auth: clickhouse.Auth{
-			Database: strings.ReplaceAll(projUUID.String(), "-", ""),
-			//Username: strings.ReplaceAll(*projectID, "-", ""),
-			//Password: os.Getenv("CH_PASSWORD"),
-		},
-		DialTimeout: 5 * time.Second,
-		Settings: clickhouse.Settings{
-			"max_execution_time": 60,
-		},
-		Debug: *chDebug,
-	}
-	if *chSecure { // Secure mode requires setting at least empty tls.Config.
-		chOpts.TLS = &tls.Config{}
-	}
-	// TODO(dsky): Wrap this for lazy initialization to avoid blocking startup.
-	chConn, err := clickhouse.Open(chOpts)
-	if err != nil {
-		log.Fatalf("Failed to connect to ClickHouse: %v", err)
-	}
-	if err := chConn.Ping(ctx); err != nil {
-		log.Fatalf("Failed to ping ClickHouse: %v", err)
+	var chConn chdriver.Conn
+	if *chAddrs != "" {
+		log.Infof("Connecting to ClickHouse at %v", *chAddrs)
+		chOpts := &clickhouse.Options{
+			Addr: strings.Split(*chAddrs, ","),
+			Auth: clickhouse.Auth{
+				Database: strings.ReplaceAll(projUUID.String(), "-", ""),
+				//Username: strings.ReplaceAll(*projectID, "-", ""),
+				//Password: os.Getenv("CH_PASSWORD"),
+			},
+			DialTimeout: 5 * time.Second,
+			Settings: clickhouse.Settings{
+				"max_execution_time": 60,
+			},
+			Debug: *chDebug,
+		}
+		if *chSecure { // Secure mode requires setting at least empty tls.Config.
+			chOpts.TLS = &tls.Config{}
+		}
+		// TODO(dsky): Wrap this for lazy initialization to avoid blocking startup.
+		var err error
+		chConn, err = clickhouse.Open(chOpts)
+		if err != nil {
+			log.Fatalf("Failed to connect to ClickHouse: %v", err)
+		}
+		if err := chConn.Ping(ctx); err != nil {
+			log.Fatalf("Failed to ping ClickHouse: %v", err)
+		}
 	}
 
 	log.Infof("Setting up WASM runtime")
@@ -134,7 +139,7 @@ func main() {
 	ctrl.SetLogger(zap.New(zap.UseDevMode(true))) // TODO(dilyevsky): Use default golang logger.
 	mgr, err := ctrl.NewManager(rC, ctrl.Options{
 		Cache: cache.Options{
-			SyncPeriod: pointer.Duration(30 * time.Second),
+			SyncPeriod: ptr.To(30 * time.Second),
 		},
 		Scheme:         scheme,
 		LeaderElection: false,
@@ -149,10 +154,9 @@ func main() {
 	log.Infof("Setting up controllers")
 	if err := bpctrl.NewProxyReconciler(
 		mgr.GetClient(),
-		projUUID,
 		*replicaName,
 		*apiserverHost,
-		chConn,
+		bpctrl.WithClickHouseConn(chConn),
 	).SetupWithManager(ctx, mgr, *proxyName); err != nil {
 		log.Errorf("failed to set up Backplane controller: %v", err)
 		return
