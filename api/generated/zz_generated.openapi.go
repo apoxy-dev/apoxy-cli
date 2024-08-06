@@ -55,6 +55,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionStatus":          schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionStatus(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionTargetReference": schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionTargetReference(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EnvVar":                      schema_apoxy_cli_api_extensions_v1alpha1_EnvVar(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.GoPluginSource":              schema_apoxy_cli_api_extensions_v1alpha1_GoPluginSource(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.JavaScriptAssetsSource":      schema_apoxy_cli_api_extensions_v1alpha1_JavaScriptAssetsSource(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.JavaScriptGitSource":         schema_apoxy_cli_api_extensions_v1alpha1_JavaScriptGitSource(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.JavaScriptNpmSource":         schema_apoxy_cli_api_extensions_v1alpha1_JavaScriptNpmSource(ref),
@@ -1795,11 +1796,17 @@ func schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionCodeSource(ref common.
 							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.WasmSource"),
 						},
 					},
+					"goPluginSource": {
+						SchemaProps: spec.SchemaProps{
+							Description: "GoSource specifies sources for the Go filter plugin. This option is only available for non-cloud (kubernets, unmanaged, etc) Proxy providers.",
+							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.GoPluginSource"),
+						},
+					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.JavaScriptSource", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.WasmSource", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.GoPluginSource", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.JavaScriptSource", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.WasmSource", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
 	}
 }
 
@@ -1917,7 +1924,7 @@ func schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionSpec(ref common.Refere
 					},
 					"env": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Env is a list of environment variables to set in the function runtime. These will be available via WASIp1 environ* routines as well asu Apoxy Runtime SDK APIs.",
+							Description: "Env is a list of environment variables to set in the function runtime. These will be available via WASIp1 environ* routines as well as Apoxy Runtime SDK APIs.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -2050,6 +2057,34 @@ func schema_apoxy_cli_api_extensions_v1alpha1_EnvVar(ref common.ReferenceCallbac
 					},
 				},
 				Required: []string{"name", "value"},
+			},
+		},
+	}
+}
+
+func schema_apoxy_cli_api_extensions_v1alpha1_GoPluginSource(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"url": {
+						SchemaProps: spec.SchemaProps{
+							Description: "URL is the URL to the Go plugin .so",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"pluginConfig": {
+						SchemaProps: spec.SchemaProps{
+							Description: "PluginConfig is the configuration passed to the Go plugin as JSON-encoded structpb.Struct message. Plugin will receive it as anypb.Any message.",
+							Type:        []string{"string"},
+							Format:      "byte",
+						},
+					},
+				},
+				Required: []string{"url"},
 			},
 		},
 	}

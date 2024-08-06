@@ -71,6 +71,16 @@ type WasmSource struct {
 	URL string `json:"url"`
 }
 
+type GoPluginSource struct {
+	// URL is the URL to the Go plugin .so
+	URL string `json:"url"`
+
+	// PluginConfig is the configuration passed to the Go plugin as JSON-encoded
+	// structpb.Struct message. Plugin will receive it as anypb.Any message.
+	// +optional
+	PluginConfig []byte `json:"pluginConfig,omitempty"`
+}
+
 type EdgeFunctionCodeSource struct {
 	// Metadata of the function source.
 	// +optional
@@ -85,6 +95,12 @@ type EdgeFunctionCodeSource struct {
 	// WasmSource specifies sources for the WebAssembly function runtime.
 	// +optional
 	WasmSource *WasmSource `json:"wasmSource,omitempty"`
+
+	// GoSource specifies sources for the Go filter plugin.
+	// This option is only available for non-cloud (kubernets, unmanaged, etc)
+	// Proxy providers.
+	// +optional
+	GoPluginSource *GoPluginSource `json:"goPluginSource,omitempty"`
 }
 
 type EnvVar struct {
@@ -136,8 +152,7 @@ type EdgeFunctionSpec struct {
 
 	// Env is a list of environment variables to set in the function
 	// runtime.
-	// These will be available via WASIp1 environ* routines as well asu
-	// Apoxy Runtime SDK APIs.
+	// These will be available via WASIp1 environ* routines as well as Apoxy Runtime SDK APIs.
 	// +optional
 	Env []EnvVar `json:"env,omitempty"`
 

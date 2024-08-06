@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"time"
 
@@ -41,9 +42,9 @@ type EdgeFunctionIngestParams struct {
 }
 
 type EdgeFunctionIngestResult struct {
-	WasmFilePath      string
-	WasmFileCreatedAt metav1.Time
-	Err               string
+	AssetFilePath      string
+	AssetFileCreatedAt metav1.Time
+	Err                string
 }
 
 // WorkflowID returns a unique identifier for the Edge Function ingest workflow.
@@ -93,24 +94,46 @@ func EdgeFunctionIngestWorkflow(ctx workflow.Context, in *EdgeFunctionIngestPara
 	var w *worker
 	var res *EdgeFunctionIngestResult
 
-	if in.Obj.Spec.Code.WasmSource != nil {
-		if in.Obj.Spec.Code.JsSource != nil {
-			err = errors.New("Edge Function cannot have both WASM and JS sources")
-		} else {
-			err = workflow.ExecuteActivity(sessCtx, w.DownloadWasmActivity, in).Get(sessCtx, &res)
+	// Reflect if more than one pointer set.
+	cv := reflect.ValueOf(in.Obj.Spec.Code)
+	var fSet []reflect.Value
+	for i := 0; i < cv.NumField(); i++ {
+		if !cv.Field(i).IsNil() {
+			fSet = append(fSet, cv.Field(i))
 		}
-	} else if in.Obj.Spec.Code.JsSource != nil {
-		err = errors.New("JS source not supported yet")
-	} else {
+	}
+	switch len(fSet) {
+	case 0:
 		err = errors.New("Edge Function must have either WASM or JS source")
+	case 1:
+		switch fSet[0].Interface().(type) {
+		case *v1alpha1.WasmSource:
+			err = workflow.ExecuteActivity(sessCtx, w.DownloadWasmActivity, in).Get(sessCtx, &res)
+			if err == nil {
+				log.Info("Edge Function .wasm staged successfully", "WasmFilePath", res.AssetFilePath)
+			}
+		case *v1alpha1.JavaScriptSource:
+			err = errors.New("JS source not supported yet")
+		case *v1alpha1.GoPluginSource:
+			err = workflow.ExecuteActivity(sessCtx, w.DownloadGoPluginActivity, in).Get(sessCtx, &res)
+			if err == nil {
+				log.Info("Edge Function Go plugin staged successfully", "GoPluginFilePath", res.AssetFilePath)
+			}
+		default:
+			err = fmt.Errorf("Edge Function has invalid source type: %v", reflect.TypeOf(fSet[0].Interface()))
+		}
+	default:
+		var names []string
+		for _, f := range fSet {
+			names = append(names, f.Type().Name())
+		}
+		err = fmt.Errorf("Edge Function must have either WASM or JS source, got %s", strings.Join(names, ", "))
 	}
 	if err != nil {
 		log.Error("Download activity failed", "Error", err)
 		res.Err = err.Error()
 		goto Finalize
 	}
-
-	log.Info("Edge Function .wasm staged successfully", "WasmFilePath", res.WasmFilePath)
 
 	err = workflow.ExecuteActivity(sessCtx, w.StoreWasmActivity, in, res).Get(sessCtx, nil)
 	if err != nil {
@@ -149,11 +172,17 @@ func NewWorker(c *rest.APIClient, baseDir string) *worker {
 func (w *worker) RegisterActivities(tw tworker.Worker) {
 	tw.RegisterActivity(w.DownloadWasmActivity)
 	tw.RegisterActivity(w.StoreWasmActivity)
+	tw.RegisterActivity(w.DownloadGoPluginActivity)
+	tw.RegisterActivity(w.StoreGoPluginActivity)
 	tw.RegisterActivity(w.FinalizeActivity)
 }
 
 func (w *worker) stagingDir(name, rid string) string {
 	return filepath.Join(w.baseDir, "run", "ingest", "staging", name, rid)
+}
+
+func (w *worker) storeDir(name string) string {
+	return filepath.Join(w.baseDir, "/run", "ingest", "store", name)
 }
 
 const (
@@ -243,13 +272,9 @@ func (w *worker) DownloadWasmActivity(
 	}
 
 	return &EdgeFunctionIngestResult{
-		WasmFilePath:      wasmFile,
-		WasmFileCreatedAt: metav1.NewTime(stat.ModTime()),
+		AssetFilePath:      wasmFile,
+		AssetFileCreatedAt: metav1.NewTime(stat.ModTime()),
 	}, nil
-}
-
-func (w *worker) storeDir(name string) string {
-	return filepath.Join(w.baseDir, "/run", "ingest", "store", name)
 }
 
 // StoreWasmActivity stores the Edge Function .wasm file in the object store.
@@ -272,7 +297,71 @@ func (w *worker) StoreWasmActivity(
 	targetFile := filepath.Join(targetDir, "func.wasm")
 	// TODO(dilyevsky): Use object store API to store the file.
 	// For now, just link the file to the target directory.
-	if err := os.Rename(inResult.WasmFilePath, targetFile); err != nil {
+	if err := os.Rename(inResult.AssetFilePath, targetFile); err != nil {
+		log.Error("Failed to link WASM file", "Error", err)
+		return err
+	}
+
+	return nil
+}
+
+// DownloadGoPluginActivity downloads the Edge Function Go plugin .so file and stores it in the staging directory.
+func (w *worker) DownloadGoPluginActivity(
+	ctx context.Context,
+	in *EdgeFunctionIngestParams,
+) (*EdgeFunctionIngestResult, error) {
+	log := tlog.With(activity.GetLogger(ctx), "Name", in.Obj.Name, "ResourceVersion", in.Obj.ResourceVersion)
+
+	log.Info("Downloading Edge Function Go plugin .so file", "URL", in.Obj.Spec.Code.GoPluginSource.URL)
+
+	wid := activity.GetInfo(ctx).WorkflowExecution.ID
+	rid := activity.GetInfo(ctx).WorkflowExecution.RunID
+	targetDir := w.stagingDir(wid, rid)
+
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
+		log.Error("Failed to create target directory", "Error", err)
+		return nil, err
+	}
+
+	soFile := filepath.Join(targetDir, "func.so")
+	if err := w.downloadFile(ctx, in.Obj.Spec.Code.GoPluginSource.URL, soFile); err != nil {
+		log.Error("Failed to download .so file", "Error", err)
+		return nil, err
+	}
+
+	stat, err := os.Stat(soFile)
+	if err != nil {
+		log.Error("Failed to stat .so file", "Error", err)
+		return nil, err
+	}
+
+	return &EdgeFunctionIngestResult{
+		AssetFilePath:      soFile,
+		AssetFileCreatedAt: metav1.NewTime(stat.ModTime()),
+	}, nil
+}
+
+// StoreGoPluginActivity stores the Edge Function Go plugin .so file in the object store.
+func (w *worker) StoreGoPluginActivity(
+	ctx context.Context,
+	in *EdgeFunctionIngestParams,
+	inResult *EdgeFunctionIngestResult,
+) error {
+	log := tlog.With(activity.GetLogger(ctx), "Name", in.Obj.Name, "ResourceVersion", in.Obj.ResourceVersion)
+	log.Info("Storing Edge Function .so file in object store")
+
+	wid := activity.GetInfo(ctx).WorkflowExecution.ID
+
+	targetDir := w.storeDir(wid)
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
+		log.Error("Failed to create target directory", "Error", err)
+		return err
+	}
+
+	targetFile := filepath.Join(targetDir, "func.so")
+	// TODO(dilyevsky): Use object store API to store the file.
+	// For now, just link the file to the target directory.
+	if err := os.Rename(inResult.AssetFilePath, targetFile); err != nil {
 		log.Error("Failed to link WASM file", "Error", err)
 		return err
 	}
@@ -308,7 +397,7 @@ func (w *worker) FinalizeActivity(
 			// Prepend the revision to the list of revisions.
 			rev := v1alpha1.EdgeFunctionRevision{
 				Ref:       activity.GetInfo(ctx).WorkflowExecution.ID,
-				CreatedAt: inResult.WasmFileCreatedAt,
+				CreatedAt: inResult.AssetFileCreatedAt,
 			}
 			f.Status.Revisions = append([]v1alpha1.EdgeFunctionRevision{rev}, f.Status.Revisions...)
 		}

@@ -136,6 +136,16 @@ func targetRefPredicate(proxyName string) predicate.Funcs {
 			return false
 		}
 
+		// Check if the EdgeFunction is owned by the Proxy.
+		for _, owner := range f.GetOwnerReferences() {
+			if owner.APIVersion == ctrlv1alpha1.GroupVersion.String() &&
+				owner.Kind == "Proxy" &&
+				owner.Name == proxyName {
+				return true
+			}
+		}
+
+		// Otherwise, check if the EdgeFunction has a target reference to the Proxy.
 		for _, ref := range f.Spec.TargetRefs {
 			if ref.Group == ctrlv1alpha1.GroupName &&
 				ref.Kind == "Proxy" &&
