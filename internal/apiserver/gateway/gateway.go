@@ -5,6 +5,9 @@ import (
 	"context"
 	"fmt"
 
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -22,17 +25,23 @@ import (
 
 	ctrlv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
 	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
+	extensionsv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1"
 	gatewayv1 "github.com/apoxy-dev/apoxy-cli/api/gateway/v1"
 )
 
 const (
-	classGatewayIndex     = "classGatewayIndex"
-	gatewayHTTPRouteIndex = "gatewayHTTPRouteIndex"
-	backendHTTPRouteIndex = "backendHTTPRouteIndex"
-	gatewayInfraRefIndex  = "gatewayInfraRefIndex"
+	classGatewayIndex      = "classGatewayIndex"
+	gatewayHTTPRouteIndex  = "gatewayHTTPRouteIndex"
+	backendHTTPRouteIndex  = "backendHTTPRouteIndex"
+	gatewayInfraRefIndex   = "gatewayInfraRefIndex"
+	edgeFunctionReadyIndex = "edgeFunctionReadyIndex"
 )
 
-var _ reconcile.Reconciler = &GatewayReconciler{}
+var (
+	conv = runtime.DefaultUnstructuredConverter
+
+	_ reconcile.Reconciler = &GatewayReconciler{}
+)
 
 // GatewayReconciler reconciles a Proxy object.
 type GatewayReconciler struct {
@@ -78,9 +87,14 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, request reconcile.Req
 		return ctrl.Result{}, nil
 	}
 
+	res := gatewayapi.NewResources()
+	extRefs, err := r.getExtensionRefs(ctx)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to get extension references: %w", err)
+	}
+
 	ress := make(gatewayapi.ControllerResources, 0, len(gwcs))
 	for _, gwc := range gwcs {
-		res := gatewayapi.NewResources()
 		res.GatewayClass = &gwapiv1.GatewayClass{
 			TypeMeta:   gwc.TypeMeta,
 			ObjectMeta: gwc.ObjectMeta,
@@ -88,7 +102,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, request reconcile.Req
 			Status:     gwc.Status,
 		}
 
-		if err := r.reconcileGatewayClass(clog.IntoContext(ctx, log), gwc, res); err != nil {
+		if err := r.reconcileGateways(clog.IntoContext(ctx, log), gwc, extRefs, res); err != nil {
 			log.Error(err, "Failed to reconcile GatewayClass", "name", gwc.Name)
 		}
 		if err := r.reconcileBackends(clog.IntoContext(ctx, log), res); err != nil {
@@ -103,9 +117,41 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, request reconcile.Req
 	return ctrl.Result{}, nil
 }
 
-func (r *GatewayReconciler) reconcileGatewayClass(
+type extensionRefKey struct {
+	Name      string
+	GroupKind schema.GroupKind
+}
+
+func (r *GatewayReconciler) getExtensionRefs(
+	ctx context.Context,
+) (map[extensionRefKey]*unstructured.Unstructured, error) {
+	extRefs := make(map[extensionRefKey]*unstructured.Unstructured)
+
+	funls := extensionsv1alpha1.EdgeFunctionList{}
+	if err := r.List(ctx, &funls, client.MatchingFields{edgeFunctionReadyIndex: "true"}); err != nil {
+		return nil, fmt.Errorf("failed to list EdgeFunctions: %w", err)
+	}
+	for _, fun := range funls.Items {
+		un, err := conv.ToUnstructured(&fun)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert EdgeFunction to Unstructured: %w", err)
+		}
+
+		extRefs[extensionRefKey{
+			Name:      fun.Name,
+			GroupKind: schema.GroupKind{Group: fun.GroupVersionKind().Group, Kind: "EdgeFunction"},
+		}] = &unstructured.Unstructured{Object: un}
+	}
+
+	// TODO(dilyevsky): Process other extensions.
+
+	return extRefs, nil
+}
+
+func (r *GatewayReconciler) reconcileGateways(
 	ctx context.Context,
 	gwc *gatewayv1.GatewayClass,
+	extRefs map[extensionRefKey]*unstructured.Unstructured,
 	res *gatewayapi.Resources,
 ) error {
 	log := clog.FromContext(ctx, "GatewayClass", gwc.Name)
@@ -146,7 +192,7 @@ func (r *GatewayReconciler) reconcileGatewayClass(
 			res.Proxies = append(res.Proxies, &proxy)
 		}
 
-		if err := r.reconcileGateway(clog.IntoContext(ctx, log), gw, res); err != nil {
+		if err := r.reconcileHTTPRoutes(clog.IntoContext(ctx, log), gw, extRefs, res); err != nil {
 			log.Error(err, "Failed to reconcile Gateway", "name", gw.Name)
 			continue
 		}
@@ -161,9 +207,10 @@ func (r *GatewayReconciler) reconcileGatewayClass(
 	return nil
 }
 
-func (r *GatewayReconciler) reconcileGateway(
+func (r *GatewayReconciler) reconcileHTTPRoutes(
 	ctx context.Context,
 	gw *gatewayv1.Gateway,
+	extRefs map[extensionRefKey]*unstructured.Unstructured,
 	res *gatewayapi.Resources,
 ) error {
 	log := clog.FromContext(ctx, "Gateway", gw.Name)
@@ -180,6 +227,25 @@ func (r *GatewayReconciler) reconcileGateway(
 		}
 
 		log.Info("Reconciling HTTPRoute", "name", hr.Name)
+
+		for _, rule := range hr.Spec.Rules {
+			for _, filter := range rule.Filters {
+				if filter.ExtensionRef != nil {
+					key := extensionRefKey{
+						Name: string(filter.ExtensionRef.Name),
+						GroupKind: schema.GroupKind{
+							Group: string(filter.ExtensionRef.Group),
+							Kind:  string(filter.ExtensionRef.Kind),
+						},
+					}
+					if ref, ok := extRefs[key]; ok {
+						log.Info("Found extension reference",
+							"name", ref.GetName(), "gvk", ref.GroupVersionKind())
+						res.ExtensionRefFilters = append(res.ExtensionRefFilters, *ref)
+					}
+				}
+			}
+		}
 
 		res.HTTPRoutes = append(res.HTTPRoutes, &gwapiv1.HTTPRoute{
 			TypeMeta:   hr.TypeMeta,
@@ -272,6 +338,15 @@ func (r *GatewayReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manag
 			}
 		}
 		return backends
+	}); err != nil {
+		return fmt.Errorf("failed to setup field indexer: %w", err)
+	}
+	// Index EdgeFunction objects that are in the "Ready" phase.
+	if err := mgr.GetFieldIndexer().IndexField(ctx, &extensionsv1alpha1.EdgeFunction{}, edgeFunctionReadyIndex, func(obj client.Object) []string {
+		if obj.(*extensionsv1alpha1.EdgeFunction).Status.Phase == extensionsv1alpha1.EdgeFunctionPhaseReady {
+			return []string{"true"}
+		}
+		return nil
 	}); err != nil {
 		return fmt.Errorf("failed to setup field indexer: %w", err)
 	}

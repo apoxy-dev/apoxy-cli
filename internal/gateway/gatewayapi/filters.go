@@ -657,34 +657,20 @@ func (t *Translator) processExtensionRefHTTPFilter(extFilter *gwapiv1.LocalObjec
 		return
 	}
 
-	filterNs := filterContext.Route.GetNamespace()
 	// This list of resources will be empty unless an extension is loaded (and introduces resources)
 	for _, res := range resources.ExtensionRefFilters {
-		if res.GetKind() == string(extFilter.Kind) && res.GetName() == string(extFilter.Name) && res.GetNamespace() == filterNs {
-			apiVers := res.GetAPIVersion()
-
-			// To get only the group we cut off the version.
-			// This could be a one liner but just to be safe we check that the APIVersion is properly formatted
-			idx := strings.IndexByte(apiVers, '/')
-			if idx == -1 {
-				errMsg := fmt.Sprintf("Unable to translate APIVersion for Extension Filter: kind: %s, %s/%s", res.GetKind(), filterNs, extFilter.Name)
-				t.processUnresolvedHTTPFilter(errMsg, filterContext)
-				return
-			}
-			group := apiVers[:idx]
-			if group == string(extFilter.Group) {
-				resource := res // Capture loop variable
-				filterContext.ExtensionRefs = append(filterContext.ExtensionRefs, &ir.UnstructuredRef{
-					Object: &resource,
-				})
-				return
-			}
+		if res.GetKind() == string(extFilter.Kind) &&
+			res.GetName() == string(extFilter.Name) &&
+			res.GroupVersionKind().Group == string(extFilter.Group) {
+			filterContext.ExtensionRefs = append(filterContext.ExtensionRefs, &ir.UnstructuredRef{
+				Object: &res,
+			})
+			return
 		}
 	}
 
 	// Matching filter not found, so set negative status condition.
-	errMsg := fmt.Sprintf("Reference %s/%s not found for filter type: %v", filterNs,
-		extFilter.Name, extFilter.Kind)
+	errMsg := fmt.Sprintf("Reference %s not found for filter type: %v", extFilter.Name, extFilter.Kind)
 	t.processUnresolvedHTTPFilter(errMsg, filterContext)
 }
 
