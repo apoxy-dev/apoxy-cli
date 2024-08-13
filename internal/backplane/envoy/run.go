@@ -115,6 +115,13 @@ func WithLogsCollector(c logs.LogsCollector) Option {
 	}
 }
 
+// WithGoPluginDir sets the directory to load Go plugins from.
+func WithGoPluginDir(dir string) Option {
+	return func(r *Runtime) {
+		r.goPluginDir = dir
+	}
+}
+
 // Runtime vendors the Envoy binary and runs it.
 type Runtime struct {
 	EnvoyPath           string
@@ -124,9 +131,10 @@ type Runtime struct {
 	// Args are additional arguments to pass to Envoy.
 	Args []string
 
-	exitCh chan struct{}
-	cmd    *exec.Cmd
-	logs   logs.LogsCollector
+	exitCh      chan struct{}
+	cmd         *exec.Cmd
+	logs        logs.LogsCollector
+	goPluginDir string
 
 	mu     sync.RWMutex
 	status RuntimeStatus
@@ -182,8 +190,17 @@ func (r *Runtime) run(ctx context.Context) error {
 		}()
 	}
 
+	runDir := os.TempDir()
+	if r.goPluginDir != "" {
+		// Link the Go plugin directory to the run directory.
+		if err := os.Symlink(r.goPluginDir, filepath.Join(runDir, "go")); err != nil {
+			return fmt.Errorf("failed to symlink go plugin directory: %w", err)
+		}
+	}
+
 	args = append(args, r.Args...)
 	r.cmd = exec.CommandContext(rCtx, r.envoyPath(), args...)
+	r.cmd.Dir = runDir
 	r.cmd.Stdout = os.Stdout
 	r.cmd.Stderr = os.Stderr
 

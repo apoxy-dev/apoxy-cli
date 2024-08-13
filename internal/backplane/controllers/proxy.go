@@ -52,6 +52,7 @@ type ProxyReconciler struct {
 type options struct {
 	chConn                   clickhouse.Conn
 	apiServerTLSClientConfig *tls.Config
+	goPluginDir              string
 }
 
 // Option is a functional option for ProxyReconciler.
@@ -70,6 +71,13 @@ func WithClickHouseConn(chConn clickhouse.Conn) Option {
 func WithAPIServerTLSClientConfig(tlsConfig *tls.Config) Option {
 	return func(o *options) {
 		o.apiServerTLSClientConfig = tlsConfig
+	}
+}
+
+// WithGoPluginDir sets the directory for Go plugins.
+func WithGoPluginDir(dir string) Option {
+	return func(o *options) {
+		o.goPluginDir = dir
 	}
 }
 
@@ -263,6 +271,9 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 			pUUID, _ := uuid.Parse(string(p.UID))
 			lc := logs.NewClickHouseLogsCollector(r.options.chConn, pUUID)
 			opts = append(opts, envoy.WithLogsCollector(lc))
+		}
+		if r.options.goPluginDir != "" {
+			opts = append(opts, envoy.WithGoPluginDir(r.options.goPluginDir))
 		}
 
 		if err := r.Start(ctx, opts...); err != nil {

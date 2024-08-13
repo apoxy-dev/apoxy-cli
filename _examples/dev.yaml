@@ -58,3 +58,12 @@ spec:
         - kind: Backend
           name: ifconfig
           port: 80
+---
+apiVersion: extensions.apoxy.dev/v1alpha1
+kind: EdgeFunction
+metadata:
+  name: hello
+spec:
+  code:
+    goPluginSource:
+      url: http://localhost:8000/websocket.so

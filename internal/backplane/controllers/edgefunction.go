@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -27,29 +28,33 @@ type EdgeFunctionReconciler struct {
 	client.Client
 
 	apiserverHost string
-	store         manifest.Store
+	wasmStore     manifest.Store
+	goStoreDir    string
 }
 
 // NewEdgeFuncReconciler returns a new reconcile.Reconciler.
 func NewEdgeFuncReconciler(
 	c client.Client,
 	apiserverHost string,
-	store manifest.Store,
+	wasmStore manifest.Store,
+	goStoreDir string,
 ) *EdgeFunctionReconciler {
 	return &EdgeFunctionReconciler{
 		Client:        c,
 		apiserverHost: apiserverHost,
-		store:         store,
+		wasmStore:     wasmStore,
+		goStoreDir:   goStoreDir,
 	}
 }
 
-func (r *EdgeFunctionReconciler) downloadWasmData(
+func (r *EdgeFunctionReconciler) downloadFuncData(
 	ctx context.Context,
+	fnType string
 	ref string,
 ) ([]byte, error) {
 	log := clog.FromContext(ctx)
 
-	resp, err := http.Get(fmt.Sprintf("http://%s/wasm/%s", r.apiserverHost, ref))
+	resp, err := http.Get(fmt.Sprintf("http://%s/%s/%s", r.apiserverHost, fnType, ref))
 	if err != nil {
 		return nil, fmt.Errorf("failed to download Wasm module: %w", err)
 	}
@@ -64,7 +69,7 @@ func (r *EdgeFunctionReconciler) downloadWasmData(
 		return nil, fmt.Errorf("failed to read Wasm module: %w", err)
 	}
 
-	log.Info("Downloaded Wasm module", "size", len(data))
+	log.Info("Downloaded EdgeFunction module", "size", len(data), "type", fnType, "ref", ref)
 
 	return data, nil
 }
@@ -89,7 +94,7 @@ func (r *EdgeFunctionReconciler) Reconcile(ctx context.Context, request reconcil
 			return ctrl.Result{}, nil
 		}
 		log.Info("Deleting Wasm data", "ref", f.Status.Revisions[0].Ref)
-		if err := r.store.Delete(ctx, f.Status.Revisions[0].Ref); err != nil {
+		if err := r.wasmStore.Delete(ctx, f.Status.Revisions[0].Ref); err != nil {
 			return ctrl.Result{}, fmt.Errorf("failed to delete Wasm data: %w", err)
 		}
 		return ctrl.Result{}, nil
@@ -103,21 +108,39 @@ func (r *EdgeFunctionReconciler) Reconcile(ctx context.Context, request reconcil
 			return ctrl.Result{}, nil
 		}
 		ref := f.Status.Revisions[0].Ref
-		if r.store.Exists(ctx, ref) {
-			log.Info("Wasm module already exists for ref", "ref", ref)
+
+		if f.Spec.Code.WasmSource != nil || f.Spec.Code.JsSource != nil {
+			log.Info("Wasm source detected", "ref", ref)
+			if r.wasmStore.Exists(ctx, ref) {
+				log.Info("Wasm module already exists for ref", "ref", ref)
+				return ctrl.Result{}, nil
+			}
+
+			wasmData, err := r.downloadFuncData(clog.IntoContext(ctx, log), "wasm", ref)
+			if err != nil {
+				return ctrl.Result{}, fmt.Errorf("failed to download Wasm data: %w", err)
+			}
+
+			if err := r.wasmStore.Set(ctx, ref, manifest.WithWasmData(wasmData)); err != nil {
+				return ctrl.Result{}, fmt.Errorf("failed to set Wasm data: %w", err)
+			}
+
+			log.Info("Stored Wasm data", "ref", ref)
+		} else if f.Spec.Code.GoPluginSource != nil {
+			log.Info("Go plugin source detected", "ref", ref)
+
+			soData, err := r.downloadFuncData(clog.IntoContext(ctx, log), "go", ref)
+			if err != nil {
+				return ctrl.Result{}, fmt.Errorf("failed to download Wasm data: %w", err)
+			}
+
+			if err := os.WriteFile(filepath.Join(r.goStoreDir, ref, "func.so"), soData, 0644); err != nil {
+				return ctrl.Result{}, fmt.Errorf("failed to write Go plugin data: %w", err)
+			}
+		} else {
+			log.Info("No source detected", "ref", ref)
 			return ctrl.Result{}, nil
 		}
-
-		wasmData, err := r.downloadWasmData(clog.IntoContext(ctx, log), ref)
-		if err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to download Wasm data: %w", err)
-		}
-
-		if err := r.store.Set(ctx, ref, manifest.WithWasmData(wasmData)); err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to set Wasm data: %w", err)
-		}
-
-		log.Info("Stored Wasm data", "ref", ref)
 	default:
 		return ctrl.Result{}, nil
 	}

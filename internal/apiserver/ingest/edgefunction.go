@@ -48,7 +48,7 @@ type EdgeFunctionIngestResult struct {
 }
 
 // WorkflowID returns a unique identifier for the Edge Function ingest workflow.
-// Each workflow is uniquely identified by the Edge Function name and its resource version.
+// Each workflow is uniquely identified by the Edge Function name and its code configuration.
 func WorkflowID(o *v1alpha1.EdgeFunction) (string, error) {
 	bs, err := json.Marshal(o.Spec.Code)
 	if err != nil {
@@ -97,9 +97,13 @@ func EdgeFunctionIngestWorkflow(ctx workflow.Context, in *EdgeFunctionIngestPara
 	// Reflect if more than one pointer set.
 	cv := reflect.ValueOf(in.Obj.Spec.Code)
 	var fSet []reflect.Value
-	for i := 0; i < cv.NumField(); i++ {
-		if !cv.Field(i).IsNil() {
-			fSet = append(fSet, cv.Field(i))
+	for _, f := range reflect.VisibleFields(cv.Type()) {
+		if f.Anonymous { // Skip embedded fields.
+			continue
+		}
+		fv := cv.FieldByIndex(f.Index)
+		if fv.Kind() == reflect.Ptr && !fv.IsNil() {
+			fSet = append(fSet, fv)
 		}
 	}
 	switch len(fSet) {
@@ -112,12 +116,24 @@ func EdgeFunctionIngestWorkflow(ctx workflow.Context, in *EdgeFunctionIngestPara
 			if err == nil {
 				log.Info("Edge Function .wasm staged successfully", "WasmFilePath", res.AssetFilePath)
 			}
+			err = workflow.ExecuteActivity(sessCtx, w.StoreWasmActivity, in, res).Get(sessCtx, nil)
+			if err != nil {
+				log.Error("Store activity failed", "Error", err)
+				res.Err = err.Error()
+				goto Finalize
+			}
 		case *v1alpha1.JavaScriptSource:
 			err = errors.New("JS source not supported yet")
 		case *v1alpha1.GoPluginSource:
 			err = workflow.ExecuteActivity(sessCtx, w.DownloadGoPluginActivity, in).Get(sessCtx, &res)
 			if err == nil {
 				log.Info("Edge Function Go plugin staged successfully", "GoPluginFilePath", res.AssetFilePath)
+			}
+			err = workflow.ExecuteActivity(sessCtx, w.StoreGoPluginActivity, in, res).Get(sessCtx, nil)
+			if err != nil {
+				log.Error("Store activity failed", "Error", err)
+				res.Err = err.Error()
+				goto Finalize
 			}
 		default:
 			err = fmt.Errorf("Edge Function has invalid source type: %v", reflect.TypeOf(fSet[0].Interface()))
@@ -131,13 +147,6 @@ func EdgeFunctionIngestWorkflow(ctx workflow.Context, in *EdgeFunctionIngestPara
 	}
 	if err != nil {
 		log.Error("Download activity failed", "Error", err)
-		res.Err = err.Error()
-		goto Finalize
-	}
-
-	err = workflow.ExecuteActivity(sessCtx, w.StoreWasmActivity, in, res).Get(sessCtx, nil)
-	if err != nil {
-		log.Error("Store activity failed", "Error", err)
 		res.Err = err.Error()
 		goto Finalize
 	}
@@ -415,25 +424,49 @@ func (w *worker) FinalizeActivity(
 func (w *worker) ListenAndServeWasm(host string, port int) error {
 	mux := http.NewServeMux()
 	mux.Handle("/wasm/", w)
+	mux.Handle("/go/", w)
 	addr := fmt.Sprintf("%s:%d", host, port)
 	log.Infof("Listening on %s", addr)
 	return http.ListenAndServe(addr, mux)
 }
 
 func (w *worker) ServeHTTP(wr http.ResponseWriter, req *http.Request) {
-	ss := strings.Split(req.URL.Path, "/")
-	name := ss[len(ss)-1]
+	log.Infof("Serving %s", req.URL.Path)
+	path := filepath.Clean(strings.TrimLeft(req.URL.Path, "/"))
+	ss := strings.Split(path, "/")
+	if len(ss) != 2 {
+		log.Errorf("Invalid path %s", path)
+		http.Error(wr, "Invalid path", http.StatusBadRequest)
+		return
+	}
+	t, name := ss[0], ss[1]
 	if name == "" {
+		log.Errorf("Name is required: %s", path)
 		http.Error(wr, "Name is required", http.StatusBadRequest)
 		return
 	}
-	p := w.storeDir(name) + "/func.wasm"
+	var p string
+	switch t {
+	case "wasm":
+		p = w.storeDir(name) + "/func.wasm"
+	case "go":
+		p = w.storeDir(name) + "/func.so"
+	default:
+		log.Errorf("Invalid type %s", t)
+		http.Error(wr, "Invalid type", http.StatusBadRequest)
+		return
+	}
+
+	log.Infof("Serving edge function %s from %s", name, p)
+
 	if _, err := os.Stat(p); err != nil {
+		log.Errorf("Failed to stat %s", p)
 		http.Error(wr, "File not found", http.StatusNotFound)
 		return
 	}
 	f, err := os.Open(p)
 	if err != nil {
+		log.Errorf("Failed to open %s for reading", p)
 		http.Error(wr, "Failed to open file", http.StatusInternalServerError)
 		return
 	}

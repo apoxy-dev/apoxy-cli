@@ -55,6 +55,7 @@ var (
 
 	wasmExtProcPort = flag.Int("wasm_ext_proc_port", 2020, "Port for the WASM extension processor.")
 	wasmStorePort   = flag.Int("wasm_store_port", 8081, "Port for the remote WASM store.")
+	goPluginDir     = flag.String("go_plugin_dir", "/var/lib/apoxy/go", "Directory for Go plugins.")
 )
 
 func main() {
@@ -165,6 +166,7 @@ func main() {
 		mgr.GetClient(),
 		fmt.Sprintf("%s:%d", *apiserverHost, *wasmStorePort),
 		ms,
+		*goPluginDir,
 	).SetupWithManager(ctx, mgr, *proxyName); err != nil {
 		log.Errorf("failed to set up EdgeFunction controller: %v", err)
 		return
