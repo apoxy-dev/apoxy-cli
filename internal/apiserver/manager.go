@@ -187,7 +187,7 @@ func Start(
 	// Disables useless kine logging.
 	logrus.SetOutput(io.Discard)
 
-	readyCh := make(chan struct{})
+	readyCh := make(chan error)
 	go func() {
 		if dOpts.sqlitePath != "" && !strings.Contains(dOpts.sqlitePath, ":memory:") {
 			if _, err := os.Stat(dOpts.sqlitePath); os.IsNotExist(err) {
@@ -198,6 +198,11 @@ func Start(
 					log.Fatalf("Failed to create database file: %v", err)
 				}
 			}
+		}
+		kineStore, err := NewKineStorage(ctx, "sqlite://"+dOpts.sqlitePath)
+		if err != nil {
+			readyCh <- fmt.Errorf("failed to create kine storage: %w", err)
+			return
 		}
 
 		if err := builder.APIServer.
@@ -212,18 +217,18 @@ func Start(
 			// github.com/apoxy-dev/apoxy/api/core/v1alpha,\
 			//  -O zz_generated.openapi --output-package api/generated -h /dev/null
 			WithOpenAPIDefinitions("apoxy", "0.1.0", apoxyopenapi.GetOpenAPIDefinitions).
-			WithResourceAndStorage(&corev1alpha.Proxy{}, NewKineStorage(ctx, "sqlite://"+dOpts.sqlitePath)).
-			WithResourceAndStorage(&corev1alpha.Address{}, NewKineStorage(ctx, "sqlite://"+dOpts.sqlitePath)).
-			WithResourceAndStorage(&corev1alpha.Domain{}, NewKineStorage(ctx, "sqlite://"+dOpts.sqlitePath)).
-			WithResourceAndStorage(&corev1alpha.TunnelNode{}, NewKineStorage(ctx, "sqlite://"+dOpts.sqlitePath)).
-			WithResourceAndStorage(&corev1alpha.Backend{}, NewKineStorage(ctx, "sqlite://"+dOpts.sqlitePath)).
-			WithResourceAndStorage(&ctrlv1alpha1.Proxy{}, NewKineStorage(ctx, "sqlite://"+dOpts.sqlitePath)).
-			WithResourceAndStorage(&policyv1alpha1.RateLimit{}, NewKineStorage(ctx, "sqlite://"+dOpts.sqlitePath)).
-			WithResourceAndStorage(&extensionsv1alpha1.EdgeFunction{}, NewKineStorage(ctx, "sqlite://"+dOpts.sqlitePath)).
-			WithResourceAndStorage(&gatewayv1.GatewayClass{}, NewKineStorage(ctx, "sqlite://"+dOpts.sqlitePath)).
-			WithResourceAndStorage(&gatewayv1.Gateway{}, NewKineStorage(ctx, "sqlite://"+dOpts.sqlitePath)).
-			WithResourceAndStorage(&gatewayv1.HTTPRoute{}, NewKineStorage(ctx, "sqlite://"+dOpts.sqlitePath)).
-			WithResourceAndStorage(&gatewayv1.GRPCRoute{}, NewKineStorage(ctx, "sqlite://"+dOpts.sqlitePath)).
+			WithResourceAndStorage(&corev1alpha.Proxy{}, kineStore).
+			WithResourceAndStorage(&corev1alpha.Address{}, kineStore).
+			WithResourceAndStorage(&corev1alpha.Domain{}, kineStore).
+			WithResourceAndStorage(&corev1alpha.TunnelNode{}, kineStore).
+			WithResourceAndStorage(&corev1alpha.Backend{}, kineStore).
+			WithResourceAndStorage(&ctrlv1alpha1.Proxy{}, kineStore).
+			WithResourceAndStorage(&policyv1alpha1.RateLimit{}, kineStore).
+			WithResourceAndStorage(&extensionsv1alpha1.EdgeFunction{}, kineStore).
+			WithResourceAndStorage(&gatewayv1.GatewayClass{}, kineStore).
+			WithResourceAndStorage(&gatewayv1.Gateway{}, kineStore).
+			WithResourceAndStorage(&gatewayv1.HTTPRoute{}, kineStore).
+			WithResourceAndStorage(&gatewayv1.GRPCRoute{}, kineStore).
 			DisableAuthorization().
 			WithOptionsFns(func(o *builder.ServerOptions) *builder.ServerOptions {
 				o.StdErr = io.Discard
@@ -281,15 +286,15 @@ func Start(
 			}).
 			WithoutEtcd().
 			Execute(); err != nil {
-			log.Fatalf("Failed to start APIServer: %v", err)
+			readyCh <- err
 		}
 	}()
 	go func() {
-		if err := waitForReadyz("https://127.0.0.1:443", 10*time.Second); err != nil {
+		if err := waitForReadyz("https://127.0.0.1:443", 30*time.Second); err != nil {
 			log.Fatalf("Failed to wait for APIServer: %v", err)
 		}
 		log.Infof("APIServer is ready")
-		readyCh <- struct{}{}
+		readyCh <- nil
 	}()
 
 	log.Infof("Waiting for APIServer...")
@@ -297,12 +302,18 @@ func Start(
 	select {
 	case <-ctx.Done():
 		log.Fatalf("Context cancelled while while waiting for APIServer: %v", ctx.Err())
-	case <-readyCh:
+	case err, ok := <-readyCh:
+		if !ok {
+			return nil, errors.New("APIServer failed to start")
+		}
+		if err != nil {
+			return nil, fmt.Errorf("APIServer failed to start: %v", err)
+		}
 	}
 
 	certSrc, err := newSelfSignedCert()
 	if err != nil {
-		log.Fatalf("Failed to generate self-signed certificate: %v", err)
+		return nil, fmt.Errorf("failed to generate self-signed certificate: %v", err)
 	}
 	whSrvOpts := webhook.Options{
 		TLSOpts: []func(*tls.Config){
@@ -318,7 +329,7 @@ func Start(
 		WebhookServer:  webhook.NewServer(whSrvOpts),
 	})
 	if err != nil {
-		log.Fatalf("unable to start manager: %v", err)
+		return nil, fmt.Errorf("unable to start manager: %v", err)
 	}
 
 	return mgr, nil

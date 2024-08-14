@@ -2,8 +2,10 @@ package apiserver
 
 import (
 	"context"
+	goruntime "runtime"
 	"time"
 
+	driversgeneric "github.com/k3s-io/kine/pkg/drivers/generic"
 	"github.com/k3s-io/kine/pkg/endpoint"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -19,32 +21,33 @@ import (
 )
 
 // NewKineStorage creates a new kine storage.
-func NewKineStorage(ctx context.Context, dsn string) rest.StoreFn {
+func NewKineStorage(ctx context.Context, dsn string) (rest.StoreFn, error) {
+	etcdConfig, err := endpoint.Listen(ctx, endpoint.Config{
+		Endpoint: dsn,
+		Listener: "unix://" + config.ApoxyDir() + "/kine.sock",
+		ConnectionPoolConfig: driversgeneric.ConnectionPoolConfig{
+			MaxOpen: goruntime.NumCPU(),
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
 	return func(scheme *runtime.Scheme, s *genericregistry.Store, options *generic.StoreOptions) {
 		options.RESTOptions = &kineRESTOptionsGetter{
-			ctx:            ctx,
 			scheme:         scheme,
-			dsn:            dsn,
+			etcdConfig:     etcdConfig,
 			groupVersioner: s.StorageVersioner,
 		}
-	}
+	}, nil
 }
 
 type kineRESTOptionsGetter struct {
-	ctx            context.Context
 	scheme         *runtime.Scheme
-	dsn            string
+	etcdConfig     endpoint.ETCDConfig
 	groupVersioner runtime.GroupVersioner
 }
 
 func (g *kineRESTOptionsGetter) GetRESTOptions(resource schema.GroupResource) (generic.RESTOptions, error) {
-	etcdConfig, err := endpoint.Listen(g.ctx, endpoint.Config{
-		Endpoint: g.dsn,
-		Listener: "unix://" + config.ApoxyDir() + "/kine.sock",
-	})
-	if err != nil {
-		return generic.RESTOptions{}, err
-	}
 	s := json.NewSerializer(json.DefaultMetaFactory, g.scheme, g.scheme, false)
 	codec := serializer.NewCodecFactory(g.scheme).
 		CodecForVersions(s, s, g.groupVersioner, g.groupVersioner)
@@ -61,10 +64,10 @@ func (g *kineRESTOptionsGetter) GetRESTOptions(resource schema.GroupResource) (g
 				Prefix: "/kine/",
 				Codec:  codec,
 				Transport: storagebackend.TransportConfig{
-					ServerList:    etcdConfig.Endpoints,
-					TrustedCAFile: etcdConfig.TLSConfig.CAFile,
-					CertFile:      etcdConfig.TLSConfig.CertFile,
-					KeyFile:       etcdConfig.TLSConfig.KeyFile,
+					ServerList:    g.etcdConfig.Endpoints,
+					TrustedCAFile: g.etcdConfig.TLSConfig.CAFile,
+					CertFile:      g.etcdConfig.TLSConfig.CertFile,
+					KeyFile:       g.etcdConfig.TLSConfig.KeyFile,
 				},
 			},
 		},
