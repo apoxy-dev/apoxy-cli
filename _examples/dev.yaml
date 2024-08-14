@@ -51,9 +51,11 @@ spec:
     - ifconfig.me
   rules:
     - filters:
-        - type: URLRewrite
-          urlRewrite:
-            hostname: ifconfig.me
+        - type: ExtensionRef
+          extensionRef:
+            kind: EdgeFunction
+            group: extensions.apoxy.dev
+            name: websocket
       backendRefs:
         - kind: Backend
           name: ifconfig
@@ -62,7 +64,7 @@ spec:
 apiVersion: extensions.apoxy.dev/v1alpha1
 kind: EdgeFunction
 metadata:
-  name: hello
+  name: websocket
 spec:
   code:
     goPluginSource:

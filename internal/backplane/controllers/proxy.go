@@ -53,6 +53,7 @@ type options struct {
 	chConn                   clickhouse.Conn
 	apiServerTLSClientConfig *tls.Config
 	goPluginDir              string
+	useEnvoyContrib          bool
 }
 
 // Option is a functional option for ProxyReconciler.
@@ -78,6 +79,13 @@ func WithAPIServerTLSClientConfig(tlsConfig *tls.Config) Option {
 func WithGoPluginDir(dir string) Option {
 	return func(o *options) {
 		o.goPluginDir = dir
+	}
+}
+
+// WithEnvoyContrib enables the use of Envoy contrib filters.
+func WithEnvoyContrib() Option {
+	return func(o *options) {
+		o.useEnvoyContrib = true
 	}
 }
 
@@ -266,14 +274,16 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 		opts := []envoy.Option{
 			envoy.WithBootstrapConfigYAML(cfg),
 			envoy.WithCluster(p.Name),
+			envoy.WithRelease(&envoy.Release{
+				// TODO(dilyevsky): Pass these values from the Proxy object.
+				Contrib: r.options.useEnvoyContrib,
+			}),
+			envoy.WithGoPluginDir(r.options.goPluginDir),
 		}
 		if r.options.chConn != nil {
 			pUUID, _ := uuid.Parse(string(p.UID))
 			lc := logs.NewClickHouseLogsCollector(r.options.chConn, pUUID)
 			opts = append(opts, envoy.WithLogsCollector(lc))
-		}
-		if r.options.goPluginDir != "" {
-			opts = append(opts, envoy.WithGoPluginDir(r.options.goPluginDir))
 		}
 
 		if err := r.Start(ctx, opts...); err != nil {

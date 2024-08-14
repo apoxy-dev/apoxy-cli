@@ -78,20 +78,26 @@ func buildHCMEdgeFuncFilter(un *unstructured.Unstructured) (*hcmv3.HttpFilter, e
 
 	pluginConfig := structpb.Struct{}
 	// Parse JSON string into Struct
-	if err := protojson.Unmarshal(fun.Spec.Code.GoPluginSource.PluginConfig, &pluginConfig); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal plugin config: %w", err)
+	if fun.Spec.Code.GoPluginSource.PluginConfig != nil {
+		if err := protojson.Unmarshal(fun.Spec.Code.GoPluginSource.PluginConfig, &pluginConfig); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal plugin config: %w", err)
+		}
 	}
 	pluginAny, err := anypb.New(&pluginConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal plugin config: %w", err)
 	}
 
+	pluginName := fun.Name
+	if fun.Spec.Code.Name != "" {
+		pluginName += "/" + fun.Spec.Code.Name
+	}
 	var edgeFuncAny *anypb.Any
-	if fun.Spec.Code.GoPluginSource == nil {
+	if fun.Spec.Code.GoPluginSource != nil {
 		msg := &golangv3alpha.Config{
-			LibraryId:   fun.Status.Revisions[0].Ref,
-			LibraryPath: fmt.Sprintf("go/%s/func.so", fun.Status.Revisions[0].Ref),
-			//PluginName: fun.Spec.Code.GoPluginSource.Name,
+			LibraryId:    fun.Status.Revisions[0].Ref,
+			LibraryPath:  fmt.Sprintf("go/%s/func.so", fun.Status.Revisions[0].Ref),
+			PluginName:   pluginName,
 			PluginConfig: pluginAny,
 			//MergePolicy: ...
 		}

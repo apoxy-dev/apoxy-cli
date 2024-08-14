@@ -55,7 +55,10 @@ var (
 
 	wasmExtProcPort = flag.Int("wasm_ext_proc_port", 2020, "Port for the WASM extension processor.")
 	wasmStorePort   = flag.Int("wasm_store_port", 8081, "Port for the remote WASM store.")
-	goPluginDir     = flag.String("go_plugin_dir", "/var/lib/apoxy/go", "Directory for Go plugins.")
+
+	goPluginDir = flag.String("go_plugin_dir", "/var/lib/apoxy/go", "Directory for Go plugins.")
+
+	useEnvoyContrib = flag.Bool("use_envoy_contrib", false, "Use Envoy contrib filters.")
 )
 
 func main() {
@@ -153,11 +156,20 @@ func main() {
 	}
 
 	log.Infof("Setting up controllers")
+	proxyOpts := []bpctrl.Option{
+		bpctrl.WithGoPluginDir(*goPluginDir),
+	}
+	if chConn != nil {
+		proxyOpts = append(proxyOpts, bpctrl.WithClickHouseConn(chConn))
+	}
+	if *useEnvoyContrib {
+		proxyOpts = append(proxyOpts, bpctrl.WithEnvoyContrib())
+	}
 	if err := bpctrl.NewProxyReconciler(
 		mgr.GetClient(),
 		*replicaName,
 		*apiserverHost,
-		bpctrl.WithClickHouseConn(chConn),
+		proxyOpts...,
 	).SetupWithManager(ctx, mgr, *proxyName); err != nil {
 		log.Errorf("failed to set up Backplane controller: %v", err)
 		return

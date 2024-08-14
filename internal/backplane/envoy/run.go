@@ -39,6 +39,7 @@ var (
 type Release struct {
 	Version string
 	Sha     string
+	Contrib bool
 }
 
 func (r *Release) String() string {
@@ -63,6 +64,13 @@ func (r *Release) DownloadBinaryFromGitHub(ctx context.Context) (io.ReadCloser, 
 		r.Version,
 		fmt.Sprintf("envoy-%s-%s-%s", r.Version[1:], runtime.GOOS, goArchToPlatform[runtime.GOARCH]),
 	)
+	if r.Contrib {
+		downloadURL = filepath.Join(
+			githubURL,
+			r.Version,
+			fmt.Sprintf("envoy-contrib-%s-%s-%s", r.Version[1:], runtime.GOOS, goArchToPlatform[runtime.GOARCH]),
+		)
+	}
 
 	log.Infof("downloading envoy %s from https://%s", r, downloadURL)
 
@@ -192,6 +200,7 @@ func (r *Runtime) run(ctx context.Context) error {
 
 	runDir := os.TempDir()
 	if r.goPluginDir != "" {
+		log.Infof("linking go plugin directory %s to runDir %s", r.goPluginDir, runDir)
 		// Link the Go plugin directory to the run directory.
 		if err := os.Symlink(r.goPluginDir, filepath.Join(runDir, "go")); err != nil {
 			return fmt.Errorf("failed to symlink go plugin directory: %w", err)

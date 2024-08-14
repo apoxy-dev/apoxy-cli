@@ -373,6 +373,11 @@ func (r *GatewayReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manag
 			handler.EnqueueRequestsFromMapFunc(r.enqueueClass),
 			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
 		).
+		Watches(
+			&extensionsv1alpha1.EdgeFunction{},
+			handler.EnqueueRequestsFromMapFunc(r.enqueueClass),
+			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
+		).
 		Complete(r)
 }
 

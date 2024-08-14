@@ -13,6 +13,7 @@ import (
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/apoxy-dev/apoxy-cli/internal/gateway/ir"
+	"github.com/apoxy-dev/apoxy-cli/internal/log"
 )
 
 type FiltersTranslator interface {
@@ -72,11 +73,14 @@ func (t *Translator) ProcessHTTPFilters(parentRef *RouteParentContext,
 	}
 	for i := range filters {
 		filter := filters[i]
+		log.Infof("Processing HTTP filter: %s", filter.Type)
 		// If an invalid filter type has been configured then skip processing any more filters
 		if httpFiltersContext.DirectResponse != nil {
+			log.Warnf("Skipping processing of HTTP filters as a DirectResponse has been configured")
 			break
 		}
 		if err := ValidateHTTPRouteFilter(&filter, t.ExtensionGroupKinds...); err != nil {
+			log.Errorf("Error validating HTTP filter: %s", err)
 			t.processInvalidHTTPFilter(string(filter.Type), httpFiltersContext, err)
 			break
 		}
@@ -659,9 +663,11 @@ func (t *Translator) processExtensionRefHTTPFilter(extFilter *gwapiv1.LocalObjec
 
 	// This list of resources will be empty unless an extension is loaded (and introduces resources)
 	for _, res := range resources.ExtensionRefFilters {
+		log.Debugf("Checking if resource gvk=%v name=%s matches filter %+v", res.GroupVersionKind(), res.GetName(), *extFilter)
 		if res.GetKind() == string(extFilter.Kind) &&
 			res.GetName() == string(extFilter.Name) &&
 			res.GroupVersionKind().Group == string(extFilter.Group) {
+			log.Infof("Found matching extension filter: %+v", *extFilter)
 			filterContext.ExtensionRefs = append(filterContext.ExtensionRefs, &ir.UnstructuredRef{
 				Object: &res,
 			})

@@ -115,6 +115,7 @@ func (d *dockerDriver) Start(
 		"--proxy=" + proxyName,
 		"--replica=" + proxyName,
 		"--apiserver_host=host.docker.internal",
+		"--use_envoy_contrib=true",
 	}...)
 	cmd.Args = append(cmd.Args, setOpts.Args...)
 

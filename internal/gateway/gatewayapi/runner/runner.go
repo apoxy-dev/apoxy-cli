@@ -4,6 +4,7 @@ import (
 	"context"
 
 	egv1a1 "github.com/envoyproxy/gateway/api/v1alpha1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -12,10 +13,18 @@ import (
 	"github.com/apoxy-dev/apoxy-cli/internal/gateway/message"
 	"github.com/apoxy-dev/apoxy-cli/internal/gateway/utils"
 	"github.com/apoxy-dev/apoxy-cli/internal/log"
+
+	extensionsv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1"
 )
 
 const (
 	ControllerName = "gateway.apoxy.dev/gatewayclass-controller"
+)
+
+var (
+	extensionsGroupKinds = []schema.GroupKind{
+		{Group: extensionsv1alpha1.GroupVersion.Group, Kind: "EdgeFunction"},
+	}
 )
 
 // Config is the gateway-api translator runner configuration.
@@ -83,6 +92,7 @@ func (r *Runner) subscribeAndTranslate(ctx context.Context) {
 				t := &gatewayapi.Translator{
 					GatewayControllerName: ControllerName,
 					GatewayClassName:      gwapiv1.ObjectName(resources.GatewayClass.Name),
+					ExtensionGroupKinds:   extensionsGroupKinds,
 				}
 
 				log.Info("translating resources", "resources", resources)

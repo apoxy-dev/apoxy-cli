@@ -4,8 +4,9 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
+	"os"
+	"path/filepath"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -43,13 +44,13 @@ func NewEdgeFuncReconciler(
 		Client:        c,
 		apiserverHost: apiserverHost,
 		wasmStore:     wasmStore,
-		goStoreDir:   goStoreDir,
+		goStoreDir:    goStoreDir,
 	}
 }
 
 func (r *EdgeFunctionReconciler) downloadFuncData(
 	ctx context.Context,
-	fnType string
+	fnType string,
 	ref string,
 ) ([]byte, error) {
 	log := clog.FromContext(ctx)
@@ -134,6 +135,10 @@ func (r *EdgeFunctionReconciler) Reconcile(ctx context.Context, request reconcil
 				return ctrl.Result{}, fmt.Errorf("failed to download Wasm data: %w", err)
 			}
 
+			if err := os.MkdirAll(filepath.Join(r.goStoreDir, ref), 0755); err != nil {
+				return ctrl.Result{}, fmt.Errorf("failed to create Go plugin directory: %w", err)
+			}
+
 			if err := os.WriteFile(filepath.Join(r.goStoreDir, ref, "func.so"), soData, 0644); err != nil {
 				return ctrl.Result{}, fmt.Errorf("failed to write Go plugin data: %w", err)
 			}
@@ -158,6 +163,10 @@ func targetRefPredicate(proxyName string) predicate.Funcs {
 		if !ok {
 			return false
 		}
+
+		// TODO(dilyevsky): Check if the EdgeFunction is referenced by the HTTPRoute
+		// attached to one of the managed Proxies.
+		return true
 
 		// Check if the EdgeFunction is owned by the Proxy.
 		for _, owner := range f.GetOwnerReferences() {
@@ -187,6 +196,9 @@ func (r *EdgeFunctionReconciler) SetupWithManager(
 	mgr ctrl.Manager,
 	proxyName string,
 ) error {
+	if err := os.MkdirAll(filepath.Join(r.goStoreDir), 0755); err != nil {
+		return fmt.Errorf("failed to create Go plugin directory: %w", err)
+	}
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.EdgeFunction{},
 			builder.WithPredicates(
