@@ -13,8 +13,12 @@ import (
 	"strings"
 	"time"
 
+	gw "github.com/apoxy-dev/apoxy-cli/internal/gateway"
+	tclient "go.temporal.io/sdk/client"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apiserver/pkg/authentication/authenticator"
+	"k8s.io/apiserver/pkg/authentication/user"
 	"k8s.io/apiserver/pkg/authorization/authorizerfactory"
 	apiserver "k8s.io/apiserver/pkg/server"
 	apiserveropts "k8s.io/apiserver/pkg/server/options"
@@ -31,6 +35,9 @@ import (
 
 	"github.com/apoxy-dev/apoxy-cli/config"
 	"github.com/apoxy-dev/apoxy-cli/internal/apiserver/auth"
+	"github.com/apoxy-dev/apoxy-cli/internal/apiserver/controllers"
+	"github.com/apoxy-dev/apoxy-cli/internal/apiserver/extensions"
+	"github.com/apoxy-dev/apoxy-cli/internal/apiserver/gateway"
 	"github.com/apoxy-dev/apoxy-cli/internal/log"
 	"github.com/sirupsen/logrus"
 
@@ -110,7 +117,8 @@ type Option func(*options)
 
 type options struct {
 	clientConfig          *rest.Config
-	enableAuth            bool
+	enableSimpleAuth      bool
+	enableInClusterAuth   bool
 	sqlitePath            string
 	certPairName, certDir string
 }
@@ -122,10 +130,17 @@ func WithClientConfig(cfg *rest.Config) Option {
 	}
 }
 
-// WithAuth enables authentication.
-func WithAuth() Option {
+// WithSimpleAuth enables authentication.
+func WithSimpleAuth() Option {
 	return func(o *options) {
-		o.enableAuth = true
+		o.enableSimpleAuth = true
+	}
+}
+
+// WithInClusterAuth enables in-cluster authentication.
+func WithInClusterAuth() Option {
+	return func(o *options) {
+		o.enableInClusterAuth = true
 	}
 }
 
@@ -145,20 +160,84 @@ func WithCerts(certPairName, certDir string) Option {
 	}
 }
 
+// WithGateway
+
 // defaultOptions returns default options.
 func defaultOptions() *options {
 	return &options{
-		clientConfig: NewClientConfig(),
-		enableAuth:   false,
-		sqlitePath:   config.ApoxyDir() + "/apoxy.db",
-		certPairName: "",
-		certDir:      "",
+		clientConfig:        NewClientConfig(),
+		enableSimpleAuth:    false,
+		enableInClusterAuth: false,
+		sqlitePath:          config.ApoxyDir() + "/apoxy.db",
+		certPairName:        "",
+		certDir:             "",
 	}
 }
 
-// Start starts the API server and returns the manager (that can be used to start the controller
+// Manager manages APIServer instance as well as built-in controllers.
+type Manager struct {
+	ReadyCh chan struct{}
+
+	manager manager.Manager
+}
+
+// New creates a new API server manager.
+func New() *Manager {
+	return &Manager{
+		ReadyCh: make(chan struct{}),
+	}
+}
+
+// Start starts the API server manager with the given options and blocks forever or
+// until the context is canceled (whichever comes first).
+// It returns an error if the manager fails to start.
+// The manager is ready to serve when the ReadyCh channel is closed.
+func (m *Manager) Start(
+	ctx context.Context,
+	gwSrv *gw.Server,
+	tc tclient.Client,
+	opts ...Option,
+) error {
+	var err error
+	m.manager, err = start(ctx, opts...)
+	if err != nil {
+		close(m.ReadyCh)
+		return err
+	}
+	close(m.ReadyCh)
+
+	if err := controllers.NewProxyReconciler(
+		m.manager.GetClient(),
+	).SetupWithManager(ctx, m.manager); err != nil {
+		return fmt.Errorf("failed to set up Project controller: %v", err)
+	}
+	if err := (&ctrlv1alpha1.Proxy{}).SetupWebhookWithManager(m.manager); err != nil {
+		return fmt.Errorf("failed to set up Proxy webhook: %v", err)
+	}
+
+	if err := gateway.NewGatewayReconciler(
+		m.manager.GetClient(),
+		gwSrv.Resources,
+	).SetupWithManager(ctx, m.manager); err != nil {
+		return fmt.Errorf("failed to set up Project controller: %v", err)
+	}
+
+	if err := extensions.NewEdgeFuncReconciler(
+		m.manager.GetClient(),
+		tc,
+	).SetupWithManager(ctx, m.manager); err != nil {
+		return fmt.Errorf("failed to set up Project controller: %v", err)
+	}
+	if err := (&extensionsv1alpha1.EdgeFunction{}).SetupWebhookWithManager(m.manager); err != nil {
+		return fmt.Errorf("failed to set up EdgeFunction webhook: %v", err)
+	}
+
+	return m.manager.Start(ctx)
+}
+
+// start starts the API server and returns the manager (that can be used to start the controller
 // manager). The manager must be started by the caller.
-func Start(
+func start(
 	ctx context.Context,
 	opts ...Option,
 ) (manager.Manager, error) {
@@ -176,9 +255,13 @@ func Start(
 		},
 		flag.Args()...) // Keep non-flag arguments.
 
-	sAuth, err := auth.NewHeaderAuthenticator()
-	if err != nil {
-		log.Fatalf("Failed to create authenticator: %v", err)
+	var simpleAuth authenticator.Request
+	if dOpts.enableSimpleAuth {
+		var err error
+		simpleAuth, err = auth.NewHeaderAuthenticator()
+		if err != nil {
+			log.Fatalf("Failed to create authenticator: %v", err)
+		}
 	}
 
 	l := log.New(config.Verbose)
@@ -250,18 +333,20 @@ func Start(
 					},
 				}
 
-				// if *enableAuth {
-				//	o.RecommendedOptions.Authentication = options.NewDelegatingAuthenticationOptions()
-				//	o.RecommendedOptions.Authentication.RemoteKubeConfigFileOptional = true
+				if dOpts.enableInClusterAuth {
+					o.RecommendedOptions.Authentication = apiserveropts.NewDelegatingAuthenticationOptions()
+					o.RecommendedOptions.Authentication.RemoteKubeConfigFileOptional = true
 
-				//	o.RecommendedOptions.Authorization = options.NewDelegatingAuthorizationOptions()
-				//	o.RecommendedOptions.Authorization.RemoteKubeConfigFileOptional = true
-				//	o.RecommendedOptions.Authorization.AlwaysAllowPaths = []string{"healthz"}
-				//	o.RecommendedOptions.Authorization.AlwaysAllowGroups = []string{user.SystemPrivilegedGroup, "apoxy"}
-				//} else {
-				//	o.RecommendedOptions.Authentication = nil
-				//	o.RecommendedOptions.Authorization = nil
-				//}
+					o.RecommendedOptions.Authorization = apiserveropts.NewDelegatingAuthorizationOptions()
+					o.RecommendedOptions.Authorization.RemoteKubeConfigFileOptional = true
+					o.RecommendedOptions.Authorization.AlwaysAllowPaths = []string{"healthz"}
+					o.RecommendedOptions.Authorization.AlwaysAllowGroups = []string{
+						user.SystemPrivilegedGroup,
+					}
+				} else {
+					o.RecommendedOptions.Authentication = nil
+					o.RecommendedOptions.Authorization = nil
+				}
 
 				return o
 			}).
@@ -276,12 +361,11 @@ func Start(
 				)
 				c.FlowControl = nil
 
-				if dOpts.enableAuth {
-					// These are matched in order, so we want to match the header request
-					// before falling back to anonymous.
-					c.Authentication.Authenticator = sAuth
+				if dOpts.enableSimpleAuth {
+					c.Authentication.Authenticator = simpleAuth
 					c.Authorization.Authorizer = authorizerfactory.NewAlwaysAllowAuthorizer()
 				}
+
 				return c
 			}).
 			WithoutEtcd().

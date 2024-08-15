@@ -29,9 +29,6 @@ import (
 
 	"github.com/apoxy-dev/apoxy-cli/config"
 	"github.com/apoxy-dev/apoxy-cli/internal/apiserver"
-	apiserverctrl "github.com/apoxy-dev/apoxy-cli/internal/apiserver/controllers"
-	apiserverext "github.com/apoxy-dev/apoxy-cli/internal/apiserver/extensions"
-	apiservergw "github.com/apoxy-dev/apoxy-cli/internal/apiserver/gateway"
 	"github.com/apoxy-dev/apoxy-cli/internal/apiserver/ingest"
 	bpdrivers "github.com/apoxy-dev/apoxy-cli/internal/backplane/drivers"
 	"github.com/apoxy-dev/apoxy-cli/internal/backplane/portforward"
@@ -51,9 +48,9 @@ var (
 )
 
 func init() {
-	utilruntime.Must(ctrlv1alpha1.AddToScheme(scheme))
-	utilruntime.Must(policyv1alpha1.AddToScheme(scheme))
-	utilruntime.Must(extensionsv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(ctrlv1alpha1.Install(scheme))
+	utilruntime.Must(policyv1alpha1.Install(scheme))
+	utilruntime.Must(extensionsv1alpha1.Install(scheme))
 }
 
 func maybeNamespaced(un *unstructured.Unstructured) string {
@@ -299,58 +296,17 @@ allowing you to test and develop your proxy infrastructure.`,
 			}
 		}()
 
-		startCh := make(chan error)
+		m := apiserver.New()
 		go func() {
 			// TODO(dsky): Need to properly structure sqlite options to avoid these
 			// dsn incantations.
-			mgr, err := apiserver.Start(ctx, apiserver.WithSQLitePath("file::memory:?_journal=WAL&cache=shared&_busy_timeout=30000"))
-			if err != nil {
+			if err := m.Start(ctx, gwSrv, tc, apiserver.WithSQLitePath("file::memory:?_journal=WAL&cache=shared&_busy_timeout=30000")); err != nil {
 				log.Errorf("failed to start API server: %v", err)
-				startCh <- err
-				return
-			}
-			startCh <- nil
-
-			if err := apiserverctrl.NewProxyReconciler(
-				mgr.GetClient(),
-			).SetupWithManager(ctx, mgr); err != nil {
-				log.Errorf("failed to set up Project controller: %v", err)
-				return
-			}
-			if err := (&ctrlv1alpha1.Proxy{}).SetupWebhookWithManager(mgr); err != nil {
-				log.Errorf("failed to set up Proxy webhook: %v", err)
-				return
-			}
-
-			if err := apiservergw.NewGatewayReconciler(
-				mgr.GetClient(),
-				gwSrv.Resources,
-			).SetupWithManager(ctx, mgr); err != nil {
-				log.Errorf("failed to set up Project controller: %v", err)
-				return
-			}
-
-			if err := apiserverext.NewEdgeFuncReconciler(
-				mgr.GetClient(),
-				tc,
-			).SetupWithManager(ctx, mgr); err != nil {
-				log.Errorf("failed to set up Project controller: %v", err)
-				return
-			}
-			if err := (&extensionsv1alpha1.EdgeFunction{}).SetupWebhookWithManager(mgr); err != nil {
-				log.Errorf("failed to set up EdgeFunction webhook: %v", err)
-				return
-			}
-
-			if err := mgr.Start(ctx); err != nil {
-				log.Errorf("failed to start manager: %v", err)
+				ctxCancel(&runError{Err: err})
 			}
 		}()
 		select {
-		case err := <-startCh:
-			if err != nil {
-				return err
-			}
+		case <-m.ReadyCh:
 		case <-ctx.Done():
 			return nil
 		}

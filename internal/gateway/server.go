@@ -9,18 +9,18 @@ import (
 	xdstranslatorrunner "github.com/apoxy-dev/apoxy-cli/internal/gateway/xds/translator/runner"
 )
 
-type server struct {
+type Server struct {
 	Resources *message.ProviderResources
 }
 
 // NewServer creates a new Gateway API server.
-func NewServer() *server {
-	return &server{
+func NewServer() *Server {
+	return &Server{
 		Resources: new(message.ProviderResources),
 	}
 }
 
-func (s *server) Run(ctx context.Context) error {
+func (s *Server) Run(ctx context.Context) error {
 	xdsIR := new(message.XdsIR)
 	// Start the GatewayAPI Translator Runner
 	// It subscribes to the provider resources, translates it to xDS IR
