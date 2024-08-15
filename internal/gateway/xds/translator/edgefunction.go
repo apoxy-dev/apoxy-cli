@@ -90,7 +90,7 @@ func buildHCMEdgeFuncFilter(un *unstructured.Unstructured) (*hcmv3.HttpFilter, e
 
 	pluginName := fun.Name
 	if fun.Spec.Code.Name != "" {
-		pluginName += "/" + fun.Spec.Code.Name
+		pluginName = fun.Spec.Code.Name
 	}
 	var edgeFuncAny *anypb.Any
 	if fun.Spec.Code.GoPluginSource != nil {
