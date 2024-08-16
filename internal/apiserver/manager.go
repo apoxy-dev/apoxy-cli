@@ -120,6 +120,7 @@ type options struct {
 	enableSimpleAuth      bool
 	enableInClusterAuth   bool
 	sqlitePath            string
+	sqliteConnArgs        map[string]string
 	certPairName, certDir string
 }
 
@@ -152,6 +153,13 @@ func WithSQLitePath(path string) Option {
 	}
 }
 
+// WithSQLiteConnArgs sets the SQLite connection arguments.
+func WithInMemorySQLite() Option {
+	return func(o *options) {
+		o.sqlitePath = "file::memory:"
+	}
+}
+
 // WithCerts sets the certificate pair name and directory.
 func WithCerts(certPairName, certDir string) Option {
 	return func(o *options) {
@@ -160,7 +168,30 @@ func WithCerts(certPairName, certDir string) Option {
 	}
 }
 
-// WithGateway
+// WithSQLiteConnArgs sets the SQLite connection arguments.
+// The default values are:
+//
+//	cache=shared
+//	_journal_mode=WAL
+//	_busy_timeout=30000
+func WithSQLiteConnArgs(args map[string]string) Option {
+	return func(o *options) {
+		o.sqliteConnArgs = args
+	}
+}
+
+func encodeSQLiteConnArgs(args map[string]string) string {
+	var buf strings.Builder
+	for k, v := range args {
+		if buf.Len() > 0 {
+			buf.WriteString("&")
+		}
+		buf.WriteString(k)
+		buf.WriteString("=")
+		buf.WriteString(v)
+	}
+	return buf.String()
+}
 
 // defaultOptions returns default options.
 func defaultOptions() *options {
@@ -169,8 +200,13 @@ func defaultOptions() *options {
 		enableSimpleAuth:    false,
 		enableInClusterAuth: false,
 		sqlitePath:          config.ApoxyDir() + "/apoxy.db",
-		certPairName:        "",
-		certDir:             "",
+		sqliteConnArgs: map[string]string{
+			"cache":         "shared",
+			"_journal_mode": "WAL",
+			"_busy_timeout": "30000",
+		},
+		certPairName: "",
+		certDir:      "",
 	}
 }
 
@@ -282,7 +318,13 @@ func start(
 				}
 			}
 		}
-		kineStore, err := NewKineStorage(ctx, "sqlite://"+dOpts.sqlitePath)
+		sqliteConn := "sqlite://" + dOpts.sqlitePath
+		connArgs := encodeSQLiteConnArgs(dOpts.sqliteConnArgs)
+		if connArgs != "" {
+			sqliteConn += "?" + connArgs
+		}
+		log.Debugf("Using SQLite connection: %s", sqliteConn)
+		kineStore, err := NewKineStorage(ctx, sqliteConn)
 		if err != nil {
 			readyCh <- fmt.Errorf("failed to create kine storage: %w", err)
 			return

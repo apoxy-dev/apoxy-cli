@@ -300,7 +300,7 @@ allowing you to test and develop your proxy infrastructure.`,
 		go func() {
 			// TODO(dsky): Need to properly structure sqlite options to avoid these
 			// dsn incantations.
-			if err := m.Start(ctx, gwSrv, tc, apiserver.WithSQLitePath("file::memory:?_journal=WAL&cache=shared&_busy_timeout=30000")); err != nil {
+			if err := m.Start(ctx, gwSrv, tc, apiserver.WithInMemorySQLite()); err != nil {
 				log.Errorf("failed to start API server: %v", err)
 				ctxCancel(&runError{Err: err})
 			}
