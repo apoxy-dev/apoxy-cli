@@ -2,11 +2,18 @@ package apiserver
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
+	"math"
+	"math/big"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -18,9 +25,11 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apiserver/pkg/authentication/authenticator"
+	"k8s.io/apiserver/pkg/authentication/request/union"
 	"k8s.io/apiserver/pkg/authentication/user"
 	"k8s.io/apiserver/pkg/authorization/authorizerfactory"
 	apiserver "k8s.io/apiserver/pkg/server"
+	"k8s.io/apiserver/pkg/server/dynamiccertificates"
 	apiserveropts "k8s.io/apiserver/pkg/server/options"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -47,6 +56,11 @@ import (
 	gatewayv1 "github.com/apoxy-dev/apoxy-cli/api/gateway/v1"
 	apoxyopenapi "github.com/apoxy-dev/apoxy-cli/api/generated"
 	policyv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/policy/v1alpha1"
+)
+
+const (
+	apiserverCA   = "apoxy-apiserver-ca"
+	apiserverUser = "apoxy-apiserver"
 )
 
 var scheme = runtime.NewScheme()
@@ -88,21 +102,67 @@ func waitForReadyz(url string, timeout time.Duration) error {
 	}
 }
 
-type certSource struct {
-	cert, key []byte
+func generateSelfSignedCerts(certDir, pairName string) (certFile, keyFile string, caFile string, err error) {
+	caKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return "", "", "", fmt.Errorf("failed to generate private key: %w", err)
+	}
+	cfg := certutil.Config{
+		CommonName: apiserverCA,
+	}
+	caCert, err := certutil.NewSelfSignedCACert(cfg, caKey)
+	if err != nil {
+		return "", "", "", fmt.Errorf("failed to generate self-signed certificate: %w", err)
+	}
+
+	certKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return "", "", "", fmt.Errorf("failed to generate private key: %w", err)
+	}
+	serial, err := rand.Int(rand.Reader, new(big.Int).SetInt64(math.MaxInt64-1))
+	if err != nil {
+		return "", "", "", fmt.Errorf("failed to generate serial number: %w", err)
+	}
+	serial = new(big.Int).Add(serial, big.NewInt(1))
+	validFrom := time.Now().Add(-time.Hour)
+	template := x509.Certificate{
+		SerialNumber: serial,
+		Subject: pkix.Name{
+			CommonName: apiserverUser,
+		},
+
+		NotBefore: validFrom,
+		NotAfter:  validFrom.Add(365 * 24 * time.Hour),
+
+		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		BasicConstraintsValid: true,
+	}
+	certBytes, err := x509.CreateCertificate(rand.Reader, &template, caCert, certKey.Public(), caKey)
+	if err != nil {
+		return "", "", "", fmt.Errorf("failed to create certificate: %w", err)
+	}
+
+	if err := os.MkdirAll(certDir, 0755); err != nil {
+		return "", "", "", fmt.Errorf("failed to create certificate directory: %w", err)
+	}
+	certFile = filepath.Join(certDir, pairName+".crt")
+	keyFile = filepath.Join(certDir, pairName+".key")
+	caFile = filepath.Join(certDir, "ca.crt")
+	if err := os.WriteFile(certFile, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certBytes}), 0644); err != nil {
+		return "", "", "", fmt.Errorf("failed to write certificate: %w", err)
+	}
+	if err := os.WriteFile(keyFile, pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(certKey)}), 0600); err != nil {
+		return "", "", "", fmt.Errorf("failed to write private key: %w", err)
+	}
+	if err := os.WriteFile(caFile, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: caCert.Raw}), 0644); err != nil {
+		return "", "", "", fmt.Errorf("failed to write CA certificate: %w", err)
+	}
+	return certFile, keyFile, caFile, nil
 }
 
-func newSelfSignedCert() (*certSource, error) {
-	cert, key, err := certutil.GenerateSelfSignedCertKeyWithFixtures(
-		"localhost",
-		nil, // IP addresses
-		nil, // alternate names
-		"",
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate self-signed certificate: %w", err)
-	}
-	return &certSource{cert: cert, key: key}, nil
+type certSource struct {
+	cert, key []byte
 }
 
 func (c *certSource) GetCertificate(*tls.ClientHelloInfo) (*tls.Certificate, error) {
@@ -205,8 +265,8 @@ func defaultOptions() *options {
 			"_journal_mode": "WAL",
 			"_busy_timeout": "30000",
 		},
-		certPairName: "",
 		certDir:      "",
+		certPairName: "tls",
 	}
 }
 
@@ -281,6 +341,72 @@ func start(
 	for _, o := range opts {
 		o(dOpts)
 	}
+
+	var (
+		genCert         dynamiccertificates.CertKeyContentProvider
+		localClientAuth authenticator.Request
+
+		serverCertFile string
+		serverKeyFile  string
+		serverCAFile   string
+
+		err error
+	)
+
+	if dOpts.certDir == "" {
+		log.Infof("No certificate directory provided. Creating self-signed certificate...")
+		certDir, err := os.MkdirTemp(os.TempDir(), "apoxy-cert-*")
+		if err != nil {
+			return nil, fmt.Errorf("failed to create temporary directory for self-signed certificate: %v", err)
+		}
+		dOpts.certDir = certDir
+		serverCertFile, serverKeyFile, serverCAFile, err = generateSelfSignedCerts(dOpts.certDir, dOpts.certPairName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate self-signed certificate: %v", err)
+		}
+	} else {
+		log.Infof("Using certificate pair name %q and directory %q", dOpts.certPairName, dOpts.certDir)
+		serverCertFile := filepath.Join(dOpts.certDir, dOpts.certPairName+".crt")
+		if _, err := os.Stat(serverCertFile); err != nil {
+			return nil, fmt.Errorf("failed to stat server certificate file %q: %v", serverCertFile, err)
+		}
+		serverKeyFile := filepath.Join(dOpts.certDir, dOpts.certPairName+".key")
+		if _, err := os.Stat(serverKeyFile); err != nil {
+			return nil, fmt.Errorf("failed to stat server key file %q: %v", serverKeyFile, err)
+		}
+		serverCAFile := filepath.Join(dOpts.certDir, "ca.crt")
+		if _, err := os.Stat(serverCAFile); err != nil {
+			return nil, fmt.Errorf("failed to stat server CA file %q: %v", serverCAFile, err)
+		}
+	}
+
+	if dOpts.enableSimpleAuth {
+		w := auth.NewTransportWrapperFunc(apiserverUser, []string{user.SystemPrivilegedGroup}, nil)
+		dOpts.clientConfig = NewClientConfig(WithTransportWrapper(w))
+	} else if dOpts.enableInClusterAuth {
+		log.Infof("Using in-cluster configuration")
+
+		genCert, err = dynamiccertificates.NewDynamicServingContentFromFiles("serving-cert", serverCertFile, serverKeyFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create dynamic serving content: %v", err)
+		}
+
+		// Generate self-signed client certificate for local client.
+		tmpDir, err := os.MkdirTemp(os.TempDir(), "apoxy-client-certs-*")
+		if err != nil {
+			return nil, fmt.Errorf("failed to create temp dir: %v", err)
+		}
+		clientCertFile, clientKeyFile, clientCAFile, err := generateSelfSignedCerts(tmpDir, "client")
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate self-signed certificate: %v", err)
+		}
+		localClientAuth, err = auth.NewX509Authenticator(clientCAFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create x509 authenticator: %v", err)
+		}
+		dOpts.clientConfig = NewLocalClient(clientCertFile, clientKeyFile, serverCAFile)
+	}
+
 	// Reset flags. APIServer cmd expects its own flagset.
 	flag.CommandLine = flag.NewFlagSet("apiserver", flag.ExitOnError)
 	os.Args = append(
@@ -290,15 +416,6 @@ func start(
 			"--enable-priority-and-fairness=false",
 		},
 		flag.Args()...) // Keep non-flag arguments.
-
-	var simpleAuth authenticator.Request
-	if dOpts.enableSimpleAuth {
-		var err error
-		simpleAuth, err = auth.NewHeaderAuthenticator()
-		if err != nil {
-			log.Fatalf("Failed to create authenticator: %v", err)
-		}
-	}
 
 	l := log.New(config.Verbose)
 	ctrl.SetLogger(l)
@@ -369,8 +486,7 @@ func start(
 						BindAddress: netutils.ParseIPSloppy("0.0.0.0"),
 						BindPort:    443,
 						ServerCert: apiserveropts.GeneratableKeyCert{
-							PairName:      dOpts.certPairName,
-							CertDirectory: dOpts.certDir,
+							GeneratedCert: genCert,
 						},
 					},
 				}
@@ -404,8 +520,17 @@ func start(
 				c.FlowControl = nil
 
 				if dOpts.enableSimpleAuth {
-					c.Authentication.Authenticator = simpleAuth
+					// For simple auth, we use a header authenticator and an always allow authorizer.
+					c.Authentication.Authenticator = auth.NewHeaderAuthenticator()
 					c.Authorization.Authorizer = authorizerfactory.NewAlwaysAllowAuthorizer()
+				} else if dOpts.enableInClusterAuth {
+					// For in-cluster auth, we use the default delegating (to the kube-apiserver)
+					// authenticator and authorizer.
+					// The union authenticator will try authenticators in order until one succeeds.
+					c.Authentication.Authenticator = union.New(
+						localClientAuth,
+						c.Authentication.Authenticator,
+					)
 				}
 
 				return c
@@ -437,18 +562,11 @@ func start(
 		}
 	}
 
-	certSrc, err := newSelfSignedCert()
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate self-signed certificate: %v", err)
-	}
 	whSrvOpts := webhook.Options{
-		TLSOpts: []func(*tls.Config){
-			func(cfg *tls.Config) {
-				cfg.GetCertificate = certSrc.GetCertificate
-			},
-		},
+		CertDir:  dOpts.certDir,
+		CertName: dOpts.certPairName + ".crt",
+		KeyName:  dOpts.certPairName + ".key",
 	}
-
 	mgr, err := ctrl.NewManager(dOpts.clientConfig, ctrl.Options{
 		Scheme:         scheme,
 		LeaderElection: false,

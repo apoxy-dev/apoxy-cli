@@ -14,7 +14,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/temporalio/cli/temporalcli/devserver"
 	tclient "go.temporal.io/sdk/client"
-	"go.temporal.io/sdk/worker"
 	tworker "go.temporal.io/sdk/worker"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -270,7 +269,7 @@ allowing you to test and develop your proxy infrastructure.`,
 			MaxConcurrentWorkflowTaskExecutionSize: goruntime.NumCPU(),
 			EnableSessionWorker:                    true,
 		}
-		w := worker.New(tc, ingest.EdgeFunctionIngestQueue, wOpts)
+		w := tworker.New(tc, ingest.EdgeFunctionIngestQueue, wOpts)
 		ingest.RegisterWorkflows(w)
 		ww := ingest.NewWorker(c, os.Getenv("TMPDIR"))
 		ww.RegisterActivities(w)
@@ -298,8 +297,6 @@ allowing you to test and develop your proxy infrastructure.`,
 
 		m := apiserver.New()
 		go func() {
-			// TODO(dsky): Need to properly structure sqlite options to avoid these
-			// dsn incantations.
 			if err := m.Start(ctx, gwSrv, tc, apiserver.WithInMemorySQLite()); err != nil {
 				log.Errorf("failed to start API server: %v", err)
 				ctxCancel(&runError{Err: err})
