@@ -45,6 +45,12 @@ type BackendSpec struct {
 	// List of endpoints to connect to.
 	Endpoints []BackendEndpoint `json:"endpoints"`
 
+	// DynamicProxy specifies whether the backend should be dynamically proxied.
+	// If specified, Envoy's HTTP Dynamic Forward Proxy will be used to proxy requests to the backend.
+	// See: https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/http/http_proxy#arch-overview-http-dynamic-forward-proxy
+	// +optional
+	DynamicProxy *DynamicProxySpec `json:"dynamicProxy,omitempty"`
+
 	// Protocol defines the protocol to use for the backend.
 	Protocols []BackendProto `json:"protocols"`
 }
@@ -62,6 +68,60 @@ type BackendEndpoint struct {
 	// +kubebuilder:validation:Format=ipv6
 	// +optional
 	IP string `json:"ip,omitempty"`
+}
+
+type DynamicProxySpec struct {
+	DnsCacheConfig *DynamicProxyDnsCacheConfig `json:"dnsCacheConfig,omitempty"`
+}
+
+type DynamicProxyDNSLookupFamily string
+
+const (
+	// DynamicProxyDNSLookupFamilyAuto specifies that the DNS lookup family should be automatically determined.
+	DynamicProxyDNSLookupFamilyAuto DynamicProxyDNSLookupFamily = "auto"
+	// DynamicProxyDNSLookupFamilyV4Only specifies that the DNS lookup family should be IPv4 only.
+	DynamicProxyDNSLookupFamilyV4Only DynamicProxyDNSLookupFamily = "v4_only"
+	// DynamicProxyDNSLookupFamilyV6Only specifies that the DNS lookup family should be IPv6 only.
+	DynamicProxyDNSLookupFamilyV6Only DynamicProxyDNSLookupFamily = "v6_only"
+	// DynamicProxyDNSLookupFamilyV4Preferred specifies that the DNS lookup family should prefer IPv4.
+	DynamicProxyDNSLookupFamilyV4Preferred DynamicProxyDNSLookupFamily = "v4_preferred"
+	// DynamicProxyDNSLookupFamilyAll specifies that the DNS lookup family should include both IPv4 and IPv6.
+	DynamicProxyDNSLookupFamilyAll DynamicProxyDNSLookupFamily = "all"
+)
+
+type DynamicProxyDnsCacheConfig struct {
+	// Specifies the DNS lookup family to use for the dynamic proxy.
+	// Default is "auto".
+	// +kubebuilder:validation:Enum=auto;v4_only;v6_only;v4_preferred;all
+	// +optional
+	DNSLookupFamily DynamicProxyDNSLookupFamily `json:"dnsLookupFamily,omitempty"`
+
+	// Specifies the refresh rate for *unresolved* DNS hosts. Once a host is resolved, the TTL from the DNS
+	// response is used. If the TTL is not present, the resolved host is cached for 60s by default.
+	// Must be at least 1ms, and defaults to 60s.
+	// +optional
+	DNSRefreshRate *metav1.Duration `json:"dnsRefreshRate,omitempty"`
+
+	// Specifies the minimum refresh rate for DNS hosts. If a host is resolved and the TTL is less than this value, the
+	// host will be refreshed at this rate.
+	// Default is 5s and must be at least 1s.
+	// +optional
+	DNSMinRefreshRate *metav1.Duration `json:"dnsMinRefreshRate,omitempty"`
+
+	// TTL for unused hosts. Hosts that have not been used for this duration will be removed from the cache.
+	// Default is 5m.
+	// +optional
+	HostTTL *metav1.Duration `json:"hostTTL,omitempty"`
+
+	// Maximum number of hosts to cache.
+	// Default is 1024.
+	// +optional
+	MaxHosts *uint32 `json:"maxHosts,omitempty"`
+
+	// Specifies the timeout for DNS queries.
+	// Default is 5s.
+	// +optional
+	DNSQueryTimeout *metav1.Duration `json:"dnsQueryTimeout,omitempty"`
 }
 
 type BackendStatus struct {

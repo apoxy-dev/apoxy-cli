@@ -37,6 +37,8 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainList":                         schema_apoxy_cli_api_core_v1alpha_DomainList(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainSpec":                         schema_apoxy_cli_api_core_v1alpha_DomainSpec(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainStatus":                       schema_apoxy_cli_api_core_v1alpha_DomainStatus(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DynamicProxyDnsCacheConfig":         schema_apoxy_cli_api_core_v1alpha_DynamicProxyDnsCacheConfig(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DynamicProxySpec":                   schema_apoxy_cli_api_core_v1alpha_DynamicProxySpec(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.FileAccessLog":                      schema_apoxy_cli_api_core_v1alpha_FileAccessLog(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.PeerStatus":                         schema_apoxy_cli_api_core_v1alpha_PeerStatus(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.Proxy":                              schema_apoxy_cli_api_core_v1alpha_Proxy(ref),
@@ -1039,6 +1041,12 @@ func schema_apoxy_cli_api_core_v1alpha_BackendSpec(ref common.ReferenceCallback)
 							},
 						},
 					},
+					"dynamicProxy": {
+						SchemaProps: spec.SchemaProps{
+							Description: "DynamicProxy specifies whether the backend should be dynamically proxied. If specified, Envoy's HTTP Dynamic Forward Proxy will be used to proxy requests to the backend. See: https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/http/http_proxy#arch-overview-http-dynamic-forward-proxy",
+							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DynamicProxySpec"),
+						},
+					},
 					"protocols": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Protocol defines the protocol to use for the backend.",
@@ -1059,7 +1067,7 @@ func schema_apoxy_cli_api_core_v1alpha_BackendSpec(ref common.ReferenceCallback)
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.BackendEndpoint"},
+			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.BackendEndpoint", "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DynamicProxySpec"},
 	}
 }
 
@@ -1269,6 +1277,77 @@ func schema_apoxy_cli_api_core_v1alpha_DomainStatus(ref common.ReferenceCallback
 				},
 			},
 		},
+	}
+}
+
+func schema_apoxy_cli_api_core_v1alpha_DynamicProxyDnsCacheConfig(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"dnsLookupFamily": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Specifies the DNS lookup family to use for the dynamic proxy. Default is \"auto\".",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"dnsRefreshRate": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Specifies the refresh rate for *unresolved* DNS hosts. Once a host is resolved, the TTL from the DNS response is used. If the TTL is not present, the resolved host is cached for 60s by default. Must be at least 1ms, and defaults to 60s.",
+							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Duration"),
+						},
+					},
+					"dnsMinRefreshRate": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Specifies the minimum refresh rate for DNS hosts. If a host is resolved and the TTL is less than this value, the host will be refreshed at this rate. Default is 5s and must be at least 1s.",
+							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Duration"),
+						},
+					},
+					"hostTTL": {
+						SchemaProps: spec.SchemaProps{
+							Description: "TTL for unused hosts. Hosts that have not been used for this duration will be removed from the cache. Default is 5m.",
+							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Duration"),
+						},
+					},
+					"maxHosts": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Maximum number of hosts to cache. Default is 1024.",
+							Type:        []string{"integer"},
+							Format:      "int64",
+						},
+					},
+					"dnsQueryTimeout": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Specifies the timeout for DNS queries. Default is 5s.",
+							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Duration"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/apimachinery/pkg/apis/meta/v1.Duration"},
+	}
+}
+
+func schema_apoxy_cli_api_core_v1alpha_DynamicProxySpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"dnsCacheConfig": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DynamicProxyDnsCacheConfig"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DynamicProxyDnsCacheConfig"},
 	}
 }
 
