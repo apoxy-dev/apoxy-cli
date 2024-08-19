@@ -186,29 +186,49 @@ func (t *Translator) processHTTPRouteRules(httpRoute *HTTPRouteContext, parentRe
 
 		dstAddrTypeMap := make(map[ir.DestinationAddressType]int)
 
+		var dynamicForwardProxyUsed bool
 		for _, backendRef := range rule.BackendRefs {
 			ds := t.processDestination(backendRef, parentRef, httpRoute, resources)
 			if !t.EndpointRoutingDisabled && ds != nil && len(ds.Endpoints) > 0 && ds.AddressType != nil {
 				dstAddrTypeMap[*ds.AddressType]++
 			}
 			if ds == nil {
+				log.Warnf("Skipping destination for backend %s", backendRef.Name)
 				continue
+			}
+			if ds.DynamicForwardProxy != nil {
+				log.Debugf("DynamicForwardProxy used for backend %s", backendRef.Name)
+				dynamicForwardProxyUsed = true
 			}
 
 			for _, route := range ruleRoutes {
 				// If the route already has a direct response or redirect configured, then it was from a filter so skip
 				// processing any destinations for this route.
 				if route.DirectResponse != nil || route.Redirect != nil {
+					log.Debugf("Skipping destination for route %s as it has a direct response or redirect configured", route.Name)
 					continue
 				}
 
 				if route.Destination == nil {
+					log.Debugf("Creating destination for route %s", route.Name)
 					route.Destination = &ir.RouteDestination{
 						Name: irRouteDestinationName(httpRoute, ruleIdx),
 					}
 				}
 				route.Destination.Settings = append(route.Destination.Settings, ds)
 			}
+		}
+
+		if dynamicForwardProxyUsed && len(rule.BackendRefs) > 1 {
+			log.Errorf("DynamicForwardProxy is not supported with multiple destinations")
+			routeStatus := GetRouteStatus(httpRoute)
+			status.SetRouteStatusCondition(routeStatus,
+				parentRef.routeParentStatusIdx,
+				httpRoute.GetGeneration(),
+				gwapiv1.RouteConditionResolvedRefs,
+				metav1.ConditionFalse,
+				gwapiv1.RouteReasonResolvedRefs,
+				"DynamicForwardProxy is not supported with multiple destinations")
 		}
 
 		// TODO: support mixed endpointslice address type between backendRefs
@@ -227,8 +247,12 @@ func (t *Translator) processHTTPRouteRules(httpRoute *HTTPRouteContext, parentRe
 		for _, ruleRoute := range ruleRoutes {
 			noValidBackends := ruleRoute.Destination == nil || ruleRoute.Destination.ToBackendWeights().Valid == 0
 			if noValidBackends && ruleRoute.Redirect == nil {
-				ruleRoute.DirectResponse = &ir.DirectResponse{
-					StatusCode: 500,
+				log.Errorf("No valid HTTP backends for route %s: destination=%v", ruleRoute.Name, ruleRoute.Destination)
+				if ruleRoute.DirectResponse == nil {
+					ruleRoute.DirectResponse = &ir.DirectResponse{
+						StatusCode: 500,
+						Body:       ptr.To("no valid HTTP backends"),
+					}
 				}
 			}
 			ruleRoute.IsHTTP2 = false
@@ -514,6 +538,7 @@ func (t *Translator) processGRPCRouteRules(grpcRoute *GRPCRouteContext, parentRe
 			if noValidBackends && ruleRoute.Redirect == nil {
 				ruleRoute.DirectResponse = &ir.DirectResponse{
 					StatusCode: 500,
+					Body:       ptr.To("no valid gRPC backends"),
 				}
 			}
 			ruleRoute.IsHTTP2 = true
@@ -1137,7 +1162,7 @@ func (t *Translator) processDestination(
 		var err error
 		ds, err = t.processBackendDestinationSetting(backendRef.BackendObjectReference, resources)
 		if err != nil {
-			log.Infof("Error processing backend %s/%s: %v", backendNamespace, backendRef.Name, err)
+			log.Errorf("failed to process backend %s/%s: %v", backendNamespace, backendRef.Name, err)
 			parentRef.SetCondition(route,
 				gwapiv1.RouteConditionResolvedRefs,
 				metav1.ConditionFalse,
@@ -1145,7 +1170,7 @@ func (t *Translator) processDestination(
 				err.Error())
 			return nil
 		} else if ds == nil {
-			log.Infof("Backend %s/%s not found", backendNamespace, backendRef.Name)
+			log.Errorf("Backend %s/%s not found", backendNamespace, backendRef.Name)
 			parentRef.SetCondition(route,
 				gwapiv1.RouteConditionResolvedRefs,
 				metav1.ConditionFalse,
@@ -1250,7 +1275,13 @@ func getBackendFilters(routeType gwapiv1.Kind, backendRefContext BackendRefConte
 	return nil
 }
 
-func (t *Translator) processDestinationFilters(routeType gwapiv1.Kind, backendRefContext BackendRefContext, parentRef *RouteParentContext, route RouteContext, resources *Resources) *ir.DestinationFilters {
+func (t *Translator) processDestinationFilters(
+	routeType gwapiv1.Kind,
+	backendRefContext BackendRefContext,
+	parentRef *RouteParentContext,
+	route RouteContext,
+	resources *Resources,
+) *ir.DestinationFilters {
 	backendFilters := getBackendFilters(routeType, backendRefContext)
 	if backendFilters == nil {
 		return nil
@@ -1381,52 +1412,64 @@ func (t *Translator) processBackendDestinationSetting(backendRef gwapiv1.Backend
 		return nil, fmt.Errorf("backend %q not found", backendRef.Name)
 	}
 
-	var (
-		dstEndpoints []*ir.DestinationEndpoint
-		dstAddrType  *ir.DestinationAddressType
-	)
-	addrTypeMap := make(map[ir.DestinationAddressType]int)
-	for _, bep := range backend.Spec.Endpoints {
-		var host string
-		switch {
-		case bep.FQDN != "":
-			addrTypeMap[ir.FQDN]++
-			host = bep.FQDN
-		case bep.IP != "":
-			ip, err := netip.ParseAddr(bep.IP)
-			if err != nil {
-				return nil, fmt.Errorf("invalid IP address %q: %v", bep.IP, err)
+	var ds ir.DestinationSetting
+	if backend.Spec.DynamicProxy != nil {
+		ds.AddressType = ptr.To(ir.DYNAMIC_PROXY)
+		ds.DynamicForwardProxy = &ir.DynamicForwardProxy{
+			Name:              backend.Name,
+			DNSLookupFamily:   ir.DNSLookupFamily(backend.Spec.DynamicProxy.DnsCacheConfig.DNSLookupFamily),
+			DNSRefreshRate:    backend.Spec.DynamicProxy.DnsCacheConfig.DNSRefreshRate,
+			DNSMinRefreshRate: backend.Spec.DynamicProxy.DnsCacheConfig.DNSMinRefreshRate,
+			HostTTL:           backend.Spec.DynamicProxy.DnsCacheConfig.HostTTL,
+			MaxHosts:          backend.Spec.DynamicProxy.DnsCacheConfig.MaxHosts,
+			DNSQueryTimeout:   backend.Spec.DynamicProxy.DnsCacheConfig.DNSQueryTimeout,
+		}
+	} else {
+		var (
+			dstEndpoints []*ir.DestinationEndpoint
+			dstAddrType  *ir.DestinationAddressType
+		)
+		addrTypeMap := make(map[ir.DestinationAddressType]int)
+		for _, bep := range backend.Spec.Endpoints {
+			var host string
+			switch {
+			case bep.FQDN != "":
+				addrTypeMap[ir.FQDN]++
+				host = bep.FQDN
+			case bep.IP != "":
+				ip, err := netip.ParseAddr(bep.IP)
+				if err != nil {
+					return nil, fmt.Errorf("invalid IP address %q: %v", bep.IP, err)
+				}
+				if ip.IsUnspecified() {
+					return nil, fmt.Errorf("invalid IP address %q: unspecified IP", bep.IP)
+				}
+				host = ip.String()
 			}
-			if ip.IsUnspecified() {
-				return nil, fmt.Errorf("invalid IP address %q: unspecified IP", bep.IP)
+
+			port := int(*backendRef.Port)
+			if port < 1 || port > 65535 {
+				return nil, fmt.Errorf("invalid port %d", port)
 			}
-			host = ip.String()
+
+			dstEndpoints = append(dstEndpoints, &ir.DestinationEndpoint{
+				Host: host,
+				Port: uint32(port),
+			})
 		}
 
-		port := int(*backendRef.Port)
-		if port < 1 || port > 65535 {
-			return nil, fmt.Errorf("invalid port %d", port)
+		for addrTypeState, addrTypeCounts := range addrTypeMap {
+			if addrTypeCounts == len(backend.Spec.Endpoints) {
+				dstAddrType = ptr.To(addrTypeState)
+				break
+			}
+		}
+		if len(addrTypeMap) > 0 && dstAddrType == nil {
+			dstAddrType = ptr.To(ir.MIXED)
 		}
 
-		dstEndpoints = append(dstEndpoints, &ir.DestinationEndpoint{
-			Host: host,
-			Port: uint32(port),
-		})
-	}
-
-	for addrTypeState, addrTypeCounts := range addrTypeMap {
-		if addrTypeCounts == len(backend.Spec.Endpoints) {
-			dstAddrType = ptr.To(addrTypeState)
-			break
-		}
-	}
-	if len(addrTypeMap) > 0 && dstAddrType == nil {
-		dstAddrType = ptr.To(ir.MIXED)
-	}
-
-	ds := &ir.DestinationSetting{
-		Endpoints:   dstEndpoints,
-		AddressType: dstAddrType,
+		ds.Endpoints = dstEndpoints
+		ds.AddressType = dstAddrType
 	}
 
 	for _, p := range backend.Spec.Protocols {
@@ -1442,7 +1485,7 @@ func (t *Translator) processBackendDestinationSetting(backendRef gwapiv1.Backend
 		}
 	}
 
-	return ds, nil
+	return &ds, nil
 }
 
 func getIREndpointsFromEndpointSlices(endpointSlices []*discoveryv1.EndpointSlice, portName string, portProtocol corev1.Protocol) ([]*ir.DestinationEndpoint, *ir.DestinationAddressType) {

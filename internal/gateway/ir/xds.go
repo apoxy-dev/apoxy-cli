@@ -822,7 +822,7 @@ func (r *RouteDestination) ToBackendWeights() *BackendWeights {
 			continue
 		}
 
-		if len(s.Endpoints) > 0 {
+		if len(s.Endpoints) > 0 || s.DynamicForwardProxy != nil {
 			w.Valid += *s.Weight
 		} else {
 			w.Invalid += *s.Weight
@@ -848,6 +848,8 @@ type DestinationSetting struct {
 	TLS *TLSUpstreamConfig `json:"tls,omitempty" yaml:"tls,omitempty"`
 	// Destination filters.
 	Filters *DestinationFilters `json:"filters,omitempty" yaml:"filters,omitempty"`
+	// Dynamic Forward Proxy settings.
+	DynamicForwardProxy *DynamicForwardProxy `json:"dynamicForwardProxy,omitempty" yaml:"dynamicForwardProxy,omitempty"`
 }
 
 // Validate the fields within the RouteDestination structure
@@ -866,9 +868,10 @@ func (d *DestinationSetting) Validate() error {
 type DestinationAddressType string
 
 const (
-	IP    DestinationAddressType = "IP"
-	FQDN  DestinationAddressType = "FQDN"
-	MIXED DestinationAddressType = "Mixed"
+	IP            DestinationAddressType = "IP"
+	FQDN          DestinationAddressType = "FQDN"
+	MIXED         DestinationAddressType = "Mixed"
+	DYNAMIC_PROXY DestinationAddressType = "Dynamic"
 )
 
 // DestinationEndpoint holds the endpoint details associated with the destination
@@ -1745,4 +1748,34 @@ type DestinationFilters struct {
 	AddResponseHeaders []AddHeader `json:"addResponseHeaders,omitempty" yaml:"addResponseHeaders,omitempty"`
 	// RemoveResponseHeaders defines a list of headers to be removed from response.
 	RemoveResponseHeaders []string `json:"removeResponseHeaders,omitempty" yaml:"removeResponseHeaders,omitempty"`
+}
+
+type DNSLookupFamily string
+
+const (
+	Auto        DNSLookupFamily = "AUTO"
+	V4Only      DNSLookupFamily = "V4_ONLY"
+	V6Only      DNSLookupFamily = "V6_ONLY"
+	V4Preferred DNSLookupFamily = "V4_PREFERRED"
+	All         DNSLookupFamily = "ALL"
+)
+
+// DynamicForwardProxy defines the dynamic forward proxy configuration.
+// See: https://www.envoyproxy.io/docs/envoy/latest/api-v3/extensions/filters/http/dynamic_forward_proxy/v3/dynamic_forward_proxy.proto#extensions-filters-http-dynamic-forward-proxy-v3-filterconfig
+// +k8s:deepcopy-gen=true
+type DynamicForwardProxy struct {
+	// Allows to differentiate between different dynamic forward proxy configurations.
+	Name string `json:"name,omitempty" yaml:"name,omitempty"`
+	// The DNS lookup family to use for resolving hostnames.
+	DNSLookupFamily DNSLookupFamily `json:"dnsLookupFamily,omitempty" yaml:"dnsLookupFamily,omitempty"`
+	// The refresh rate for unresolved DNS entries.
+	DNSRefreshRate *metav1.Duration `json:"dnsRefreshRate,omitempty" yaml:"dnsRefreshRate,omitempty"`
+	// The minimum refresh rate for unresolved DNS entries.
+	DNSMinRefreshRate *metav1.Duration `json:"dnsMinRefreshRate,omitempty" yaml:"dnsMinRefreshRate,omitempty"`
+	// TTL for hosts that are unused (eviction policy).
+	HostTTL *metav1.Duration `json:"hostTTL,omitempty" yaml:"hostTTL,omitempty"`
+	// The maximum number of hosts that can be stored in the cache.
+	MaxHosts *uint32 `json:"maxHosts,omitempty" yaml:"maxHosts,omitempty"`
+	// The maximum number of pending DNS queries.
+	DNSQueryTimeout *metav1.Duration `json:"dnsQueryTimeout,omitempty" yaml:"dnsQueryTimeout,omitempty"`
 }

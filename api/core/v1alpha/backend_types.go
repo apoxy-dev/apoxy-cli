@@ -45,7 +45,7 @@ type BackendSpec struct {
 	// List of endpoints to connect to.
 	Endpoints []BackendEndpoint `json:"endpoints"`
 
-	// DynamicProxy specifies whether the backend should be dynamically proxied.
+	// Specifies whether the backend should be dynamically proxied.
 	// If specified, Envoy's HTTP Dynamic Forward Proxy will be used to proxy requests to the backend.
 	// See: https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/http/http_proxy#arch-overview-http-dynamic-forward-proxy
 	// +optional

@@ -1,0 +1,72 @@
+apiVersion: controllers.apoxy.dev/v1alpha1
+kind: Proxy
+metadata:
+  name: example
+spec:
+  provider: unmanaged
+  listeners:
+    - protocol: TCP
+      port: 10000
+---
+apiVersion: gateway.apoxy.dev/v1
+kind: GatewayClass
+metadata:
+  name: apoxy
+spec:
+  controllerName: gateway.apoxy.dev/gatewayclass-controller
+---
+apiVersion: gateway.apoxy.dev/v1
+kind: Gateway
+metadata:
+  name: example
+spec:
+  gatewayClassName: apoxy
+  infrastructure:
+    parametersRef:
+      kind: Proxy
+      name: example
+  listeners:
+    - protocol: HTTP
+      port: 10000
+      name: example
+---
+apiVersion: core.apoxy.dev/v1alpha
+kind: Backend
+metadata:
+  name: dynamic_forward_proxy
+spec:
+  dynamicProxy:
+    dnsCacheConfig:
+      dnsLookupFamily: v4_only
+---
+apiVersion: gateway.apoxy.dev/v1
+kind: HTTPRoute
+metadata:
+  name: alpamayo
+spec:
+  parentRefs:
+    - name: example
+      port: 10000
+      kind: Gateway
+  hostnames:
+    - "*"
+  rules:
+    - filters:
+        - type: ExtensionRef
+          extensionRef:
+            kind: EdgeFunction
+            group: extensions.apoxy.dev
+            name: websocket
+      backendRefs:
+        - kind: Backend
+          name: dynamic_forward_proxy
+          port: 80
+---
+apiVersion: extensions.apoxy.dev/v1alpha1
+kind: EdgeFunction
+metadata:
+  name: websocket
+spec:
+  code:
+    goPluginSource:
+      url: http://localhost:8000/websocket.so

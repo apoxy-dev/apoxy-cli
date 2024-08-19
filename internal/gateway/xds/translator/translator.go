@@ -594,6 +594,12 @@ func addXdsSecret(tCtx *types.ResourceVersionTable, secret *tlsv3.Secret) error 
 }
 
 func addXdsCluster(tCtx *types.ResourceVersionTable, args *xdsClusterArgs) error {
+	// Return early if dynamic forward proxy is enabled - the cluster is created by
+	// httpFilter implementation.
+	if len(args.settings) > 0 && args.settings[0].DynamicForwardProxy != nil {
+		return nil
+	}
+
 	// Return early if cluster with the same name exists
 	if c := findXdsCluster(tCtx, args.name); c != nil {
 		return ErrXdsClusterExists
