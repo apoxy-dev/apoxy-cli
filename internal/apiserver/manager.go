@@ -331,6 +331,10 @@ func (m *Manager) Start(
 	return m.manager.Start(ctx)
 }
 
+func (m *Manager) ClientConfig() *rest.Config {
+	return m.manager.GetConfig()
+}
+
 // start starts the API server and returns the manager (that can be used to start the controller
 // manager). The manager must be started by the caller.
 func start(
@@ -404,7 +408,13 @@ func start(
 		if err != nil {
 			return nil, fmt.Errorf("failed to create x509 authenticator: %v", err)
 		}
-		dOpts.clientConfig = NewLocalClient(clientCertFile, clientKeyFile, serverCAFile)
+		dOpts.clientConfig = NewClientConfig(
+			WithClientTLSConfig(rest.TLSClientConfig{
+				CertFile: clientCertFile,
+				KeyFile:  clientKeyFile,
+				CAFile:   serverCAFile,
+			}),
+		)
 	}
 
 	// Reset flags. APIServer cmd expects its own flagset.

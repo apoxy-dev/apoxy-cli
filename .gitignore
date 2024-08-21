@@ -1,5 +1,6 @@
 apoxy-cli
 apoxy
+/apiserver
 /backplane
 /dial-stdio
 dist/

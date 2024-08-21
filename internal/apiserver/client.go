@@ -70,15 +70,3 @@ func NewClientConfig(opts ...ClientOption) *rest.Config {
 		WrapTransport:   sOpts.transportWrapFunc,
 	}
 }
-
-// NewLocalClient returns a new local client.
-func NewLocalClient(certPath, keyPath, caPath string) *rest.Config {
-	return NewClientConfig(
-		WithClientHost("localhost:443"),
-		WithClientTLSConfig(rest.TLSClientConfig{
-			CertFile: certPath,
-			KeyFile:  keyPath,
-			CAFile:   caPath,
-		}),
-	)
-}

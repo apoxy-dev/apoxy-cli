@@ -26,7 +26,6 @@ import (
 	"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1"
 	"github.com/apoxy-dev/apoxy-cli/client/versioned"
 	"github.com/apoxy-dev/apoxy-cli/internal/log"
-	"github.com/apoxy-dev/apoxy-cli/rest"
 )
 
 const (
@@ -169,7 +168,7 @@ type worker struct {
 }
 
 // NewWorker returns a new worker for Edge Functions Ingest queue.
-func NewWorker(c *rest.APIClient, baseDir string) *worker {
+func NewWorker(c versioned.Interface, baseDir string) *worker {
 	return &worker{
 		a3y:     c,
 		baseDir: baseDir,
