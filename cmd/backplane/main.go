@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"flag"
 	"fmt"
@@ -25,6 +26,7 @@ import (
 
 	"github.com/apoxy-dev/apoxy-cli/internal/apiserver"
 	bpctrl "github.com/apoxy-dev/apoxy-cli/internal/backplane/controllers"
+	"github.com/apoxy-dev/apoxy-cli/internal/backplane/kvstore"
 	"github.com/apoxy-dev/apoxy-cli/internal/backplane/wasm/ext_proc"
 	"github.com/apoxy-dev/apoxy-cli/internal/backplane/wasm/manifest"
 	"github.com/apoxy-dev/apoxy-cli/internal/log"
@@ -59,6 +61,8 @@ var (
 	goPluginDir = flag.String("go_plugin_dir", "/var/lib/apoxy/go", "Directory for Go plugins.")
 
 	useEnvoyContrib = flag.Bool("use_envoy_contrib", false, "Use Envoy contrib filters.")
+
+	kvPeerSelector = flag.String("kv_peer_selector", "app=apoxy-backplane", "Label selector for K/V store peer.")
 )
 
 func main() {
@@ -108,6 +112,17 @@ func main() {
 			log.Fatalf("Failed to ping ClickHouse: %v", err)
 		}
 	}
+
+	log.Infof("Setting up K/V store")
+	kv, err := kvstore.New(*kvPeerSelector)
+	if err != nil {
+		log.Fatalf("Failed to create K/V store: %v", err)
+	}
+	go func() {
+		if err := kv.Start(); err != nil {
+			log.Fatalf("Failed to start K/V store: %v", err)
+		}
+	}()
 
 	log.Infof("Setting up WASM runtime")
 
@@ -189,4 +204,5 @@ func main() {
 		log.Fatalf("unable to start manager: %v", err)
 	}
 	<-done
+	kv.Stop(context.Background())
 }
