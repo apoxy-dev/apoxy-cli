@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "apoxy-gateway.fullname" . }}-apiserver
+  labels:
+    {{- include "apoxy-gateway.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "apoxy-gateway.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.apiserver.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "apoxy-gateway.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.apiserver.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "apoxy-gateway.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.apiserver.podSecurityContext | nindent 8 }}
+      containers:
+        - name: apiserver
+          securityContext:
+            {{- toYaml .Values.apiserver.securityContext | nindent 12 }}
+          image: "{{ .Values.apiserver.image.repository }}:{{ .Values.apiserver.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.apiserver.image.pullPolicy }}
+          args:
+            - --db=/var/run/apiserver/db
+            - --temporal-db=/var/run/apiserver/temporal-db
+            - --ingest-store-dir=/var/run/apiserver/
+            - --dev
+            #- --in-cluster=true
+          ports:
+            - name: https
+              containerPort: {{ .Values.apiserver.service.port }}
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: https
+              scheme: HTTPS
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: https
+              scheme: HTTPS
+          resources:
+            {{- toYaml .Values.apiserver.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/run/apiserver
+      {{- with .Values.apiserver.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.apiserver.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.apiserver.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  serviceName: {{ include "apoxy-gateway.fullname" . }}-apiserver-headless
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ {{ .Values.apiserver.persistence.accessMode }} ]
+        resources:
+          requests:
+            storage: {{ .Values.apiserver.persistence.size }}
