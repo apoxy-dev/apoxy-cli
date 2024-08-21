@@ -272,7 +272,7 @@ func defaultOptions() *options {
 
 // Manager manages APIServer instance as well as built-in controllers.
 type Manager struct {
-	ReadyCh chan struct{}
+	ReadyCh chan error
 
 	manager manager.Manager
 }
@@ -280,7 +280,7 @@ type Manager struct {
 // New creates a new API server manager.
 func New() *Manager {
 	return &Manager{
-		ReadyCh: make(chan struct{}),
+		ReadyCh: make(chan error),
 	}
 }
 
@@ -297,7 +297,7 @@ func (m *Manager) Start(
 	var err error
 	m.manager, err = start(ctx, opts...)
 	if err != nil {
-		close(m.ReadyCh)
+		m.ReadyCh <- err
 		return err
 	}
 	close(m.ReadyCh)

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"os"
 	goruntime "runtime"
@@ -37,11 +38,19 @@ func stopCh(ctx context.Context) <-chan interface{} {
 	return ch
 }
 
+type startErr struct {
+	Err error
+}
+
+func (r *startErr) Error() string {
+	return r.Err.Error()
+}
+
 func main() {
 	flag.Parse()
 	var lOpts []log.Option
 	if *devMode {
-		lOpts = append(lOpts, log.WithDevMode())
+		lOpts = append(lOpts, log.WithDevMode(), log.WithAlsoLogToStderr())
 	}
 	log.Init(lOpts...)
 	ctx, ctxCancel := context.WithCancelCause(ctrl.SetupSignalHandler())
@@ -75,7 +84,7 @@ func main() {
 	go func() {
 		if err := gwSrv.Run(ctx); err != nil {
 			log.Errorf("failed to serve Gateway APIs: %v", err)
-			ctxCancel(err)
+			ctxCancel(&startErr{Err: err})
 		}
 	}()
 
@@ -89,14 +98,24 @@ func main() {
 		}
 		if err := m.Start(ctx, gwSrv, tc, sOpts...); err != nil {
 			log.Errorf("failed to start API server: %v", err)
-			ctxCancel(err)
+			ctxCancel(&startErr{Err: err})
 		}
 	}()
+	select {
+	case err, ok := <-m.ReadyCh:
+		if !ok || err == nil {
+			log.Infof("API server is ready")
+		} else {
+			log.Fatalf("API server failed to start: %v", err)
+		}
+	case <-ctx.Done():
+		log.Fatalf("context canceled: %v", context.Cause(ctx))
+	}
 
 	a3y, err := a3yversionedclient.NewForConfig(m.ClientConfig())
 	if err != nil {
 		log.Fatalf("failed creating A3Y client: %v", err)
-		ctxCancel(err)
+		ctxCancel(&startErr{Err: err})
 	}
 
 	wOpts := tworker.Options{
@@ -111,22 +130,22 @@ func main() {
 	go func() {
 		if err = ww.ListenAndServeWasm("localhost", 8081); err != nil {
 			log.Errorf("failed to start Wasm server: %v", err)
-			ctxCancel(err)
+			ctxCancel(&startErr{Err: err})
 		}
 	}()
 	go func() {
 		err = w.Run(stopCh(ctx))
 		if err != nil {
 			log.Errorf("failed running Temporal worker: %v", err)
-			ctxCancel(err)
+			ctxCancel(&startErr{Err: err})
 		}
 	}()
 
-	select {
-	case <-m.ReadyCh:
-		log.Infof("API server is ready")
-	case <-ctx.Done():
-		log.Infof("context canceled: %v", context.Cause(ctx))
+	<-ctx.Done()
+	sErr := &startErr{}
+	if err := context.Cause(ctx); errors.As(err, &sErr) {
+		log.Errorf("failed to start: %v", sErr.Err)
+	} else {
+		log.Infof("shutting down")
 	}
-	log.Infof("shutting down")
 }
