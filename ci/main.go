@@ -38,6 +38,9 @@ func build(ctx context.Context) error {
 	sha := os.Getenv("GITHUB_SHA")
 	if sha != "" {
 		sha = sha[:10]
+		if os.Getenv("APOXY_DOCKERHUB_PASSWORD") == "" {
+			log.Fatal("APOXY_DOCKERHUB_PASSWORD not set")
+		}
 	}
 
 	client, err := dagger.Connect(ctx, dagger.WithLogOutput(os.Stderr))
