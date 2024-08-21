@@ -2,6 +2,7 @@ package apiserver
 
 import (
 	"context"
+	"os"
 	goruntime "runtime"
 	"time"
 
@@ -16,15 +17,13 @@ import (
 	"k8s.io/apiserver/pkg/storage/storagebackend"
 	"k8s.io/apiserver/pkg/util/flowcontrol/request"
 	"sigs.k8s.io/apiserver-runtime/pkg/builder/rest"
-
-	"github.com/apoxy-dev/apoxy-cli/config"
 )
 
 // NewKineStorage creates a new kine storage.
 func NewKineStorage(ctx context.Context, dsn string) (rest.StoreFn, error) {
 	etcdConfig, err := endpoint.Listen(ctx, endpoint.Config{
 		Endpoint: dsn,
-		Listener: "unix://" + config.ApoxyDir() + "/kine.sock",
+		Listener: "unix://" + os.TempDir() + "/apiserver-kine.sock",
 		ConnectionPoolConfig: driversgeneric.ConnectionPoolConfig{
 			MaxOpen: goruntime.NumCPU(),
 		},
