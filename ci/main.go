@@ -97,10 +97,10 @@ func build(ctx context.Context) error {
 	}
 	fmt.Println(out)
 
-	// 3. Build and publish multi-arch Backplane images.
+	// 3. Build and publish multi-arch Backplane/APIServer images.
 
 	var bpContainers []*dagger.Container
-	var rlContainers []*dagger.Container
+	var asContainers []*dagger.Container
 	for _, platform := range []dagger.Platform{"linux/amd64", "linux/arm64"} {
 		goarch := archOf(platform)
 		bpOut := filepath.Join("build", "backplane-"+goarch)
@@ -120,32 +120,22 @@ func build(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-
 		bpContainers = append(bpContainers, v)
 
-		rlRepo := client.Git("https://github.com/envoyproxy/ratelimit.git").
-			Branch("main").
-			Tree()
-		rlBuilder := client.Container().From("golang:latest").
-			WithDirectory("/src", rlRepo).
-			WithWorkdir("/src").
-			WithMountedCache("/go/pkg/mod", client.CacheVolume("go-mod-rl")).
-			WithEnvVariable("GOMODCACHE", "/go/pkg/mod").
-			WithMountedCache("/go/build-cache", client.CacheVolume("go-build-rl")).
-			WithEnvVariable("GOCACHE", "/go/build-cache").
+		asOut := filepath.Join("build", "apiserver-"+goarch)
+		builder = builder.
 			WithEnvVariable("GOARCH", goarch).
-			WithExec([]string{"go", "build", "-o", "ratelimit", "./src/service_cmd/main.go"})
+			WithExec([]string{"go", "build", "-o", asOut, "./cmd/apiserver"})
 
 		v, err = client.Container(dagger.ContainerOpts{Platform: platform}).
 			From("cgr.dev/chainguard/wolfi-base:latest").
-			WithFile("/bin/ratelimit", rlBuilder.File("/src/ratelimit")).
-			WithEntrypoint([]string{"/bin/ratelimit"}).
+			WithFile("/bin/apiserver", builder.File(asOut)).
+			WithEntrypoint([]string{"/bin/apiserver"}).
 			Sync(ctx)
 		if err != nil {
 			return err
 		}
-
-		rlContainers = append(rlContainers, v)
+		asContainers = append(asContainers, v)
 	}
 
 	if sha == "" {
@@ -153,8 +143,11 @@ func build(ctx context.Context) error {
 		return nil
 	}
 
-	pubOpts := dagger.ContainerPublishOpts{
+	bpOpts := dagger.ContainerPublishOpts{
 		PlatformVariants: bpContainers,
+	}
+	asOpts := dagger.ContainerPublishOpts{
+		PlatformVariants: asContainers,
 	}
 	for _, tag := range []string{"latest", sha} {
 		_, err = client.Container().
@@ -163,23 +156,21 @@ func build(ctx context.Context) error {
 				"apoxy",
 				client.SetSecret("dockerhub-apoxy", os.Getenv("APOXY_DOCKERHUB_PASSWORD")),
 			).
-			Publish(ctx, "docker.io/apoxy/backplane:"+tag, pubOpts)
+			Publish(ctx, "docker.io/apoxy/backplane:"+tag, bpOpts)
 		if err != nil {
 			return err
 		}
-	}
 
-	_, err = client.Container().
-		WithRegistryAuth(
-			"docker.io",
-			"apoxy",
-			client.SetSecret("dockerhub-apoxy", os.Getenv("APOXY_DOCKERHUB_PASSWORD")),
-		).
-		Publish(ctx, "docker.io/apoxy/ratelimit:"+sha, dagger.ContainerPublishOpts{
-			PlatformVariants: rlContainers,
-		})
-	if err != nil {
-		return err
+		_, err = client.Container().
+			WithRegistryAuth(
+				"docker.io",
+				"apoxy",
+				client.SetSecret("dockerhub-apoxy", os.Getenv("APOXY_DOCKERHUB_PASSWORD")),
+			).
+			Publish(ctx, "docker.io/apoxy/apiserver:"+tag, asOpts)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
