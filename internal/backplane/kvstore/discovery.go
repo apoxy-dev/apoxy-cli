@@ -3,6 +3,7 @@ package kvstore
 import (
 	"fmt"
 	stdlog "log"
+	"strings"
 
 	"github.com/hashicorp/go-discover"
 	"github.com/hashicorp/go-discover/provider/k8s"
@@ -56,11 +57,13 @@ func (p *k8sProvider) SetConfig(cfg map[string]interface{}) error {
 }
 
 func (p *k8sProvider) getArgs() string {
-	out := "provider=k8s"
-	for key, value := range p.args {
-		out += fmt.Sprintf("%s=%s", key, value)
+	ss := []string{
+		"provider=k8s",
 	}
-	return out
+	for key, value := range p.args {
+		ss = append(ss, fmt.Sprintf("%s=%s", key, value))
+	}
+	return strings.Join(ss, " ")
 }
 
 func (p *k8sProvider) DiscoverPeers() ([]string, error) {
