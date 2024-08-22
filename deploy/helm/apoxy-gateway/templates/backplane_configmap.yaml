@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "apoxy-gateway.fullname" . }}-proxy
+  labels:
+    {{- include "apoxy-gateway.labels" . | nindent 4 }}
+data:
+  proxy.yaml: |-
+    apiVersion: controllers.apoxy.dev/v1alpha1
+    kind: Proxy
+    metadata:
+      name: {{ .Values.backplane.proxy.name }}
+    spec:
+      provider: unmanaged
+      listeners:
+        - protocol: TCP
+          port: {{ .Values.backplane.service.port }}
+        - protocol: TCP
+          port: {{ .Values.backplane.proxy.internalPort }}

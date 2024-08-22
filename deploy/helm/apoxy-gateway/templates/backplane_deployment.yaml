@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "apoxy-gateway.fullname" . }}-backplane
+  labels:
+    {{- include "apoxy-gateway.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "apoxy-gateway.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.backplane.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "apoxy-gateway.selectorLabels" . | nindent 8 }}
+        kvstore.apoxy.dev: {{ include "apoxy-gateway.fullname" . }}
+    spec:
+      {{- with .Values.backplane.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "apoxy-gateway.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.backplane.podSecurityContext | nindent 8 }}
+      containers:
+        - name: backplane
+          securityContext:
+            {{- toYaml .Values.backplane.securityContext | nindent 12 }}
+          image: "{{ .Values.backplane.image.repository }}:{{ .Values.backplane.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.backplane.image.pullPolicy }}
+          args:
+            - --proxy_path=/var/run/apoxy/proxy.yaml
+            - --apiserver_host={{ include "apoxy-gateway.fullname" . }}-apiserver
+            - --use_envoy_contrib=true
+            - --dev
+          ports:
+            - name: https
+              containerPort: {{ .Values.backplane.service.port }}
+              protocol: TCP
+            - name: metrics
+              containerPort: 8081
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+          resources:
+            {{- toYaml .Values.backplane.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/run/apoxy
+      {{- with .Values.backplane.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.backplane.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.backplane.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+        - name: data
+          configMap:
+            name: {{ include "apoxy-gateway.fullname" . }}-proxy
