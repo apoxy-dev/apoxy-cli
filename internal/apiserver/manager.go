@@ -469,9 +469,6 @@ func start(
 			// github.com/apoxy-dev/apoxy/api/core/v1alpha,\
 			//  -O zz_generated.openapi --output-package api/generated -h /dev/null
 			WithOpenAPIDefinitions("apoxy", "0.1.0", apoxyopenapi.GetOpenAPIDefinitions).
-			WithResourceAndStorage(&corev1alpha.Proxy{}, kineStore).
-			WithResourceAndStorage(&corev1alpha.Address{}, kineStore).
-			WithResourceAndStorage(&corev1alpha.Domain{}, kineStore).
 			WithResourceAndStorage(&corev1alpha.TunnelNode{}, kineStore).
 			WithResourceAndStorage(&corev1alpha.Backend{}, kineStore).
 			WithResourceAndStorage(&ctrlv1alpha1.Proxy{}, kineStore).
