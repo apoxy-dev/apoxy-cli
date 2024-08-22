@@ -7,6 +7,7 @@ spec:
   version: v1alpha
   groupPriorityMinimum: 1000
   versionPriority: 15
+  insecureSkipTLSVerify: true
   service:
     name: {{ include "apoxy-gateway.fullname" . }}-apiserver
     namespace: {{ .Release.Namespace }}
