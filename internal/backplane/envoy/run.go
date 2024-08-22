@@ -202,8 +202,18 @@ func (r *Runtime) run(ctx context.Context) error {
 	if r.goPluginDir != "" {
 		log.Infof("linking go plugin directory %s to runDir %s", r.goPluginDir, runDir)
 		// Link the Go plugin directory to the run directory.
-		if err := os.Symlink(r.goPluginDir, filepath.Join(runDir, "go")); err != nil {
-			return fmt.Errorf("failed to symlink go plugin directory: %w", err)
+		// Check if the symlink already exists.
+		_, err := os.Lstat(filepath.Join(runDir, "go"))
+		if err == nil {
+			// Symlink already exists.
+			// Remove it.
+			if err := os.Remove(filepath.Join(runDir, "go")); err != nil {
+				return fmt.Errorf("failed to remove existing go plugin directory symlink: %w", err)
+			}
+		} else if !os.IsNotExist(err) {
+			if err := os.Symlink(r.goPluginDir, filepath.Join(runDir, "go")); err != nil {
+				return fmt.Errorf("failed to symlink go plugin directory: %w", err)
+			}
 		}
 	}
 
