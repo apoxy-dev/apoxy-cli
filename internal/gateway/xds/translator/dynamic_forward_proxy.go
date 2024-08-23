@@ -32,7 +32,6 @@ type dynamicForwardProxy struct{}
 
 var _ httpFilter = &dynamicForwardProxy{}
 
-// patchHCM
 func (*dynamicForwardProxy) patchHCM(mgr *hcmv3.HttpConnectionManager, irListener *ir.HTTPListener) error {
 	if mgr == nil {
 		return errors.New("hcm is nil")
@@ -188,9 +187,6 @@ func (*dynamicForwardProxy) patchRoute(route *routev3.Route, irRoute *ir.HTTPRou
 	}
 	if irRoute == nil {
 		return errors.New("ir route is nil")
-	}
-	if irRoute.ExtensionRefs == nil {
-		return nil
 	}
 
 	if routeContainsDynamicForwardProxy(irRoute) {
