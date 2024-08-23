@@ -274,7 +274,7 @@ allowing you to test and develop your proxy infrastructure.`,
 		ww := ingest.NewWorker(c, os.Getenv("TMPDIR"))
 		ww.RegisterActivities(w)
 		go func() {
-			if err = ww.ListenAndServeWasm("localhost", 8081); err != nil {
+			if err = ww.ListenAndServeEdgeFuncs("localhost", 8081); err != nil {
 				log.Errorf("failed to start Wasm server: %v", err)
 				ctxCancel(&runError{Err: err})
 			}

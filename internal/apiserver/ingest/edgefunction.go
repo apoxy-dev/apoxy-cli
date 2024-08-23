@@ -419,8 +419,8 @@ func (w *worker) FinalizeActivity(
 	})
 }
 
-// ListenAndServeWasm starts an HTTP server to serve the Edge Function .wasm file.
-func (w *worker) ListenAndServeWasm(host string, port int) error {
+// ListenAndServeEdgeFuncs starts an HTTP server to serve the Edge Function .wasm file.
+func (w *worker) ListenAndServeEdgeFuncs(host string, port int) error {
 	mux := http.NewServeMux()
 	mux.Handle("/wasm/", w)
 	mux.Handle("/go/", w)

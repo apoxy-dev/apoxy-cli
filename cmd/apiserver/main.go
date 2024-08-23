@@ -27,6 +27,7 @@ var (
 	tmprlDBFilePath = flag.String("temporal-db", "temporal.db", "Path to the Temporal database file.")
 	inCluster       = flag.Bool("in-cluster", false, "Enable in-cluster authentication.")
 	ingestStoreDir  = flag.String("ingest-store-dir", os.TempDir(), "Path to the ingest store directory.")
+	ingestStorePort = flag.Int("ingest-store-port", 8081, "Port for the ingest store.")
 )
 
 func stopCh(ctx context.Context) <-chan interface{} {
@@ -128,7 +129,7 @@ func main() {
 	ww := ingest.NewWorker(a3y, *ingestStoreDir)
 	ww.RegisterActivities(w)
 	go func() {
-		if err = ww.ListenAndServeWasm("localhost", 8081); err != nil {
+		if err = ww.ListenAndServeEdgeFuncs("" /* host */, *ingestStorePort); err != nil {
 			log.Errorf("failed to start Wasm server: %v", err)
 			ctxCancel(&startErr{Err: err})
 		}
