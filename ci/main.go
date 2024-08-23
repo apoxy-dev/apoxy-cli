@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	"dagger.io/dagger"
@@ -31,10 +32,6 @@ func archOf(p dagger.Platform) string {
 func build(ctx context.Context) error {
 	fmt.Println("Building with Dagger")
 
-	apoxyAPIKey := os.Getenv("APOXY_PROJECT_API_KEY")
-	if apoxyAPIKey == "" {
-		log.Fatal("APOXY_PROJECT_API_KEY not set")
-	}
 	sha := os.Getenv("GITHUB_SHA")
 	if sha != "" {
 		sha = sha[:10]
@@ -49,8 +46,12 @@ func build(ctx context.Context) error {
 	}
 	defer client.Close()
 
-	// 1. Build binaries.
+	// 1. Build apoxy-cli.
 	outPath := "build/"
+	hostArch := runtime.GOARCH
+	if hostArch == "arm64" {
+		hostArch = "aarch64"
+	}
 	builder, err := client.Container().
 		From("golang:latest").
 		WithDirectory("/src", client.Host().Directory("."),
@@ -62,46 +63,65 @@ func build(ctx context.Context) error {
 		WithEnvVariable("GOMODCACHE", "/go/pkg/mod").
 		WithMountedCache("/go/build-cache", client.CacheVolume("go-build")).
 		WithEnvVariable("GOCACHE", "/go/build-cache").
-		WithExec([]string{"go", "build", "-o", outPath}).
+		// Install Zig toolchain.
+		WithExec([]string{"apt-get", "update", "-yq"}).
+		WithExec([]string{
+			"apt-get", "install", "-yq", "xz-utils", "clang",
+		}).
+		WithExec([]string{
+			"wget", fmt.Sprintf("https://ziglang.org/download/0.13.0/zig-linux-%s-0.13.0.tar.xz", hostArch),
+		}).
+		WithExec([]string{
+			"tar", "-xf", fmt.Sprintf("zig-linux-%s-0.13.0.tar.xz", hostArch),
+		}).
+		WithExec([]string{
+			"ln", "-s", fmt.Sprintf("/src/zig-linux-%s-0.13.0/zig", hostArch), "/bin/zig",
+		}).
+		WithExec([]string{
+			"zig", "version",
+		}).
+		//WithExec([]string{"go", "build", "-o", outPath}).
 		Sync(ctx)
 	if err != nil {
 		return err
 	}
 
 	// 2. Run smoke test.
-	apoxyConfigSecret := client.SetSecret(
-		"apoxy-config-yaml",
-		fmt.Sprintf(apoxyConfigYAML, apoxyAPIKey),
-	)
-	out, err := client.Container().
-		From("ubuntu:22.04").
-		WithExec([]string{"apt-get", "update", "-yq"}).
-		WithExec([]string{
-			"apt-get", "install", "-yq", "ca-certificates",
-		}).
-		WithFile("/usr/local/bin/apoxy", builder.File(filepath.Join(outPath, "apoxy-cli"))).
-		WithExec([]string{
-			"mkdir", "-p", "/root/.apoxy",
-		}).
-		WithMountedSecret("/root/.apoxy/config.yaml", apoxyConfigSecret).
-		WithEnvVariable("CACHEBUSTER", time.Now().String()). // Force re-execution of smoke test.
-		WithExec([]string{
-			"apoxy", "auth", "--check",
-		}).
-		WithExec([]string{
-			"apoxy", "proxy",
-		}).
-		Stdout(ctx)
-	if err != nil {
-		return err
+	if apiKey := os.Getenv("APOXY_PROJECT_API_KEY"); apiKey != "" {
+		apoxyConfigSecret := client.SetSecret(
+			"apoxy-config-yaml",
+			fmt.Sprintf(apoxyConfigYAML, apiKey),
+		)
+		out, err := client.Container().
+			From("ubuntu:22.04").
+			WithExec([]string{"apt-get", "update", "-yq"}).
+			WithExec([]string{
+				"apt-get", "install", "-yq", "ca-certificates",
+			}).
+			WithFile("/usr/local/bin/apoxy", builder.File(filepath.Join(outPath, "apoxy-cli"))).
+			WithExec([]string{
+				"mkdir", "-p", "/root/.apoxy",
+			}).
+			WithMountedSecret("/root/.apoxy/config.yaml", apoxyConfigSecret).
+			WithEnvVariable("CACHEBUSTER", time.Now().String()). // Force re-execution of smoke test.
+			WithExec([]string{
+				"apoxy", "auth", "--check",
+			}).
+			WithExec([]string{
+				"apoxy", "proxy",
+			}).
+			Stdout(ctx)
+		if err != nil {
+			return err
+		}
+		fmt.Println(out)
 	}
-	fmt.Println(out)
 
 	// 3. Build and publish multi-arch Backplane/APIServer images.
 
 	var bpContainers []*dagger.Container
 	var asContainers []*dagger.Container
-	for _, platform := range []dagger.Platform{"linux/amd64", "linux/arm64"} {
+	for _, platform := range []dagger.Platform{"linux/amd64" /* , "linux/arm64" */} {
 		goarch := archOf(platform)
 		bpOut := filepath.Join("build", "backplane-"+goarch)
 		dsOut := filepath.Join("build", "dial-stdio-"+goarch)
@@ -123,8 +143,17 @@ func build(ctx context.Context) error {
 		bpContainers = append(bpContainers, v)
 
 		asOut := filepath.Join("build", "apiserver-"+goarch)
+		target := goarch
+		if goarch == "amd64" {
+			target = "x86_64"
+		} else if goarch == "arm64" {
+			target = "aarch64"
+		}
 		builder = builder.
 			WithEnvVariable("GOARCH", goarch).
+			WithEnvVariable("GOOS", "linux").
+			WithEnvVariable("CGO_ENABLED", "1").
+			WithEnvVariable("CC", fmt.Sprintf("zig cc --target=%s-linux-musl", target)).
 			WithExec([]string{"go", "build", "-o", asOut, "./cmd/apiserver"})
 
 		v, err = client.Container(dagger.ContainerOpts{Platform: platform}).
