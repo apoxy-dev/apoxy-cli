@@ -5,10 +5,12 @@ import (
 	"context"
 	"fmt"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -19,9 +21,11 @@ import (
 
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
+	"github.com/apex/log"
 	"github.com/apoxy-dev/apoxy-cli/internal/gateway/gatewayapi"
 	gatewayapirunner "github.com/apoxy-dev/apoxy-cli/internal/gateway/gatewayapi/runner"
 	"github.com/apoxy-dev/apoxy-cli/internal/gateway/message"
+	"github.com/pingcap/errors"
 
 	ctrlv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
 	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
@@ -192,6 +196,20 @@ func (r *GatewayReconciler) reconcileGateways(
 			res.Proxies = append(res.Proxies, &proxy)
 		}
 
+		for _, listener := range gw.Spec.Listeners {
+			if terminatesTLS(&listener) {
+				for _, certRef := range listener.TLS.CertificateRefs {
+					if refsSecret(&certRef) {
+						if err := r.processSecretRef(ctx, certRef, res); err != nil {
+							log.Error(err,
+								"failed to process TLS SecretRef for gateway",
+								"gateway", gw, "secretRef", certRef)
+						}
+					}
+				}
+			}
+		}
+
 		if err := r.reconcileHTTPRoutes(clog.IntoContext(ctx, log), gw, extRefs, res); err != nil {
 			log.Error(err, "Failed to reconcile Gateway", "name", gw.Name)
 			continue
@@ -203,6 +221,27 @@ func (r *GatewayReconciler) reconcileGateways(
 			Status:     gw.Status,
 		})
 	}
+
+	return nil
+}
+
+func (r *GatewayReconciler) processSecretRef(
+	ctx context.Context,
+	secretRef gwapiv1.SecretObjectReference,
+	res *gatewayapi.Resources,
+) error {
+	secret := &corev1.Secret{}
+	secretNs := ptr.Deref(secretRef.Namespace, "")
+	if err := r.Get(ctx,
+		types.NamespacedName{Namespace: string(secretNs), Name: string(secretRef.Name)},
+		secret,
+	); err != nil && !errors.IsNotFound(err) {
+		return fmt.Errorf("unable to find the Secret: %s/%s", secretNs, string(secretRef.Name))
+	}
+
+	res.Secrets = append(res.Secrets, secret)
+
+	log.Infof("Secret %s/%s added to the resources", secret.Namespace, secret.Name)
 
 	return nil
 }
