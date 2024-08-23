@@ -27,6 +27,14 @@ spec:
       targetPort: https
       protocol: TCP
       name: https
+    - port: 18000
+      targetPort: xds
+      protocol: TCP
+      name: xds
+    - port: 8081
+      targetPort: ingest-store
+      protocol: TCP
+      name: ingest-store
   selector:
     {{- include "apoxy-gateway.selectorLabels" . | nindent 4 }}
 

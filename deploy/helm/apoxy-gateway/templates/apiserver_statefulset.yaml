@@ -41,6 +41,12 @@ spec:
             - name: https
               containerPort: {{ .Values.apiserver.service.port }}
               protocol: TCP
+            - name: xds
+              containerPort: 18000
+              protocol: TCP
+            - name: ingest-store
+              containerPort: 8081
+              protocol: TCP
           livenessProbe:
             httpGet:
               path: /livez
