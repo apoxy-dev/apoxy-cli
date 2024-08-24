@@ -20,9 +20,11 @@ import (
 	"strings"
 	"time"
 
-	gw "github.com/apoxy-dev/apoxy-cli/internal/gateway"
+	"github.com/sirupsen/logrus"
 	tclient "go.temporal.io/sdk/client"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apiserver/pkg/authentication/authenticator"
 	"k8s.io/apiserver/pkg/authentication/request/union"
@@ -42,13 +44,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
+	a3yscheme "github.com/apoxy-dev/apoxy-cli/client/versioned/scheme"
 	"github.com/apoxy-dev/apoxy-cli/config"
 	"github.com/apoxy-dev/apoxy-cli/internal/apiserver/auth"
 	"github.com/apoxy-dev/apoxy-cli/internal/apiserver/controllers"
 	"github.com/apoxy-dev/apoxy-cli/internal/apiserver/extensions"
 	"github.com/apoxy-dev/apoxy-cli/internal/apiserver/gateway"
+	gw "github.com/apoxy-dev/apoxy-cli/internal/gateway"
 	"github.com/apoxy-dev/apoxy-cli/internal/log"
-	"github.com/sirupsen/logrus"
 
 	ctrlv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
 	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
@@ -71,6 +74,8 @@ func init() {
 	utilruntime.Must(policyv1alpha1.Install(scheme))
 	utilruntime.Must(extensionsv1alpha1.Install(scheme))
 	utilruntime.Must(gatewayv1.Install(scheme))
+
+	gateway.Install(scheme)
 
 	// Disable feature gates here. Example:
 	// feature.DefaultMutableFeatureGate.Set(string(features.APIPriorityAndFairness) + "=false")
@@ -100,6 +105,36 @@ func waitForReadyz(url string, timeout time.Duration) error {
 		case <-time.After(retryTimeout):
 		}
 	}
+}
+
+func waitForAPIService(ctx context.Context, c *rest.Config, groupVersion metav1.GroupVersion, timeout time.Duration) error {
+	log.Infof("waiting for API service %v ...", groupVersion)
+	t := time.NewTimer(timeout)
+	retryTimeout := 200 * time.Millisecond
+	c.GroupVersion = &schema.GroupVersion{Group: groupVersion.Group, Version: groupVersion.Version}
+	c.APIPath = "/apis"
+	c.NegotiatedSerializer = a3yscheme.Codecs.WithoutConversion()
+	client, err := rest.RESTClientFor(c)
+	if err != nil {
+		return fmt.Errorf("failed to create unversioned REST client: %w", err)
+	}
+
+	for {
+		r := client.Get().RequestURI(fmt.Sprintf("/apis/%v", groupVersion)).Do(ctx)
+		if r.Error() == nil {
+			return nil
+		}
+
+		log.Debugf("failed to get API service: %v", r.Error())
+
+		select {
+		case <-t.C:
+			return errors.New("timed out waiting for API service")
+		case <-time.After(retryTimeout):
+		}
+	}
+
+	return nil
 }
 
 func generateSelfSignedCerts(certDir, pairName string) (certFile, keyFile string, caFile string, err error) {
@@ -294,14 +329,37 @@ func (m *Manager) Start(
 	tc tclient.Client,
 	opts ...Option,
 ) error {
+	dOpts := defaultOptions()
+	for _, o := range opts {
+		o(dOpts)
+	}
+
 	var err error
-	m.manager, err = start(ctx, opts...)
-	if err != nil {
+	if err = start(ctx, dOpts); err != nil {
 		m.ReadyCh <- err
 		return err
 	}
 	close(m.ReadyCh)
 
+	whSrvOpts := webhook.Options{
+		CertDir:  dOpts.certDir,
+		CertName: dOpts.certPairName + ".crt",
+		KeyName:  dOpts.certPairName + ".key",
+	}
+	m.manager, err = ctrl.NewManager(dOpts.clientConfig, ctrl.Options{
+		Scheme:         scheme,
+		LeaderElection: false,
+		WebhookServer:  webhook.NewServer(whSrvOpts),
+	})
+	if err != nil {
+		return fmt.Errorf("unable to start manager: %v", err)
+	}
+
+	log.Infof("Starting API server built-in controllers")
+
+	if err := waitForAPIService(ctx, m.manager.GetConfig(), ctrlv1alpha1.GroupVersion, 2*time.Minute); err != nil {
+		return fmt.Errorf("failed to wait for APIService %s: %v", ctrlv1alpha1.GroupVersion.Group, err)
+	}
 	if err := controllers.NewProxyReconciler(
 		m.manager.GetClient(),
 	).SetupWithManager(ctx, m.manager); err != nil {
@@ -328,24 +386,16 @@ func (m *Manager) Start(
 		return fmt.Errorf("failed to set up EdgeFunction webhook: %v", err)
 	}
 
+	log.Infof("Starting API server manager")
+
 	return m.manager.Start(ctx)
 }
 
-func (m *Manager) ClientConfig() *rest.Config {
-	return m.manager.GetConfig()
-}
-
-// start starts the API server and returns the manager (that can be used to start the controller
-// manager). The manager must be started by the caller.
+// start starts the API server.
 func start(
 	ctx context.Context,
-	opts ...Option,
-) (manager.Manager, error) {
-	dOpts := defaultOptions()
-	for _, o := range opts {
-		o(dOpts)
-	}
-
+	opts *options,
+) error {
 	var (
 		genCert         dynamiccertificates.CertKeyContentProvider
 		localClientAuth authenticator.Request
@@ -357,58 +407,60 @@ func start(
 		err error
 	)
 
-	if dOpts.certDir == "" {
+	if opts.certDir == "" {
 		log.Infof("No certificate directory provided. Creating self-signed certificate...")
 		certDir, err := os.MkdirTemp(os.TempDir(), "apoxy-cert-*")
 		if err != nil {
-			return nil, fmt.Errorf("failed to create temporary directory for self-signed certificate: %v", err)
+			return fmt.Errorf("failed to create temporary directory for self-signed certificate: %v", err)
 		}
-		dOpts.certDir = certDir
-		serverCertFile, serverKeyFile, serverCAFile, err = generateSelfSignedCerts(dOpts.certDir, dOpts.certPairName)
+		opts.certDir = certDir
+		serverCertFile, serverKeyFile, serverCAFile, err = generateSelfSignedCerts(opts.certDir, opts.certPairName)
 		if err != nil {
-			return nil, fmt.Errorf("failed to generate self-signed certificate: %v", err)
+			return fmt.Errorf("failed to generate self-signed certificate: %v", err)
 		}
 	} else {
-		log.Infof("Using certificate pair name %q and directory %q", dOpts.certPairName, dOpts.certDir)
-		serverCertFile := filepath.Join(dOpts.certDir, dOpts.certPairName+".crt")
+		log.Infof("Using certificate pair name %q and directory %q", opts.certPairName, opts.certDir)
+		serverCertFile := filepath.Join(opts.certDir, opts.certPairName+".crt")
 		if _, err := os.Stat(serverCertFile); err != nil {
-			return nil, fmt.Errorf("failed to stat server certificate file %q: %v", serverCertFile, err)
+			return fmt.Errorf("failed to stat server certificate file %q: %v", serverCertFile, err)
 		}
-		serverKeyFile := filepath.Join(dOpts.certDir, dOpts.certPairName+".key")
+		serverKeyFile := filepath.Join(opts.certDir, opts.certPairName+".key")
 		if _, err := os.Stat(serverKeyFile); err != nil {
-			return nil, fmt.Errorf("failed to stat server key file %q: %v", serverKeyFile, err)
+			return fmt.Errorf("failed to stat server key file %q: %v", serverKeyFile, err)
 		}
-		serverCAFile := filepath.Join(dOpts.certDir, "ca.crt")
+		serverCAFile := filepath.Join(opts.certDir, "ca.crt")
 		if _, err := os.Stat(serverCAFile); err != nil {
-			return nil, fmt.Errorf("failed to stat server CA file %q: %v", serverCAFile, err)
+			return fmt.Errorf("failed to stat server CA file %q: %v", serverCAFile, err)
 		}
 	}
 
-	if dOpts.enableSimpleAuth {
+	// Create client for communicating with the API server locally.
+	clientConfig := NewClientConfig()
+	if opts.enableSimpleAuth {
 		w := auth.NewTransportWrapperFunc(apiserverUser, []string{user.SystemPrivilegedGroup}, nil)
-		dOpts.clientConfig = NewClientConfig(WithTransportWrapper(w))
-	} else if dOpts.enableInClusterAuth {
+		clientConfig = NewClientConfig(WithTransportWrapper(w))
+	} else if opts.enableInClusterAuth {
 		log.Infof("Using in-cluster configuration")
 
 		genCert, err = dynamiccertificates.NewDynamicServingContentFromFiles("serving-cert", serverCertFile, serverKeyFile)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create dynamic serving content: %v", err)
+			return fmt.Errorf("failed to create dynamic serving content: %v", err)
 		}
 
 		// Generate self-signed client certificate for local client.
 		tmpDir, err := os.MkdirTemp(os.TempDir(), "apoxy-client-certs-*")
 		if err != nil {
-			return nil, fmt.Errorf("failed to create temp dir: %v", err)
+			return fmt.Errorf("failed to create temp dir: %v", err)
 		}
 		clientCertFile, clientKeyFile, clientCAFile, err := generateSelfSignedCerts(tmpDir, "client")
 		if err != nil {
-			return nil, fmt.Errorf("failed to generate self-signed certificate: %v", err)
+			return fmt.Errorf("failed to generate self-signed certificate: %v", err)
 		}
 		localClientAuth, err = auth.NewX509Authenticator(clientCAFile)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create x509 authenticator: %v", err)
+			return fmt.Errorf("failed to create x509 authenticator: %v", err)
 		}
-		dOpts.clientConfig = NewClientConfig(
+		clientConfig = NewClientConfig(
 			WithClientTLSConfig(rest.TLSClientConfig{
 				CertFile: clientCertFile,
 				KeyFile:  clientKeyFile,
@@ -435,18 +487,18 @@ func start(
 
 	readyCh := make(chan error)
 	go func() {
-		if dOpts.sqlitePath != "" && !strings.Contains(dOpts.sqlitePath, ":memory:") {
-			if _, err := os.Stat(dOpts.sqlitePath); os.IsNotExist(err) {
-				if err := os.MkdirAll(filepath.Dir(dOpts.sqlitePath), 0755); err != nil {
+		if opts.sqlitePath != "" && !strings.Contains(opts.sqlitePath, ":memory:") {
+			if _, err := os.Stat(opts.sqlitePath); os.IsNotExist(err) {
+				if err := os.MkdirAll(filepath.Dir(opts.sqlitePath), 0755); err != nil {
 					log.Fatalf("Failed to create database directory: %v", err)
 				}
-				if _, err := os.Create(dOpts.sqlitePath); err != nil {
+				if _, err := os.Create(opts.sqlitePath); err != nil {
 					log.Fatalf("Failed to create database file: %v", err)
 				}
 			}
 		}
-		sqliteConn := "sqlite://" + dOpts.sqlitePath
-		connArgs := encodeSQLiteConnArgs(dOpts.sqliteConnArgs)
+		sqliteConn := "sqlite://" + opts.sqlitePath
+		connArgs := encodeSQLiteConnArgs(opts.sqliteConnArgs)
 		if connArgs != "" {
 			sqliteConn += "?" + connArgs
 		}
@@ -498,7 +550,7 @@ func start(
 					},
 				}
 
-				if dOpts.enableInClusterAuth {
+				if opts.enableInClusterAuth {
 					o.RecommendedOptions.Authentication = apiserveropts.NewDelegatingAuthenticationOptions()
 					o.RecommendedOptions.Authentication.RemoteKubeConfigFileOptional = true
 
@@ -519,18 +571,18 @@ func start(
 				// TODO(dilyevsky): Figure out how to make the listener flexible.
 				// c.SecureServing.Listener = lst
 
-				c.ClientConfig = dOpts.clientConfig
+				c.ClientConfig = clientConfig
 				c.SharedInformerFactory = informers.NewSharedInformerFactory(
 					kubernetes.NewForConfigOrDie(c.ClientConfig),
 					0,
 				)
 				c.FlowControl = nil
 
-				if dOpts.enableSimpleAuth {
+				if opts.enableSimpleAuth {
 					// For simple auth, we use a header authenticator and an always allow authorizer.
 					c.Authentication.Authenticator = auth.NewHeaderAuthenticator()
 					c.Authorization.Authorizer = authorizerfactory.NewAlwaysAllowAuthorizer()
-				} else if dOpts.enableInClusterAuth {
+				} else if opts.enableInClusterAuth {
 					// For in-cluster auth, we use the default delegating (to the kube-apiserver)
 					// authenticator and authorizer.
 					// The union authenticator will try authenticators in order until one succeeds.
@@ -562,26 +614,12 @@ func start(
 		log.Fatalf("Context cancelled while while waiting for APIServer: %v", ctx.Err())
 	case err, ok := <-readyCh:
 		if !ok {
-			return nil, errors.New("APIServer failed to start")
+			return errors.New("APIServer failed to start")
 		}
 		if err != nil {
-			return nil, fmt.Errorf("APIServer failed to start: %v", err)
+			return fmt.Errorf("APIServer failed to start: %v", err)
 		}
 	}
 
-	whSrvOpts := webhook.Options{
-		CertDir:  dOpts.certDir,
-		CertName: dOpts.certPairName + ".crt",
-		KeyName:  dOpts.certPairName + ".key",
-	}
-	mgr, err := ctrl.NewManager(dOpts.clientConfig, ctrl.Options{
-		Scheme:         scheme,
-		LeaderElection: false,
-		WebhookServer:  webhook.NewServer(whSrvOpts),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("unable to start manager: %v", err)
-	}
-
-	return mgr, nil
+	return nil
 }

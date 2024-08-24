@@ -6,10 +6,13 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -21,17 +24,19 @@ import (
 
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	"github.com/apex/log"
 	"github.com/apoxy-dev/apoxy-cli/internal/gateway/gatewayapi"
 	gatewayapirunner "github.com/apoxy-dev/apoxy-cli/internal/gateway/gatewayapi/runner"
 	"github.com/apoxy-dev/apoxy-cli/internal/gateway/message"
-	"github.com/pingcap/errors"
 
 	ctrlv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
 	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
 	extensionsv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1"
 	gatewayv1 "github.com/apoxy-dev/apoxy-cli/api/gateway/v1"
 )
+
+func Install(scheme *runtime.Scheme) {
+	utilruntime.Must(corev1.AddToScheme(scheme))
+}
 
 const (
 	classGatewayIndex      = "classGatewayIndex"
@@ -197,10 +202,14 @@ func (r *GatewayReconciler) reconcileGateways(
 		}
 
 		for _, listener := range gw.Spec.Listeners {
+			log.V(1).Info("Processing Gateway Listener", "listener", listener)
 			if terminatesTLS(&listener) {
+				log.V(1).Info("Processing TLS Secret reference", "listener", listener.Name)
 				for _, certRef := range listener.TLS.CertificateRefs {
+					log.V(1).Info("Processing TLS Secret reference", "secretRef", certRef)
 					if refsSecret(&certRef) {
-						if err := r.processSecretRef(ctx, certRef, res); err != nil {
+						log.Info("Processing TLS Secret reference", "secretRef", certRef)
+						if err := r.processSecretRef(clog.IntoContext(ctx, log), certRef, res); err != nil {
 							log.Error(err,
 								"failed to process TLS SecretRef for gateway",
 								"gateway", gw, "secretRef", certRef)
@@ -230,18 +239,20 @@ func (r *GatewayReconciler) processSecretRef(
 	secretRef gwapiv1.SecretObjectReference,
 	res *gatewayapi.Resources,
 ) error {
+	log := clog.FromContext(ctx, "Secret", secretRef.Name)
+
 	secret := &corev1.Secret{}
-	secretNs := ptr.Deref(secretRef.Namespace, "")
+	secretNs := ptr.Deref(secretRef.Namespace, metav1.NamespaceDefault)
 	if err := r.Get(ctx,
 		types.NamespacedName{Namespace: string(secretNs), Name: string(secretRef.Name)},
 		secret,
 	); err != nil && !errors.IsNotFound(err) {
-		return fmt.Errorf("unable to find the Secret: %s/%s", secretNs, string(secretRef.Name))
+		return fmt.Errorf("unable to find the Secret %s/%s: %v", secretNs, secretRef.Name, err)
 	}
 
 	res.Secrets = append(res.Secrets, secret)
 
-	log.Infof("Secret %s/%s added to the resources", secret.Namespace, secret.Name)
+	log.Info("Secret added to resources", "name", secret.Name, "namespace", secret.Namespace)
 
 	return nil
 }

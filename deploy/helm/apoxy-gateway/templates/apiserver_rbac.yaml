@@ -1,0 +1,47 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "apoxy-gateway.fullname" . }}-apiserver
+  labels:
+    {{- include "apoxy-gateway.labels" . | nindent 4 }}
+rules:
+  # Allow the apiserver to read various resources for Gateways.
+  - apiGroups: [""]
+    resources: ["secrets", "services", "endpoints"]
+    verbs: ["get", "list"]
+  # Allow the apiserver to list pods for kvstore replication
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  # core.apoxy.dev/v1alpha controller.
+  - apiGroups: ["core.apoxy.dev"]
+    resources: ["*"]
+    verbs: ["*"]
+  # controllers.apoxy.dev/v1alpha1 controller.
+  - apiGroups: ["controllers.apoxy.dev"]
+    resources: ["*"]
+    verbs: ["*"]
+  # extensions.apoxy.dev/v1alpha1 controller.
+  - apiGroups: ["extensions.apoxy.dev"]
+    resources: ["*"]
+    verbs: ["*"]
+  # gateway.apoxy.dev/v1 controller.
+  - apiGroups: ["gateway.apoxy.dev"]
+    resources: ["*"]
+    verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "apoxy-gateway.fullname" . }}-apiserver
+  labels:
+    {{- include "apoxy-gateway.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "apoxy-gateway.fullname" . }}-apiserver
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "apoxy-gateway.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+

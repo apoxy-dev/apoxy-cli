@@ -11,6 +11,7 @@ import (
 	"github.com/temporalio/cli/temporalcli/devserver"
 	tclient "go.temporal.io/sdk/client"
 	tworker "go.temporal.io/sdk/worker"
+	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	a3yversionedclient "github.com/apoxy-dev/apoxy-cli/client/versioned"
@@ -26,6 +27,7 @@ var (
 	dbFilePath      = flag.String("db", "apoxy.db", "Path to the database file.")
 	tmprlDBFilePath = flag.String("temporal-db", "temporal.db", "Path to the Temporal database file.")
 	inCluster       = flag.Bool("in-cluster", false, "Enable in-cluster authentication.")
+	insecure        = flag.Bool("insecure", true, "Enable insecure mode.")
 	ingestStoreDir  = flag.String("ingest-store-dir", os.TempDir(), "Path to the ingest store directory.")
 	ingestStorePort = flag.Int("ingest-store-port", 8081, "Port for the ingest store.")
 )
@@ -89,13 +91,24 @@ func main() {
 		}
 	}()
 
+	rC := apiserver.NewClientConfig()
+	if *inCluster {
+		rC, err = rest.InClusterConfig()
+		if err != nil {
+			log.Errorf("failed to create in-cluster k8s config: %v", err)
+			ctxCancel(&startErr{Err: err})
+		}
+	}
 	m := apiserver.New()
 	go func() {
 		sOpts := []apiserver.Option{
 			apiserver.WithSQLitePath(*dbFilePath),
 		}
 		if *inCluster {
-			sOpts = append(sOpts, apiserver.WithInClusterAuth())
+			if !*insecure {
+				sOpts = append(sOpts, apiserver.WithInClusterAuth())
+			}
+			sOpts = append(sOpts, apiserver.WithClientConfig(rC))
 		}
 		if err := m.Start(ctx, gwSrv, tc, sOpts...); err != nil {
 			log.Errorf("failed to start API server: %v", err)
@@ -113,7 +126,7 @@ func main() {
 		log.Fatalf("context canceled: %v", context.Cause(ctx))
 	}
 
-	a3y, err := a3yversionedclient.NewForConfig(m.ClientConfig())
+	a3y, err := a3yversionedclient.NewForConfig(rC)
 	if err != nil {
 		log.Fatalf("failed creating A3Y client: %v", err)
 		ctxCancel(&startErr{Err: err})
