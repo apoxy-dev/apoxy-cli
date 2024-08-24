@@ -80,9 +80,9 @@ func (t *Translator) ProcessListeners(gateways []*GatewayContext, xdsIR XdsIRMap
 			t.validateHostName(listener)
 
 			// Process conditions and check if the listener is ready
-			isReady := t.validateListenerConditions(listener)
+			isReady, msg := t.validateListenerConditions(listener)
 			if !isReady {
-				log.Warnf("Listener %s is not ready", listener.Name)
+				log.Warnf("Listener %s is not ready: %v", listener.Name, msg)
 				continue
 			}
 
@@ -93,6 +93,7 @@ func (t *Translator) ProcessListeners(gateways []*GatewayContext, xdsIR XdsIRMap
 			containerPort := servicePortToContainerPort(servicePort.port)
 			switch listener.Protocol {
 			case gwapiv1.HTTPProtocolType, gwapiv1.HTTPSProtocolType:
+				log.Infof("Adding HTTP listener %s to IR", listener.Name)
 				irListener := &ir.HTTPListener{
 					Name:    irHTTPListenerName(listener),
 					Address: "0.0.0.0",

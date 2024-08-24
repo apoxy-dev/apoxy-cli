@@ -248,7 +248,7 @@ func (t *Translator) validateBackendServiceImport(backendRef *gwapiv1a2.BackendR
 	return true
 }
 
-func (t *Translator) validateListenerConditions(listener *ListenerContext) (isReady bool) {
+func (t *Translator) validateListenerConditions(listener *ListenerContext) (isReady bool, msg string) {
 	lConditions := listener.GetConditions()
 	if len(lConditions) == 0 {
 		listener.SetCondition(gwapiv1.ListenerConditionProgrammed, metav1.ConditionTrue, gwapiv1.ListenerReasonProgrammed,
@@ -257,14 +257,16 @@ func (t *Translator) validateListenerConditions(listener *ListenerContext) (isRe
 			"Listener has been successfully translated")
 		listener.SetCondition(gwapiv1.ListenerConditionResolvedRefs, metav1.ConditionTrue, gwapiv1.ListenerReasonResolvedRefs,
 			"Listener references have been resolved")
-		return true
+		return true, ""
 	}
 
 	// Any condition on the listener apart from Programmed=true indicates an error.
 	if !(lConditions[0].Type == string(gwapiv1.ListenerConditionProgrammed) && lConditions[0].Status == metav1.ConditionTrue) {
 		hasProgrammedCond := false
 		hasRefsCond := false
+		msgs := make([]string, len(lConditions))
 		for _, existing := range lConditions {
+			msgs = append(msgs, fmt.Sprintf("type=%s msg=%s\n", existing.Type, existing.Message))
 			if existing.Type == string(gwapiv1.ListenerConditionProgrammed) {
 				hasProgrammedCond = true
 			}
@@ -291,9 +293,9 @@ func (t *Translator) validateListenerConditions(listener *ListenerContext) (isRe
 			)
 		}
 		// skip computing IR
-		return false
+		return false, fmt.Sprintf("[%s]", strings.Join(msgs, ", "))
 	}
-	return true
+	return true, ""
 }
 
 func (t *Translator) validateAllowedNamespaces(listener *ListenerContext) {
@@ -358,35 +360,39 @@ func (t *Translator) validateTerminateModeAndGetTLSSecrets(listener *ListenerCon
 			break
 		}
 
-		secretNamespace := listener.gateway.Namespace
+		//secretNamespace := listener.gateway.Namespace
 
-		if certificateRef.Namespace != nil && string(*certificateRef.Namespace) != "" && string(*certificateRef.Namespace) != listener.gateway.Namespace {
-			if !t.validateCrossNamespaceRef(
-				crossNamespaceFrom{
-					group:     agwapiv1a1.GroupName,
-					kind:      KindGateway,
-					namespace: listener.gateway.Namespace,
-				},
-				crossNamespaceTo{
-					group:     "",
-					kind:      KindSecret,
-					namespace: string(*certificateRef.Namespace),
-					name:      string(certificateRef.Name),
-				},
-				resources.ReferenceGrants,
-			) {
-				listener.SetCondition(
-					gwapiv1.ListenerConditionResolvedRefs,
-					metav1.ConditionFalse,
-					gwapiv1.ListenerReasonRefNotPermitted,
-					fmt.Sprintf("Certificate ref to secret %s/%s not permitted by any ReferenceGrant.", *certificateRef.Namespace, certificateRef.Name),
-				)
-				break
-			}
+		//if certificateRef.Namespace != nil && string(*certificateRef.Namespace) != "" && string(*certificateRef.Namespace) != listener.gateway.Namespace {
+		//	if !t.validateCrossNamespaceRef(
+		//		crossNamespaceFrom{
+		//			group:     agwapiv1a1.GroupName,
+		//			kind:      KindGateway,
+		//			namespace: listener.gateway.Namespace,
+		//		},
+		//		crossNamespaceTo{
+		//			group:     "",
+		//			kind:      KindSecret,
+		//			namespace: string(*certificateRef.Namespace),
+		//			name:      string(certificateRef.Name),
+		//		},
+		//		resources.ReferenceGrants,
+		//	) {
+		//		listener.SetCondition(
+		//			gwapiv1.ListenerConditionResolvedRefs,
+		//			metav1.ConditionFalse,
+		//			gwapiv1.ListenerReasonRefNotPermitted,
+		//			fmt.Sprintf("Certificate ref to secret %s/%s not permitted by any ReferenceGrant.", *certificateRef.Namespace, certificateRef.Name),
+		//		)
+		//		break
+		//	}
 
+		//	secretNamespace = string(*certificateRef.Namespace)
+		//}
+
+		secretNamespace := ""
+		if certificateRef.Namespace != nil && string(*certificateRef.Namespace) != "" {
 			secretNamespace = string(*certificateRef.Namespace)
 		}
-
 		secret := resources.GetSecret(secretNamespace, string(certificateRef.Name))
 
 		if secret == nil {
