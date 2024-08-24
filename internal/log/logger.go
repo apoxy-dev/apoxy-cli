@@ -13,6 +13,9 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	"google.golang.org/grpc/grpclog"
+	"k8s.io/klog/v2"
+	ctrl "sigs.k8s.io/controller-runtime"
 )
 
 type logWriterWrapper struct {
@@ -135,6 +138,20 @@ func Init(opts ...Option) error {
 	}
 
 	setLogger(sOpts.level, sOpts.json, logW)
+
+	if sOpts.level == DebugLevel {
+		klog.SetSlogLogger(DefaultLogger)
+	} else {
+		klog.SetOutput(NewDefaultLogWriter(InfoLevel))
+		klog.LogToStderr(false)
+	}
+	grpclog.SetLoggerV2(grpclog.NewLoggerV2(
+		NewDefaultLogWriter(InfoLevel),
+		NewDefaultLogWriter(WarnLevel),
+		NewDefaultLogWriter(ErrorLevel),
+	))
+
+	ctrl.SetLogger(logr.FromSlogHandler(DefaultLogger.Handler()))
 
 	return nil
 }
