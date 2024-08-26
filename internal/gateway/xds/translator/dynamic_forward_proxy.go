@@ -190,12 +190,13 @@ func (*dynamicForwardProxy) patchRoute(route *routev3.Route, irRoute *ir.HTTPRou
 	}
 
 	if routeContainsDynamicForwardProxy(irRoute) {
-		route.Action = &routev3.Route_Route{
-			Route: &routev3.RouteAction{
-				ClusterSpecifier: &routev3.RouteAction_Cluster{
-					Cluster: irRoute.Destination.Settings[0].DynamicForwardProxy.Name,
-				},
-			},
+		rr, ok := route.Action.(*routev3.Route_Route)
+		if !ok {
+			return fmt.Errorf("only allowed to use dynamic forwarding proxy on normal routes, got: %T",
+				route.Action)
+		}
+		rr.Route.ClusterSpecifier = &routev3.RouteAction_Cluster{
+			Cluster: irRoute.Destination.Settings[0].DynamicForwardProxy.Name,
 		}
 	}
 
