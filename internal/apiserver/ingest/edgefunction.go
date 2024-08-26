@@ -195,7 +195,7 @@ func (w *worker) storeDir(name string) string {
 
 const (
 	// MaxFileSize is the maximum size of the file that can be downloaded.
-	MaxFileSize = 20 * 1024 * 1024 // 20MB
+	MaxFileSize = 50 * 1024 * 1024 // 50MB
 	// MaxErrorSize is the maximum size of the error message that can be returned.
 	MaxErrorSize = 1024
 )

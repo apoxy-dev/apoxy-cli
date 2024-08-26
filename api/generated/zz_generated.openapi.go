@@ -1043,7 +1043,7 @@ func schema_apoxy_cli_api_core_v1alpha_BackendSpec(ref common.ReferenceCallback)
 					},
 					"dynamicProxy": {
 						SchemaProps: spec.SchemaProps{
-							Description: "DynamicProxy specifies whether the backend should be dynamically proxied. If specified, Envoy's HTTP Dynamic Forward Proxy will be used to proxy requests to the backend. See: https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/http/http_proxy#arch-overview-http-dynamic-forward-proxy",
+							Description: "Specifies whether the backend should be dynamically proxied. If specified, Envoy's HTTP Dynamic Forward Proxy will be used to proxy requests to the backend. See: https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/http/http_proxy#arch-overview-http-dynamic-forward-proxy",
 							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DynamicProxySpec"),
 						},
 					},
@@ -2159,7 +2159,7 @@ func schema_apoxy_cli_api_extensions_v1alpha1_GoPluginSource(ref common.Referenc
 						SchemaProps: spec.SchemaProps{
 							Description: "PluginConfig is the configuration passed to the Go plugin as JSON-encoded structpb.Struct message. Plugin will receive it as anypb.Any message.",
 							Type:        []string{"string"},
-							Format:      "byte",
+							Format:      "",
 						},
 					},
 				},

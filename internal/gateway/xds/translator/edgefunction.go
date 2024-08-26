@@ -13,6 +13,7 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/yaml"
 
 	extensionsv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1"
 	"github.com/apoxy-dev/apoxy-cli/internal/gateway/ir"
@@ -78,8 +79,16 @@ func buildHCMEdgeFuncFilter(un *unstructured.Unstructured) (*hcmv3.HttpFilter, e
 
 	pluginConfig := structpb.Struct{}
 	// Parse JSON string into Struct
-	if fun.Spec.Code.GoPluginSource.PluginConfig != nil {
-		if err := protojson.Unmarshal(fun.Spec.Code.GoPluginSource.PluginConfig, &pluginConfig); err != nil {
+	if fun.Spec.Code.GoPluginSource.PluginConfig != "" {
+		// yaml to json
+		var jsonBytes []byte
+		jsonBytes, err := yaml.YAMLToJSON([]byte(fun.Spec.Code.GoPluginSource.PluginConfig))
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert yaml to json: %w", err)
+		}
+
+		// json to struct
+		if err := protojson.Unmarshal(jsonBytes, &pluginConfig); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal plugin config: %w", err)
 		}
 	}

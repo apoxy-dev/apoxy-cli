@@ -78,7 +78,7 @@ type GoPluginSource struct {
 	// PluginConfig is the configuration passed to the Go plugin as JSON-encoded
 	// structpb.Struct message. Plugin will receive it as anypb.Any message.
 	// +optional
-	PluginConfig []byte `json:"pluginConfig,omitempty"`
+	PluginConfig string `json:"pluginConfig,omitempty"`
 }
 
 type EdgeFunctionCodeSource struct {
