@@ -51,6 +51,8 @@ func build(ctx context.Context) error {
 	hostArch := runtime.GOARCH
 	if hostArch == "arm64" {
 		hostArch = "aarch64"
+	} else if hostArch == "amd64" {
+		hostArch = "x86_64"
 	}
 	builder, err := client.Container().
 		From("golang:latest").
