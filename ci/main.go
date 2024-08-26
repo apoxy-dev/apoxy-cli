@@ -121,13 +121,17 @@ func build(ctx context.Context) error {
 
 	var bpContainers []*dagger.Container
 	var asContainers []*dagger.Container
-	for _, platform := range []dagger.Platform{"linux/amd64" /* , "linux/arm64" */} {
+	for _, platform := range []dagger.Platform{"linux/amd64", "linux/arm64"} {
 		goarch := archOf(platform)
 		bpOut := filepath.Join("build", "backplane-"+goarch)
 		dsOut := filepath.Join("build", "dial-stdio-"+goarch)
 
 		builder = builder.
 			WithEnvVariable("GOARCH", goarch).
+			WithMountedCache("/go/pkg/mod", client.CacheVolume("go-mod-"+goarch)).
+			WithEnvVariable("GOMODCACHE", "/go/pkg/mod").
+			WithMountedCache("/go/build-cache", client.CacheVolume("go-build-"+goarch)).
+			WithEnvVariable("GOCACHE", "/go/build-cache").
 			WithExec([]string{"go", "build", "-o", bpOut, "./cmd/backplane"}).
 			WithExec([]string{"go", "build", "-o", dsOut, "./cmd/dial-stdio"})
 
@@ -141,31 +145,29 @@ func build(ctx context.Context) error {
 			return err
 		}
 		bpContainers = append(bpContainers, v)
-
-		asOut := filepath.Join("build", "apiserver-"+goarch)
-		target := goarch
-		if goarch == "amd64" {
-			target = "x86_64"
-		} else if goarch == "arm64" {
-			target = "aarch64"
-		}
-		builder = builder.
-			WithEnvVariable("GOARCH", goarch).
-			WithEnvVariable("GOOS", "linux").
-			WithEnvVariable("CGO_ENABLED", "1").
-			WithEnvVariable("CC", fmt.Sprintf("zig cc --target=%s-linux-musl", target)).
-			WithExec([]string{"go", "build", "-o", asOut, "./cmd/apiserver"})
-
-		v, err = client.Container(dagger.ContainerOpts{Platform: platform}).
-			From("cgr.dev/chainguard/wolfi-base:latest").
-			WithFile("/bin/apiserver", builder.File(asOut)).
-			WithEntrypoint([]string{"/bin/apiserver"}).
-			Sync(ctx)
-		if err != nil {
-			return err
-		}
-		asContainers = append(asContainers, v)
 	}
+
+	// TODO(dilyevsky): Fix arm64 build.
+	platform := dagger.Platform("linux/amd64")
+	goarch := "amd64"
+	target := "x86_64"
+	asOut := filepath.Join("build", "apiserver-"+goarch)
+	builder = builder.
+		WithEnvVariable("GOARCH", goarch).
+		WithEnvVariable("GOOS", "linux").
+		WithEnvVariable("CGO_ENABLED", "1").
+		WithEnvVariable("CC", fmt.Sprintf("zig cc --target=%s-linux-musl", target)).
+		WithExec([]string{"go", "build", "-o", asOut, "./cmd/apiserver"})
+
+	v, err := client.Container(dagger.ContainerOpts{Platform: platform}).
+		From("cgr.dev/chainguard/wolfi-base:latest").
+		WithFile("/bin/apiserver", builder.File(asOut)).
+		WithEntrypoint([]string{"/bin/apiserver"}).
+		Sync(ctx)
+	if err != nil {
+		return err
+	}
+	asContainers = append(asContainers, v)
 
 	if sha == "" {
 		// Skip publishing if not in a CI environment.
