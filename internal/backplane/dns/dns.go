@@ -15,6 +15,10 @@ import (
 	"github.com/apoxy-dev/apoxy-cli/internal/log"
 )
 
+const (
+	DnsDMapName = "_apoxy_dns"
+)
+
 type Resolver struct {
 	store *kvstore.Store
 
@@ -62,7 +66,7 @@ func (r *Resolver) Start(
 
 func (r *Resolver) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
 	domain := req.Question[0].Name
-	dm, err := r.store.CNAMEMap()
+	dm, err := r.store.NewDMap(DnsDMapName)
 	if err != nil {
 		log.Errorf("failed to get CNAME map: %v", err)
 		_ = w.WriteMsg(replyError(req, dns.RcodeServerFailure))

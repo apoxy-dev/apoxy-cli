@@ -9,10 +9,6 @@ import (
 	"github.com/buraksezer/olric/config"
 )
 
-const (
-	CNAMEDMapName = "_apoxy_dns_cnames"
-)
-
 type Store struct {
 	db *olric.Olric
 }
@@ -54,7 +50,7 @@ func (k *Store) Stop(ctx context.Context) error {
 	return k.db.Shutdown(ctx)
 }
 
-// CNAMEMap returns a new DM for CNAME DNS resource records.
-func (k *Store) CNAMEMap() (olric.DMap, error) {
-	return k.db.NewEmbeddedClient().NewDMap(CNAMEDMapName)
+// NewDMap creates a new DMap.
+func (k *Store) NewDMap(name string) (olric.DMap, error) {
+	return k.db.NewEmbeddedClient().NewDMap(name)
 }
