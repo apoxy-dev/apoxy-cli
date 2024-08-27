@@ -9,6 +9,10 @@ import (
 	"github.com/buraksezer/olric/config"
 )
 
+const (
+	CNAMEDMapName = "_apoxy_dns_cnames"
+)
+
 type kvstore struct {
 	db *olric.Olric
 }
@@ -30,10 +34,12 @@ func New(labelSelector string) (*kvstore, error) {
 	if len(selectorMap) > 0 {
 		cfg.ServiceDiscovery = NewK8sServiceDiscovery(selectorMap)
 	}
+
 	db, err := olric.New(cfg)
 	if err != nil {
 		return nil, err
 	}
+
 	return &kvstore{db: db}, nil
 }
 
@@ -46,4 +52,9 @@ func (k *kvstore) Start() error {
 // Stop stops the kvstore.
 func (k *kvstore) Stop(ctx context.Context) error {
 	return k.db.Shutdown(ctx)
+}
+
+// CNAMEMap returns a new DM for CNAME DNS resource records.
+func (k *kvstore) CNAMEMap() (olric.DMap, error) {
+	return k.db.NewEmbeddedClient().NewDMap(CNAMEDMapName)
 }

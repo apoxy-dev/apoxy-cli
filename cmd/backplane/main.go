@@ -31,6 +31,7 @@ import (
 	"github.com/apoxy-dev/apoxy-cli/client/versioned"
 	"github.com/apoxy-dev/apoxy-cli/internal/apiserver"
 	bpctrl "github.com/apoxy-dev/apoxy-cli/internal/backplane/controllers"
+	"github.com/apoxy-dev/apoxy-cli/internal/backplane/dns"
 	"github.com/apoxy-dev/apoxy-cli/internal/backplane/kvstore"
 	"github.com/apoxy-dev/apoxy-cli/internal/backplane/wasm/ext_proc"
 	"github.com/apoxy-dev/apoxy-cli/internal/backplane/wasm/manifest"
@@ -71,6 +72,7 @@ var (
 	useEnvoyContrib = flag.Bool("use_envoy_contrib", false, "Use Envoy contrib filters.")
 
 	kvPeerSelector = flag.String("kv_peer_selector", "app=apoxy-backplane", "Label selector for K/V store peer.")
+	dnsUpstream    = flag.String("dns_upstream", os.Getenv("HOSTNAME")+":53", "Address of an upstream DNS server to use for DNS resolution.")
 )
 
 func upsertProxyFromPath(ctx context.Context, rC *rest.Config, path string) (string, error) {
@@ -188,6 +190,17 @@ func main() {
 	go func() {
 		if err := kv.Start(); err != nil {
 			log.Fatalf("Failed to start K/V store: %v", err)
+		}
+	}()
+
+	dm, err := kv.CNAMEMap()
+	if err != nil {
+		log.Fatalf("Failed to make new CNAME DMap: %v", err)
+	}
+	d := dns.NewResolver(dm, *dnsUpstream)
+	go func() {
+		if err := d.Start(ctx, ":1053"); err != nil {
+			log.Fatalf("Failed to start DNS CNAME resolver: %v", err)
 		}
 	}()
 
