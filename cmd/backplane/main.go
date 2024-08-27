@@ -35,6 +35,7 @@ import (
 	"github.com/apoxy-dev/apoxy-cli/internal/backplane/kvstore"
 	"github.com/apoxy-dev/apoxy-cli/internal/backplane/wasm/ext_proc"
 	"github.com/apoxy-dev/apoxy-cli/internal/backplane/wasm/manifest"
+	"github.com/apoxy-dev/apoxy-cli/internal/backplane/websocket"
 	"github.com/apoxy-dev/apoxy-cli/internal/cmd/utils"
 	"github.com/apoxy-dev/apoxy-cli/internal/log"
 
@@ -72,6 +73,8 @@ var (
 	useEnvoyContrib = flag.Bool("use_envoy_contrib", false, "Use Envoy contrib filters.")
 
 	kvPeerSelector = flag.String("kv_peer_selector", "app=apoxy-backplane", "Label selector for K/V store peer.")
+
+	wsRouterPort = flag.Int("ws_router_port", 8082, "Port for the WebSocket router.")
 )
 
 func upsertProxyFromPath(ctx context.Context, rC *rest.Config, path string) (string, error) {
@@ -186,16 +189,32 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to create K/V store: %v", err)
 	}
+	kvStarted := make(chan struct{})
 	go func() {
-		if err := kv.Start(); err != nil {
+		if err := kv.Start(kvStarted); err != nil {
 			log.Fatalf("Failed to start K/V store: %v", err)
 		}
 	}()
+	select {
+	case <-kvStarted:
+	case <-ctx.Done():
+		log.Fatalf("Failed to start K/V store: %v", ctx.Err())
+	}
 
 	d := dns.NewResolver(kv)
 	go func() {
 		if err := d.Start(ctx, ":1053"); err != nil {
 			log.Fatalf("Failed to start DNS CNAME resolver: %v", err)
+		}
+	}()
+
+	wsRouter, err := websocket.NewRouter(kv)
+	if err != nil {
+		log.Fatalf("Failed to create WebSocket router: %v", err)
+	}
+	go func() {
+		if err := wsRouter.ListenAndServe(ctx, fmt.Sprintf(":%d", *wsRouterPort)); err != nil {
+			log.Fatalf("Failed to start WebSocket router: %v", err)
 		}
 	}()
 
