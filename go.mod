@@ -184,6 +184,7 @@ require (
 	github.com/iancoleman/strcase v0.3.0 // indirect
 	github.com/imdario/mergo v0.3.16 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
+	github.com/ishidawataru/sctp v0.0.0-20230406120618-7ff4192f6ff2 // indirect
 	github.com/jackc/pgerrcode v0.0.0-20220416144525-469b46aa5efa // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20231201235250-de7065d80cb9 // indirect

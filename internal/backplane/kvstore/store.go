@@ -13,12 +13,12 @@ const (
 	CNAMEDMapName = "_apoxy_dns_cnames"
 )
 
-type kvstore struct {
+type Store struct {
 	db *olric.Olric
 }
 
 // New creates a new kvstore instance.
-func New(labelSelector string) (*kvstore, error) {
+func New(labelSelector string) (*Store, error) {
 	selectorMap := map[string]string{}
 	if labelSelector != "" {
 		ss := strings.Split(labelSelector, ",")
@@ -40,21 +40,21 @@ func New(labelSelector string) (*kvstore, error) {
 		return nil, err
 	}
 
-	return &kvstore{db: db}, nil
+	return &Store{db: db}, nil
 }
 
 // Start starts the kvstore. It returns an error if the kvstore fails to start.
 // Uses background context created by New() method.
-func (k *kvstore) Start() error {
+func (k *Store) Start() error {
 	return k.db.Start()
 }
 
 // Stop stops the kvstore.
-func (k *kvstore) Stop(ctx context.Context) error {
+func (k *Store) Stop(ctx context.Context) error {
 	return k.db.Shutdown(ctx)
 }
 
 // CNAMEMap returns a new DM for CNAME DNS resource records.
-func (k *kvstore) CNAMEMap() (olric.DMap, error) {
+func (k *Store) CNAMEMap() (olric.DMap, error) {
 	return k.db.NewEmbeddedClient().NewDMap(CNAMEDMapName)
 }
