@@ -5,11 +5,13 @@ metadata:
   namespace: {{ include "apoxy-gateway.namespace" . }}
   labels:
     {{- include "apoxy-gateway.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backplane
 spec:
   replicas: 1
   selector:
     matchLabels:
       {{- include "apoxy-gateway.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: backplane
   template:
     metadata:
       {{- with .Values.backplane.podAnnotations }}
@@ -19,6 +21,7 @@ spec:
       labels:
         {{- include "apoxy-gateway.selectorLabels" . | nindent 8 }}
         kvstore.apoxy.dev: {{ include "apoxy-gateway.fullname" . }}
+        app.kubernetes.io/component: backplane
     spec:
       {{- with .Values.backplane.imagePullSecrets }}
       imagePullSecrets:

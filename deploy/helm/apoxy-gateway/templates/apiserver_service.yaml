@@ -14,6 +14,7 @@ spec:
       name: https
   selector:
     {{- include "apoxy-gateway.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: apiserver
 ---
 apiVersion: v1
 kind: Service
@@ -38,4 +39,5 @@ spec:
       name: ingest-store
   selector:
     {{- include "apoxy-gateway.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: apiserver
 

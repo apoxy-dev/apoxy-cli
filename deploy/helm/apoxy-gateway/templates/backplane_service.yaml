@@ -16,6 +16,7 @@ spec:
       name: https
   selector:
     {{- include "apoxy-gateway.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: backplane
 ---
 apiVersion: v1
 kind: Service
@@ -33,3 +34,4 @@ spec:
       name: internal
   selector:
     {{- include "apoxy-gateway.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: backplane
