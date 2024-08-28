@@ -82,7 +82,8 @@ func build(ctx context.Context) error {
 		WithExec([]string{
 			"zig", "version",
 		}).
-		//WithExec([]string{"go", "build", "-o", outPath}).
+		WithEnvVariable("CGO_ENABLED", "1").
+		WithExec([]string{"go", "build", "-o", outPath}).
 		Sync(ctx)
 	if err != nil {
 		return err
