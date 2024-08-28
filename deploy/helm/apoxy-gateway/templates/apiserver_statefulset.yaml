@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: {{ include "apoxy-gateway.fullname" . }}-apiserver
+  namespace: {{ include "apoxy-gateway.namespace" . }}
   labels:
     {{- include "apoxy-gateway.labels" . | nindent 4 }}
 spec:
@@ -79,6 +80,7 @@ spec:
     - metadata:
         name: data
       spec:
+        storageClassName: {{ .Values.apiserver.persistence.storageClass }}
         accessModes: [ {{ .Values.apiserver.persistence.accessMode }} ]
         resources:
           requests:

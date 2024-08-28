@@ -2,6 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: {{ include "apoxy-gateway.fullname" . }}-proxy
+  namespace: {{ include "apoxy-gateway.namespace" . }}
   labels:
     {{- include "apoxy-gateway.labels" . | nindent 4 }}
 data:
@@ -13,7 +14,10 @@ data:
     spec:
       provider: unmanaged
       listeners:
-        - protocol: TCP
+        - name: https
+          protocol: TCP
           port: {{ .Values.backplane.service.port }}
-        - protocol: TCP
+        - name: internal
+          protocol: TCP
           port: {{ .Values.backplane.proxy.internalPort }}
+

@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ include "apoxy-gateway.fullname" . }}-backplane
+  namespace: {{ include "apoxy-gateway.namespace" . }}
   labels:
     {{- include "apoxy-gateway.labels" . | nindent 4 }}
 spec:
