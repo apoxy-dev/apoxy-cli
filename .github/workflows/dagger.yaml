@@ -3,6 +3,9 @@ on:
   push:
     branches:
       - main
+    # Tags starting with v are used for releases (e.g v0.1.0)
+    tags:
+      - v**
 jobs:
   build-all:
     runs-on: ubuntu-22.04
@@ -11,7 +14,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v4
         with:
-          go-version: '>=1.21.5'
+          go-version: ">=1.21.5"
       - name: Write Secrets to Disk
         run: |
           mkdir -p secrets
@@ -33,8 +36,8 @@ jobs:
       - name: Run Dagger pipeline
         run: dagger run --progress=plain go run ci/main.go
         env:
-           #DAGGER_CLOUD_TOKEN: ${{ secrets.DAGGER_CLOUD_TOKEN }}
-           _EXPERIMENTAL_DAGGER_RUNNER_HOST: tcp://localhost:9080
-           APOXY_PROJECT_API_KEY: ${{ secrets.APOXY_PROJECT_API_KEY }}
-           APOXY_DOCKERHUB_PASSWORD: ${{ secrets.APOXY_DOCKERHUB_PASSWORD }}
+          #DAGGER_CLOUD_TOKEN: ${{ secrets.DAGGER_CLOUD_TOKEN }}
+          _EXPERIMENTAL_DAGGER_RUNNER_HOST: tcp://localhost:9080
+          APOXY_PROJECT_API_KEY: ${{ secrets.APOXY_PROJECT_API_KEY }}
+          APOXY_DOCKERHUB_PASSWORD: ${{ secrets.APOXY_DOCKERHUB_PASSWORD }}
         timeout-minutes: 15

@@ -32,12 +32,17 @@ func archOf(p dagger.Platform) string {
 func build(ctx context.Context) error {
 	fmt.Println("Building with Dagger")
 
-	sha := os.Getenv("GITHUB_SHA")
-	if sha != "" {
-		sha = sha[:10]
+	var imageTag string
+	if sha := os.Getenv("GITHUB_SHA"); sha != "" {
+		imageTag = sha[:10]
 		if os.Getenv("APOXY_DOCKERHUB_PASSWORD") == "" {
 			log.Fatal("APOXY_DOCKERHUB_PASSWORD not set")
 		}
+	}
+	// If this is a tag, publish the images with the tag name.
+	isTag := os.Getenv("GITHUB_REF_TYPE") == "tag"
+	if isTag {
+		imageTag = os.Getenv("GITHUB_REF_NAME")
 	}
 
 	client, err := dagger.Connect(ctx, dagger.WithLogOutput(os.Stderr))
@@ -88,7 +93,6 @@ func build(ctx context.Context) error {
 	}
 
 	// 1. Build apoxy-cli.
-
 	cli := builder.
 		WithEnvVariable("CGO_ENABLED", "1").
 		WithExec([]string{"go", "build", "-o", outPath})
@@ -176,7 +180,7 @@ func build(ctx context.Context) error {
 	}
 	asContainers = append(asContainers, v)
 
-	if sha == "" {
+	if imageTag == "" {
 		// Skip publishing if not in a CI environment.
 		return nil
 	}
@@ -187,7 +191,7 @@ func build(ctx context.Context) error {
 	asOpts := dagger.ContainerPublishOpts{
 		PlatformVariants: asContainers,
 	}
-	for _, tag := range []string{"latest", sha} {
+	for _, tag := range []string{"latest", imageTag} {
 		_, err = client.Container().
 			WithRegistryAuth(
 				"docker.io",
