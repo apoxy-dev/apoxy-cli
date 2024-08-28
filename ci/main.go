@@ -46,7 +46,7 @@ func build(ctx context.Context) error {
 	}
 	defer client.Close()
 
-	// 1. Build apoxy-cli.
+	// 0. Prepare build environment.
 	outPath := "build/"
 	hostArch := runtime.GOARCH
 	if hostArch == "arm64" {
@@ -82,12 +82,16 @@ func build(ctx context.Context) error {
 		WithExec([]string{
 			"zig", "version",
 		}).
-		WithEnvVariable("CGO_ENABLED", "1").
-		WithExec([]string{"go", "build", "-o", outPath}).
 		Sync(ctx)
 	if err != nil {
 		return err
 	}
+
+	// 1. Build apoxy-cli.
+
+	cli := builder.
+		WithEnvVariable("CGO_ENABLED", "1").
+		WithExec([]string{"go", "build", "-o", outPath})
 
 	// 2. Run smoke test.
 	if apiKey := os.Getenv("APOXY_PROJECT_API_KEY"); apiKey != "" {
@@ -101,7 +105,7 @@ func build(ctx context.Context) error {
 			WithExec([]string{
 				"apt-get", "install", "-yq", "ca-certificates",
 			}).
-			WithFile("/usr/local/bin/apoxy", builder.File(filepath.Join(outPath, "apoxy-cli"))).
+			WithFile("/usr/local/bin/apoxy", cli.File(filepath.Join(outPath, "apoxy-cli"))).
 			WithExec([]string{
 				"mkdir", "-p", "/root/.apoxy",
 			}).
@@ -129,7 +133,7 @@ func build(ctx context.Context) error {
 		bpOut := filepath.Join("build", "backplane-"+goarch)
 		dsOut := filepath.Join("build", "dial-stdio-"+goarch)
 
-		builder = builder.
+		bp := builder.
 			WithEnvVariable("GOARCH", goarch).
 			WithMountedCache("/go/pkg/mod", client.CacheVolume("go-mod-"+goarch)).
 			WithEnvVariable("GOMODCACHE", "/go/pkg/mod").
@@ -140,8 +144,8 @@ func build(ctx context.Context) error {
 
 		v, err := client.Container(dagger.ContainerOpts{Platform: platform}).
 			From("cgr.dev/chainguard/wolfi-base:latest").
-			WithFile("/bin/backplane", builder.File(bpOut)).
-			WithFile("/bin/dial-stdio", builder.File(dsOut)).
+			WithFile("/bin/backplane", bp.File(bpOut)).
+			WithFile("/bin/dial-stdio", bp.File(dsOut)).
 			WithEntrypoint([]string{"/bin/backplane"}).
 			Sync(ctx)
 		if err != nil {
@@ -155,7 +159,7 @@ func build(ctx context.Context) error {
 	goarch := "amd64"
 	target := "x86_64"
 	asOut := filepath.Join("build", "apiserver-"+goarch)
-	builder = builder.
+	asrv := builder.
 		WithEnvVariable("GOARCH", goarch).
 		WithEnvVariable("GOOS", "linux").
 		WithEnvVariable("CGO_ENABLED", "1").
@@ -164,7 +168,7 @@ func build(ctx context.Context) error {
 
 	v, err := client.Container(dagger.ContainerOpts{Platform: platform}).
 		From("cgr.dev/chainguard/wolfi-base:latest").
-		WithFile("/bin/apiserver", builder.File(asOut)).
+		WithFile("/bin/apiserver", asrv.File(asOut)).
 		WithEntrypoint([]string{"/bin/apiserver"}).
 		Sync(ctx)
 	if err != nil {
