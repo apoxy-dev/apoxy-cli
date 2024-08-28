@@ -54,11 +54,13 @@ func (r *router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	v, err := r.dm.Get(ctx, req.Host)
 	if err != nil {
 		log.Errorf("failed to get websocket connection for %s: %v", req.Host, err)
+		downstreamConn.Close(websocket.StatusInternalError, "no websocket target")
 		return
 	}
 	target, err := v.String()
 	if err != nil {
 		log.Errorf("failed to convert websocket connection for %s: %v", req.Host, err)
+		downstreamConn.Close(websocket.StatusInternalError, "no websocket target")
 		return
 	}
 
@@ -67,11 +69,13 @@ func (r *router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	upstreamConn, resp, err := websocket.Dial(ctx, "ws://"+target, nil)
 	if err != nil {
 		log.Errorf("failed to dial websocket connection to %s: %v", target, err)
+		downstreamConn.Close(websocket.StatusInternalError, "no websocket target")
 		return
 	}
 	defer upstreamConn.CloseNow()
 	if resp.StatusCode != http.StatusSwitchingProtocols {
 		log.Errorf("failed to upgrade websocket connection to %s: %v", target, resp.Status)
+		downstreamConn.Close(websocket.StatusInternalError, "no websocket target")
 		return
 	}
 	log.Infof("connected to websocket target %s", target)
@@ -134,4 +138,6 @@ func (r *router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	wg.Wait()
 
 	log.Infof("closing websocket connection from %s to %s", req.RemoteAddr, target)
+
+	downstreamConn.Close(websocket.StatusNormalClosure, "connection closed")
 }
