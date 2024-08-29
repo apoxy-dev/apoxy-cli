@@ -236,7 +236,9 @@ func routeContainsDynamicForwardProxy(r *ir.HTTPRoute) bool {
 		return false
 	}
 
-	if len(r.Destination.Settings) != 1 || r.Destination.Settings[0].DynamicForwardProxy == nil {
+	if r.Destination == nil ||
+		len(r.Destination.Settings) != 1 ||
+		r.Destination.Settings[0].DynamicForwardProxy == nil {
 		return false
 	}
 
