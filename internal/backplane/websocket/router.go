@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"sync"
 
 	"github.com/buraksezer/olric"
@@ -50,16 +51,34 @@ func (r *router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 	defer downstreamConn.CloseNow()
 
-	log.Infof("accepted websocket connection from %s for %s", req.RemoteAddr, req.Host)
-	v, err := r.dm.Get(ctx, req.Host)
-	if err != nil {
-		log.Errorf("failed to get websocket connection for %s: %v", req.Host, err)
-		downstreamConn.Close(websocket.StatusInternalError, "no websocket target")
+	// Validate host: Must have at least two dot.
+	if strings.Count(req.Host, ".") < 2 {
+		log.Errorf("invalid host: %s", req.Host)
+		downstreamConn.Close(websocket.StatusPolicyViolation, "invalid host")
 		return
+	}
+	host := req.Host
+
+	log.Infof("accepted websocket connection from %s for %s", req.RemoteAddr, host)
+	v, err := r.dm.Get(ctx, host)
+	if err != nil {
+		if err == olric.ErrKeyNotFound {
+			// Replace the first part of the host with "_default" and try again.
+			host = "_default" + host[strings.Index(host, "."):]
+			if v, err = r.dm.Get(ctx, host); err != nil {
+				log.Errorf("failed to get websocket connection for %s: %v", host, err)
+				downstreamConn.Close(websocket.StatusInternalError, "no websocket target")
+				return
+			}
+		} else {
+			log.Errorf("failed to get websocket connection for %s: %v", host, err)
+			downstreamConn.Close(websocket.StatusInternalError, "no websocket target")
+			return
+		}
 	}
 	target, err := v.String()
 	if err != nil {
-		log.Errorf("failed to convert websocket connection for %s: %v", req.Host, err)
+		log.Errorf("failed to convert websocket connection for %s: %v", host, err)
 		downstreamConn.Close(websocket.StatusInternalError, "no websocket target")
 		return
 	}
