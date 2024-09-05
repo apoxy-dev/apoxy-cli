@@ -59,7 +59,8 @@ var (
 
 	devMode = flag.Bool("dev", false, "Enable development mode.")
 
-	apiserverHost = flag.String("apiserver_host", "host.docker.internal", "APIServer address.")
+	apiserverHost   = flag.String("apiserver_host", "host.docker.internal", "APIServer address.")
+	healthProbePort = flag.Int("health_probe_port", 8080, "Port for the health probe.")
 
 	chAddrs  = flag.String("ch_addrs", "", "Comma-separated list of ClickHouse host:port addresses.")
 	chSecure = flag.Bool("ch_secure", false, "Whether to connect to Clickhouse using TLS.")
@@ -258,6 +259,7 @@ func main() {
 		Metrics: metricsserver.Options{
 			BindAddress: ":8081",
 		},
+		HealthProbeBindAddress: fmt.Sprintf(":%d", *healthProbePort),
 	})
 	if err != nil {
 		log.Fatalf("unable to start manager: %v", err)
