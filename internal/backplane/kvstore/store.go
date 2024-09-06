@@ -9,6 +9,10 @@ import (
 	"github.com/buraksezer/olric/config"
 )
 
+const (
+	PubSubChannel = "_apoxy_pubsub"
+)
+
 type Store struct {
 	selectorMap map[string]string
 	db          *olric.Olric
@@ -62,4 +66,8 @@ func (s *Store) Stop(ctx context.Context) error {
 // NewDMap creates a new DMap.
 func (s *Store) NewDMap(name string) (olric.DMap, error) {
 	return s.db.NewEmbeddedClient().NewDMap(name)
+}
+
+func (s *Store) NewPubSub() (*olric.PubSub, error) {
+	return s.db.NewEmbeddedClient().NewPubSub()
 }

@@ -16,7 +16,8 @@ import (
 )
 
 type router struct {
-	dm olric.DMap
+	dm     olric.DMap
+	pubsub *olric.PubSub
 }
 
 func NewRouter(store *kvstore.Store) (*router, error) {
@@ -24,7 +25,14 @@ func NewRouter(store *kvstore.Store) (*router, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create DMap: %v", err)
 	}
-	return &router{dm: dm}, nil
+	ps, err := store.NewPubSub()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create PubSub: %v", err)
+	}
+	return &router{
+		dm:     dm,
+		pubsub: ps,
+	}, nil
 }
 
 func (r *router) ListenAndServe(ctx context.Context, addr string) error {
@@ -39,6 +47,18 @@ func (r *router) ListenAndServe(ctx context.Context, addr string) error {
 	}()
 
 	return srv.ListenAndServe()
+}
+
+func (r *router) awaitTarget(ctx context.Context, host string) (string, error) {
+	sub := r.pubsub.PSubscribe(ctx, kvstore.PubSubChannel+":"+host)
+	defer sub.Close()
+
+	select {
+	case m := <-sub.Channel():
+		return m.Payload, nil
+	case <-ctx.Done():
+		return "", ctx.Err()
+	}
 }
 
 func (r *router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
@@ -60,27 +80,11 @@ func (r *router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	host := req.Host
 
 	log.Infof("accepted websocket connection from %s for %s", req.RemoteAddr, host)
-	v, err := r.dm.Get(ctx, host)
+
+	target, err := r.awaitTarget(ctx, host)
 	if err != nil {
-		if err == olric.ErrKeyNotFound {
-			// Replace the first part of the host with "_default" and try again.
-			host = "_default" + host[strings.Index(host, "."):]
-			if v, err = r.dm.Get(ctx, host); err != nil {
-				log.Errorf("failed to get websocket connection for %s: %v", host, err)
-				downstreamConn.Close(websocket.StatusInternalError, "no websocket target")
-				return
-			}
-		} else {
-			log.Errorf("failed to get websocket connection for %s: %v", host, err)
-			downstreamConn.Close(websocket.StatusInternalError, "no websocket target")
-			return
-		}
-	}
-	target, err := v.String()
-	if err != nil {
-		log.Errorf("failed to convert websocket connection for %s: %v", host, err)
+		log.Errorf("failed to get websocket connection for %s: %v", host, err)
 		downstreamConn.Close(websocket.StatusInternalError, "no websocket target")
-		return
 	}
 
 	log.Infof("forwarding websocket connection from %s to %s", req.RemoteAddr, target)
