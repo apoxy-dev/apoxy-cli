@@ -5,15 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"sync"
 	"time"
 
-	"github.com/google/go-github/v61/github"
 	"github.com/google/uuid"
 	"github.com/shirou/gopsutil/process"
 
@@ -35,51 +32,6 @@ var (
 		"arm64": "aarch_64",
 	}
 )
-
-type Release struct {
-	Version string
-	Sha     string
-	Contrib bool
-}
-
-func (r *Release) String() string {
-	if r.Sha == "" {
-		return r.Version
-	}
-	return fmt.Sprintf("%s@sha256:%s", r.Version, r.Sha)
-}
-
-func (r *Release) DownloadBinaryFromGitHub(ctx context.Context) (io.ReadCloser, error) {
-	release := r.String()
-	if release == "" {
-		c := github.NewClient(nil)
-		latest, _, err := c.Repositories.GetLatestRelease(ctx, "envoyproxy", "envoy")
-		if err != nil {
-			return nil, fmt.Errorf("failed to get latest envoy release: %w", err)
-		}
-		r.Version = latest.GetTagName()
-	}
-	downloadURL := filepath.Join(
-		githubURL,
-		r.Version,
-		fmt.Sprintf("envoy-%s-%s-%s", r.Version[1:], runtime.GOOS, goArchToPlatform[runtime.GOARCH]),
-	)
-	if r.Contrib {
-		downloadURL = filepath.Join(
-			githubURL,
-			r.Version,
-			fmt.Sprintf("envoy-contrib-%s-%s-%s", r.Version[1:], runtime.GOOS, goArchToPlatform[runtime.GOARCH]),
-		)
-	}
-
-	log.Infof("downloading envoy %s from https://%s", r, downloadURL)
-
-	resp, err := http.Get("https://" + downloadURL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to download envoy: %w", err)
-	}
-	return resp.Body, nil
-}
 
 // Option configures a Runtime.
 type Option func(*Runtime)
@@ -110,7 +62,7 @@ func WithArgs(args ...string) Option {
 
 // WithRelease sets the Envoy release to use.
 // If this is not set, the latest release is used.
-func WithRelease(release *Release) Option {
+func WithRelease(release ReleaseDownloader) Option {
 	return func(r *Runtime) {
 		r.Release = release
 	}
@@ -134,7 +86,7 @@ func WithGoPluginDir(dir string) Option {
 type Runtime struct {
 	EnvoyPath           string
 	BootstrapConfigYAML string
-	Release             *Release
+	Release             ReleaseDownloader
 	Cluster             string
 	// Args are additional arguments to pass to Envoy.
 	Args []string
@@ -153,7 +105,7 @@ func (r *Runtime) setOptions(opts ...Option) {
 		opt(r)
 	}
 	if r.Release == nil {
-		r.Release = &Release{}
+		r.Release = &GitHubRelease{}
 	}
 	if r.Cluster == "" {
 		r.Cluster = uuid.New().String()
@@ -273,7 +225,7 @@ func (r *Runtime) vendorEnvoyIfNotExists(ctx context.Context) error {
 	}
 
 	// Download the Envoy binary for the release.
-	bin, err := r.Release.DownloadBinaryFromGitHub(ctx)
+	bin, err := r.Release.DownloadBinary(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to download envoy: %w", err)
 	}

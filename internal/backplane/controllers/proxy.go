@@ -53,6 +53,7 @@ type options struct {
 	chConn                   clickhouse.Conn
 	apiServerTLSClientConfig *tls.Config
 	goPluginDir              string
+	releaseURL               string
 	useEnvoyContrib          bool
 }
 
@@ -79,6 +80,13 @@ func WithAPIServerTLSClientConfig(tlsConfig *tls.Config) Option {
 func WithGoPluginDir(dir string) Option {
 	return func(o *options) {
 		o.goPluginDir = dir
+	}
+}
+
+// WithURLRelease enables the use of URL release. (Default is GitHub release).
+func WithURLRelease(url string) Option {
+	return func(o *options) {
+		o.releaseURL = url
 	}
 }
 
@@ -271,15 +279,22 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 			return reconcile.Result{}, nil // Leave the proxy in failed state.
 		}
 
+		// TODO(dilyevsky): Pass these values from the Proxy object.
 		opts := []envoy.Option{
 			envoy.WithBootstrapConfigYAML(cfg),
 			envoy.WithCluster(p.Name),
-			envoy.WithRelease(&envoy.Release{
-				// TODO(dilyevsky): Pass these values from the Proxy object.
-				Contrib: r.options.useEnvoyContrib,
-			}),
 			envoy.WithGoPluginDir(r.options.goPluginDir),
 		}
+		if r.options.releaseURL != "" {
+			opts = append(opts, envoy.WithRelease(&envoy.URLRelease{
+				URL: r.options.releaseURL,
+			}))
+		} else {
+			opts = append(opts, envoy.WithRelease(&envoy.GitHubRelease{
+				Contrib: r.options.useEnvoyContrib,
+			}))
+		}
+
 		if r.options.chConn != nil {
 			pUUID, _ := uuid.Parse(string(p.UID))
 			lc := logs.NewClickHouseLogsCollector(r.options.chConn, pUUID)

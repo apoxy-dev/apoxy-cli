@@ -54,9 +54,10 @@ func init() {
 var (
 	projectID = flag.String("project_id", "", "Apoxy project UUID.")
 
-	proxyPath   = flag.String("proxy_path", "", "Path to the Proxy to create in the API.")
-	proxyName   = flag.String("proxy", "", "Name of the Proxy to manage. Must not be used with --proxy_path.")
-	replicaName = flag.String("replica", os.Getenv("HOSTNAME"), "Name of the replica to manage.")
+	proxyPath       = flag.String("proxy_path", "", "Path to the Proxy to create in the API.")
+	proxyName       = flag.String("proxy", "", "Name of the Proxy to manage. Must not be used with --proxy_path.")
+	replicaName     = flag.String("replica", os.Getenv("HOSTNAME"), "Name of the replica to manage.")
+	envoyReleaseURL = flag.String("envoy_release_url", "", "URL to the Envoy release tarball.")
 
 	devMode = flag.Bool("dev", false, "Enable development mode.")
 
@@ -279,6 +280,9 @@ func main() {
 	}
 	if chConn != nil {
 		proxyOpts = append(proxyOpts, bpctrl.WithClickHouseConn(chConn))
+	}
+	if *envoyReleaseURL != "" {
+		proxyOpts = append(proxyOpts, bpctrl.WithURLRelease(*envoyReleaseURL))
 	}
 	if *useEnvoyContrib {
 		proxyOpts = append(proxyOpts, bpctrl.WithEnvoyContrib())
