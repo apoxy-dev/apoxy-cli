@@ -180,6 +180,8 @@ func build(ctx context.Context) error {
 	}
 	asContainers = append(asContainers, v)
 
+	// 4. Publish images.
+
 	if imageTag == "" {
 		// Skip publishing if not in a CI environment.
 		return nil
@@ -214,6 +216,31 @@ func build(ctx context.Context) error {
 			return err
 		}
 	}
+
+	// 5. Publish Helm chart.
+	// See more: https://docs.docker.com/docker-hub/oci-artifacts/#push-a-helm-chart
+	out, err := client.Container().
+		From("cgr.dev/chainguard/helm:latest").
+		WithDirectory("/src", client.Host().Directory("./deploy/helm")).
+		WithWorkdir("/src").
+		WithExec([]string{
+			"package",
+			"--version", imageTag,
+			"--app-version", imageTag,
+			"--destination", "/tmp",
+			"apoxy-gateway",
+		}).
+		WithExec([]string{
+			"registry", "login", "registry-1.docker.io", "-u", "apoxy", "-p", os.Getenv("APOXY_DOCKERHUB_PASSWORD"),
+		}).
+		WithExec([]string{
+			"push", fmt.Sprintf("/tmp/apoxy-gateway-%s.tgz", imageTag), "oci://registry-1.docker.io/apoxy",
+		}).
+		Stdout(ctx)
+	if err != nil {
+		return err
+	}
+	fmt.Println(out)
 
 	return nil
 }
