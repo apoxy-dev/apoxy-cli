@@ -64,7 +64,6 @@ backplane:
   service:
     type: ClusterIP
     port: 10443
-    internalPort: 80
     annotations: {}
 
   proxy:

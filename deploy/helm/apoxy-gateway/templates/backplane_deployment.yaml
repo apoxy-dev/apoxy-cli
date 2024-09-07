@@ -47,6 +47,9 @@ spec:
             - name: https
               containerPort: {{ .Values.backplane.service.port }}
               protocol: TCP
+            - name: internal
+              containerPort: {{ .Values.backplane.proxy.internalPort }}
+              protocol: TCP
             - name: metrics
               containerPort: 8081
               protocol: TCP
