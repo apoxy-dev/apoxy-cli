@@ -41,6 +41,9 @@ spec:
             - --apiserver_host={{ include "apoxy-gateway.fullname" . }}-apiserver
             - --use_envoy_contrib=true
             - --dev
+          {{- with .Values.backplane.extraArgs }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           ports:
             - name: https
               containerPort: {{ .Values.backplane.service.port }}

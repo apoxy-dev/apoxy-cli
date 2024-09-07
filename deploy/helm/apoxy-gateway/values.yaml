@@ -18,31 +18,28 @@ apiserver:
     pullPolicy: IfNotPresent
     # Overrides the image tag whose default is the chart appVersion.
     # tag: "latest"
-  
+
   imagePullSecrets: []
   nameOverride: ""
   fullnameOverride: ""
-  
+
   persistence:
     enabled: true
     # storageClass: ""
     accessMode: ReadWriteOnce
     size: 5Gi
-  
+
   podAnnotations: {}
-  
-  podSecurityContext:
-    {}
-  
-  securityContext:
-    {}
-  
+
+  podSecurityContext: {}
+
+  securityContext: {}
+
   service:
     port: 443
-  
-  resources:
-    {}
-  
+
+  resources: {}
+
   nodeSelector: {}
   tolerations: []
   affinity: {}
@@ -53,17 +50,17 @@ backplane:
     pullPolicy: IfNotPresent
     # Overrides the image tag whose default is the chart appVersion.
     # tag: "latest"
-  
+
+  extraArgs: []
+
   imagePullSecrets: []
-  
+
   podAnnotations: {}
-  
-  podSecurityContext:
-    {}
-  
-  securityContext:
-    {}
-  
+
+  podSecurityContext: {}
+
+  securityContext: {}
+
   service:
     type: ClusterIP
     port: 10443
@@ -72,20 +69,17 @@ backplane:
   proxy:
     name: default
     internalPort: 8080
-  
-  resources:
-    {}
-  
+
+  resources: {}
+
   autoscaling:
     enabled: false
     minReplicas: 1
     maxReplicas: 100
     targetCPUUtilizationPercentage: 80
-  
+
   nodeSelector: {}
-  
+
   tolerations: []
-  
+
   affinity: {}
-
-
