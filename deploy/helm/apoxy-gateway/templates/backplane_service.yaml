@@ -28,7 +28,7 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-    - port: {{ .Values.backplane.proxy.internalPort }}
+    - port: {{ .Values.backplane.service.internalPort }}
       targetPort: internal
       protocol: TCP
       name: internal
