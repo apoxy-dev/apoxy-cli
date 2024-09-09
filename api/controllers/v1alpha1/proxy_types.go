@@ -1,6 +1,8 @@
 package v1alpha1
 
 import (
+	"time"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -11,6 +13,10 @@ import (
 
 const (
 	ProxyFinalizer = "proxy.core.apoxy.dev/finalizer"
+
+	// DefaultDrainTimeout is the default duration to drain connections before terminating the proxy.
+	// +kubebuilder:validation:Format=duration
+	DefaultDrainTimeout = 30 * time.Second
 )
 
 // InfraProvider defines the infrastructure provider where the proxy will be deployed.
@@ -58,6 +64,12 @@ type ProxySpec struct {
 	// If used with Gateway API, the listeners here must be a superset of the listeners
 	// defined in the corresponding Gateway object.
 	Listeners []ProxyListener `json:"listeners"`
+
+	// How long to drain connections before terminating the proxy. Defaults to 30s.
+	// For HTTP/1 Envoy will send a connection: close header to the client, for HTTP/2
+	// Envoy will send a GOAWAY frame to the client.
+	// +optional
+	DrainTimeout *metav1.Duration `json:"drainTimeout,omitempty"`
 
 	// Config is the Starlark configuration for the proxy in the txtar format.
 	Config string `json:"config,omitempty"`

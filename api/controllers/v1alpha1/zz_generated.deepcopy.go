@@ -5,6 +5,7 @@
 package v1alpha1
 
 import (
+	"k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -110,6 +111,11 @@ func (in *ProxySpec) DeepCopyInto(out *ProxySpec) {
 		in, out := &in.Listeners, &out.Listeners
 		*out = make([]ProxyListener, len(*in))
 		copy(*out, *in)
+	}
+	if in.DrainTimeout != nil {
+		in, out := &in.DrainTimeout, &out.DrainTimeout
+		*out = new(v1.Duration)
+		**out = **in
 	}
 }
 

@@ -101,7 +101,11 @@ func (t *Translator) validateBackendRefFilters(backendRef BackendRefContext, par
 	switch routeKind {
 	case KindHTTPRoute:
 		for _, filter := range filters.([]gwapiv1.HTTPRouteFilter) {
-			if filter.Type != gwapiv1.HTTPRouteFilterRequestHeaderModifier && filter.Type != gwapiv1.HTTPRouteFilterResponseHeaderModifier {
+			switch filter.Type {
+			case gwapiv1.HTTPRouteFilterRequestHeaderModifier:
+			case gwapiv1.HTTPRouteFilterResponseHeaderModifier:
+			case gwapiv1.HTTPRouteFilterExtensionRef:
+			default:
 				unsupportedFilters = true
 			}
 		}

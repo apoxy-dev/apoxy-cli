@@ -2,12 +2,15 @@ package envoy
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"time"
 
@@ -24,6 +27,8 @@ const (
 
 	accessLogsPath = "/var/log/accesslogs"
 	tapsPath       = "/var/log/taps"
+
+	defaultDrainTimeoutSeconds = 30
 )
 
 var (
@@ -82,7 +87,21 @@ func WithGoPluginDir(dir string) Option {
 	}
 }
 
-// Runtime vendors the Envoy binary and runs it.
+// WithAdminHost sets the host for the Envoy admin interface.
+func WithAdminHost(host string) Option {
+	return func(r *Runtime) {
+		r.adminHost = host
+	}
+}
+
+// WithDrainTimeout sets the timeout for draining the runtime.
+// If this is not set, the default timeout is used (30 seconds).
+func WithDrainTimeout(timeout *time.Duration) Option {
+	return func(r *Runtime) {
+		r.drainTimeout = timeout
+	}
+}
+
 type Runtime struct {
 	EnvoyPath           string
 	BootstrapConfigYAML string
@@ -91,10 +110,12 @@ type Runtime struct {
 	// Args are additional arguments to pass to Envoy.
 	Args []string
 
-	exitCh      chan struct{}
-	cmd         *exec.Cmd
-	logs        logs.LogsCollector
-	goPluginDir string
+	stopCh       chan struct{}
+	cmd          *exec.Cmd
+	logs         logs.LogsCollector
+	goPluginDir  string
+	adminHost    string
+	drainTimeout *time.Duration
 
 	mu     sync.RWMutex
 	status RuntimeStatus
@@ -109,6 +130,10 @@ func (r *Runtime) setOptions(opts ...Option) {
 	}
 	if r.Cluster == "" {
 		r.Cluster = uuid.New().String()
+	}
+	if r.drainTimeout == nil {
+		drainTimeout := defaultDrainTimeoutSeconds * time.Second
+		r.drainTimeout = &drainTimeout
 	}
 }
 
@@ -168,6 +193,7 @@ func (r *Runtime) run(ctx context.Context) error {
 		}
 	}
 
+	args = append(args, "--drain-time-s", strconv.Itoa(int(r.drainTimeout.Seconds())))
 	args = append(args, r.Args...)
 	r.cmd = exec.CommandContext(rCtx, r.envoyPath(), args...)
 	r.cmd.Dir = runDir
@@ -274,13 +300,15 @@ func (r *Runtime) Start(ctx context.Context, opts ...Option) error {
 		return FatalError{Err: fmt.Errorf("failed to vendor envoy: %w", err)}
 	}
 
-	r.exitCh = make(chan struct{})
+	r.stopCh = make(chan struct{})
 	go func() {
-		defer r.Stop()
 		for {
 			select {
 			case <-ctx.Done():
 				log.Infof("context done")
+			case <-r.stopCh:
+				log.Infof("envoy stopped")
+				return
 			default:
 			}
 
@@ -291,8 +319,9 @@ func (r *Runtime) Start(ctx context.Context, opts ...Option) error {
 			select {
 			case <-ctx.Done():
 				log.Infof("context done")
-			case <-r.exitCh:
+			case <-r.stopCh:
 				log.Infof("envoy stopped")
+				return
 			default: // Restart envoy.
 			}
 		}
@@ -301,13 +330,102 @@ func (r *Runtime) Start(ctx context.Context, opts ...Option) error {
 	return nil
 }
 
-// Stop stops the Envoy process.
-func (r *Runtime) Stop() error {
+// postEnvoyAdminAPI sends a POST request to the Envoy admin API.
+func (r *Runtime) postEnvoyAdminAPI(path string) error {
+	if r.cmd == nil {
+		return errors.New("envoy not running")
+	}
+	if r.adminHost == "" {
+		return errors.New("envoy admin host not set")
+	}
+	resp, err := http.Post("http://"+r.adminHost+"/"+path, "application/json", nil)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected response status: %s", resp.Status)
+	}
+	return nil
+}
+
+// getTotalConnections retrieves the total number of open connections from Envoy's server.total_connections stat.
+func (r *Runtime) getTotalConnections() (*int, error) {
+	resp, err := http.Get(fmt.Sprintf("http://%s:%d//stats?filter=^server\\.total_connections$&format=json",
+		r.adminHost))
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected response status: %s", resp.Status)
+	}
+
+	// Define struct to decode JSON response into; expecting a single stat in the response in the format:
+	// {"stats":[{"name":"server.total_connections","value":123}]}
+	var jsonData *struct {
+		Stats []struct {
+			Name  string `json:"name"`
+			Value int    `json:"value"`
+		} `json:"stats"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&jsonData); err != nil {
+		return nil, err
+	}
+
+	if len(jsonData.Stats) == 0 {
+		return nil, fmt.Errorf("no stats found")
+	}
+	c := jsonData.Stats[0].Value
+
+	log.Infof("total connections: %d", c)
+
+	return &c, nil
+}
+
+// Shutdown gracefully drains connections and shuts down the Envoy process.
+func (r *Runtime) Shutdown(ctx context.Context) error {
 	if r.cmd == nil {
 		return nil
 	}
+
+	log.Infof("shutting down envoy with drain timeout %s", r.drainTimeout)
+
+	startTime := time.Now()
+
+	if err := r.postEnvoyAdminAPI("healthcheck/fail"); err != nil {
+		log.Errorf("error failing active health checks: %v", err)
+	}
+
+	if err := r.postEnvoyAdminAPI("drain_listeners?graceful&skip_exit"); err != nil {
+		log.Errorf("error initiating graceful drain: %v", err)
+	}
+
+	for {
+		conn, err := r.getTotalConnections()
+		if err != nil {
+			log.Errorf("error getting total connections: %v", err)
+		}
+
+		if time.Since(startTime) > *r.drainTimeout {
+			log.Infof("drain timeout reached")
+			break
+		} else if conn != nil && *conn <= 0 {
+			log.Infof("all connections drained")
+			break
+		}
+
+		select {
+		case <-time.After(1 * time.Second):
+		case <-ctx.Done():
+			log.Infof("context done while draining")
+			break
+		}
+	}
+
 	stopOnce := sync.OnceValue(func() error {
-		close(r.exitCh)
+		close(r.stopCh)
 		return r.cmd.Process.Kill()
 	})
 	return stopOnce()

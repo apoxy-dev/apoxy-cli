@@ -643,6 +643,12 @@ func schema_apoxy_cli_api_controllers_v1alpha1_ProxySpec(ref common.ReferenceCal
 							},
 						},
 					},
+					"drainTimeout": {
+						SchemaProps: spec.SchemaProps{
+							Description: "How long to drain connections before terminating the proxy. Defaults to 30s. For HTTP/1 Envoy will send a connection: close header to the client, for HTTP/2 Envoy will send a GOAWAY frame to the client.",
+							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Duration"),
+						},
+					},
 					"config": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Config is the Starlark configuration for the proxy in the txtar format.",
@@ -655,7 +661,7 @@ func schema_apoxy_cli_api_controllers_v1alpha1_ProxySpec(ref common.ReferenceCal
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyListener"},
+			"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyListener", "k8s.io/apimachinery/pkg/apis/meta/v1.Duration"},
 	}
 }
 

@@ -130,7 +130,7 @@ func main() {
 		lOpts = append(lOpts, log.WithDevMode(), log.WithAlsoLogToStderr())
 	}
 	log.Init(lOpts...)
-	ctx := ctrl.SetupSignalHandler()
+	ctx := context.Background()
 
 	if *apiserverHost == "" {
 		log.Fatalf("--apiserver_host must be set")
@@ -232,15 +232,10 @@ func main() {
 	ms := manifest.NewMemory()
 	wasmSrv := ext_proc.NewServer(ms)
 	wasmSrv.Register(srv)
-	// Stop gracefully on SIGTERM.
-	ch := make(chan os.Signal, 1)
-	done := make(chan struct{})
-	signal.Notify(ch, syscall.SIGTERM)
 	go func() {
-		<-ch
+		<-ctx.Done()
 		log.Infof("Shutting down WASM runtime server")
 		srv.GracefulStop()
-		close(done)
 	}()
 	go func() {
 		log.Infof("Starting WASM runtime server on %v", ls.Addr())
@@ -287,12 +282,14 @@ func main() {
 	if *useEnvoyContrib {
 		proxyOpts = append(proxyOpts, bpctrl.WithEnvoyContrib())
 	}
-	if err := bpctrl.NewProxyReconciler(
+	pctrl := bpctrl.NewProxyReconciler(
 		mgr.GetClient(),
+		*proxyName,
 		*replicaName,
 		*apiserverHost,
 		proxyOpts...,
-	).SetupWithManager(ctx, mgr, *proxyName); err != nil {
+	)
+	if err := pctrl.SetupWithManager(ctx, mgr); err != nil {
 		log.Errorf("failed to set up Backplane controller: %v", err)
 		return
 	}
@@ -306,10 +303,19 @@ func main() {
 		return
 	}
 
+	// Setup SIGTERM handler.
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, syscall.SIGTERM)
+	go func() {
+		<-sig
+		log.Infof("Received SIGTERM, shutting down")
+		pctrl.Shutdown(ctx, "received SIGTERM") // Blocks until all resources are released.
+		os.Exit(0)
+	}()
+
 	log.Infof("Starting manager")
 	if err := mgr.Start(ctx); err != nil {
 		log.Fatalf("unable to start manager: %v", err)
 	}
-	<-done
 	kv.Stop(context.Background())
 }

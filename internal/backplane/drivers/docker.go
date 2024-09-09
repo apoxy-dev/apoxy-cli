@@ -115,6 +115,7 @@ func (d *dockerDriver) Start(
 		"--proxy=" + proxyName,
 		"--replica=" + proxyName,
 		"--apiserver_host=host.docker.internal",
+		"--envoy_release_url=https://apoxy-envoy-releases.s3.us-west-2.amazonaws.com/envoy-contrib-dev-cfedcdbc0bf1e687d0fc2ad243e7277ed004673d-aarch64",
 		"--use_envoy_contrib=true",
 	}...)
 	cmd.Args = append(cmd.Args, setOpts.Args...)
