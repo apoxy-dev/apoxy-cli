@@ -68,7 +68,7 @@ backplane:
 
   proxy:
     name: default
-    internalPort: 8080
+    internalPort: 10080
 
   resources: {}
 
