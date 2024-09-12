@@ -351,7 +351,7 @@ func (r *Runtime) postEnvoyAdminAPI(path string) error {
 
 // getTotalConnections retrieves the total number of open connections from Envoy's server.total_connections stat.
 func (r *Runtime) getTotalConnections() (*int, error) {
-	resp, err := http.Get(fmt.Sprintf("http://%s:%d//stats?filter=^server\\.total_connections$&format=json",
+	resp, err := http.Get(fmt.Sprintf("http://%s//stats?filter=^server\\.total_connections$&format=json",
 		r.adminHost))
 	if err != nil {
 		return nil, err
