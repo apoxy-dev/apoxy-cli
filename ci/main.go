@@ -182,11 +182,6 @@ func build(ctx context.Context) error {
 
 	// 4. Publish images.
 
-	if imageTag == "" {
-		// Skip publishing if not in a CI environment.
-		return nil
-	}
-
 	bpOpts := dagger.ContainerPublishOpts{
 		PlatformVariants: bpContainers,
 	}
@@ -215,6 +210,10 @@ func build(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
+	}
+
+	if !isTag {
+		return nil // Skip publishing Helm chart for non-tagged builds.
 	}
 
 	// 5. Publish Helm chart.
