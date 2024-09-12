@@ -36,7 +36,6 @@ import (
 	"github.com/apoxy-dev/apoxy-cli/internal/backplane/kvstore"
 	"github.com/apoxy-dev/apoxy-cli/internal/backplane/wasm/ext_proc"
 	"github.com/apoxy-dev/apoxy-cli/internal/backplane/wasm/manifest"
-	"github.com/apoxy-dev/apoxy-cli/internal/backplane/websocket"
 	"github.com/apoxy-dev/apoxy-cli/internal/cmd/utils"
 	"github.com/apoxy-dev/apoxy-cli/internal/log"
 
@@ -206,16 +205,6 @@ func main() {
 	go func() {
 		if err := d.Start(ctx, ":1053"); err != nil {
 			log.Fatalf("Failed to start DNS CNAME resolver: %v", err)
-		}
-	}()
-
-	wsRouter, err := websocket.NewRouter(kv)
-	if err != nil {
-		log.Fatalf("Failed to create WebSocket router: %v", err)
-	}
-	go func() {
-		if err := wsRouter.ListenAndServe(ctx, fmt.Sprintf(":%d", *wsRouterPort)); err != nil {
-			log.Fatalf("Failed to start WebSocket router: %v", err)
 		}
 	}()
 
