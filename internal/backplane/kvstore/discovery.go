@@ -7,11 +7,12 @@ import (
 	"github.com/hashicorp/go-discover"
 	"github.com/hashicorp/go-discover/provider/k8s"
 	"github.com/mitchellh/mapstructure"
+
+	"github.com/apoxy-dev/apoxy-cli/internal/log"
 )
 
 type k8sProvider struct {
-	d   discover.Discover
-	log *stdlog.Logger
+	d discover.Discover
 
 	namespace     string
 	labelSelector string
@@ -33,13 +34,11 @@ func (p *k8sProvider) Initialize() error {
 			"k8s": &k8s.Provider{},
 		},
 	}
-	p.log.Print("[INFO] Discover initialized")
+	log.Infof("Initialized k8s provider")
 	return nil
 }
 
-func (p *k8sProvider) SetLogger(l *stdlog.Logger) {
-	p.log = l
-}
+func (p *k8sProvider) SetLogger(_ *stdlog.Logger) {}
 
 func (p *k8sProvider) SetConfig(cfg map[string]interface{}) error {
 	c := struct {
@@ -55,20 +54,21 @@ func (p *k8sProvider) SetConfig(cfg map[string]interface{}) error {
 	if c.Provider != "k8s" {
 		return fmt.Errorf("provider must be k8s")
 	}
-	p.log.Printf("[INFO] Provider: %s", c.Provider)
+	log.Infof("Provider: %s", c.Provider)
 
 	var ok bool
 	p.namespace, ok = c.Namespace.(string)
 	if !ok {
 		return fmt.Errorf("namespace must be a string")
 	}
-	p.log.Printf("[INFO] Namespace: %s", p.namespace)
+	log.Infof("Namespace: %s", p.namespace)
 
 	p.labelSelector, ok = c.LabelSelector.(string)
 	if !ok {
 		return fmt.Errorf("labelSelector must be a string")
 	}
-	p.log.Printf("[INFO] Label selector: %s", p.labelSelector)
+	log.Infof("LabelSelector: %s", p.labelSelector)
+
 	return nil
 }
 
@@ -83,8 +83,16 @@ func (p *k8sProvider) getArgs() string {
 	return args
 }
 
+type logWriter struct{}
+
+func (w *logWriter) Write(p []byte) (n int, err error) {
+	log.Infof(string(p))
+	return len(p), nil
+}
+
 func (p *k8sProvider) DiscoverPeers() ([]string, error) {
-	peers, err := p.d.Addrs(p.getArgs(), p.log)
+	l := stdlog.New(&logWriter{}, "", 0)
+	peers, err := p.d.Addrs(p.getArgs(), l)
 	if err != nil {
 		return nil, err
 	}
