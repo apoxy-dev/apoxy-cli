@@ -3,7 +3,6 @@ package kvstore
 import (
 	"fmt"
 	stdlog "log"
-	"strings"
 
 	"github.com/hashicorp/go-discover"
 	"github.com/hashicorp/go-discover/provider/k8s"
@@ -11,17 +10,17 @@ import (
 )
 
 type k8sProvider struct {
-	d    discover.Discover
-	log  *stdlog.Logger
-	args map[string]string
+	d             discover.Discover
+	log           *stdlog.Logger
+	labelSelector string
 }
 
 // NewK8sServiceDiscovery creates a new k8s service discovery plugin.
-func NewK8sServiceDiscovery(labelSelector map[string]string) map[string]interface{} {
+func NewK8sServiceDiscovery(labelSelector string) map[string]interface{} {
 	return map[string]interface{}{
-		"plugin":   &k8sProvider{},
-		"provider": "k8s",
-		"args":     labelSelector,
+		"plugin":        &k8sProvider{},
+		"provider":      "k8s",
+		"labelSelector": labelSelector,
 	}
 }
 
@@ -41,29 +40,30 @@ func (p *k8sProvider) SetLogger(l *stdlog.Logger) {
 
 func (p *k8sProvider) SetConfig(cfg map[string]interface{}) error {
 	c := struct {
-		Provider string
-		Args     interface{}
+		Provider      string
+		LabelSelector interface{}
 	}{}
 	err := mapstructure.Decode(cfg, &c)
 	if err != nil {
 		return err
 	}
-	args, ok := c.Args.(map[string]string)
+	if c.Provider != "k8s" {
+		return fmt.Errorf("provider must be k8s")
+	}
+	ls, ok := c.LabelSelector.(string)
 	if !ok {
 		return fmt.Errorf("args must be a map[string]string")
 	}
-	p.args = args
+	p.labelSelector = ls
 	return nil
 }
 
 func (p *k8sProvider) getArgs() string {
-	ss := []string{
-		"provider=k8s",
+	args := "provider=k8s"
+	if p.labelSelector != "" {
+		args += fmt.Sprintf(` label_selector="%s"`, p.labelSelector)
 	}
-	for key, value := range p.args {
-		ss = append(ss, fmt.Sprintf("%s=%s", key, value))
-	}
-	return strings.Join(ss, " ")
+	return args
 }
 
 func (p *k8sProvider) DiscoverPeers() ([]string, error) {

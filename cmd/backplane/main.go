@@ -188,10 +188,7 @@ func main() {
 	}
 
 	log.Infof("Setting up K/V store")
-	kv, err := kvstore.New(*kvPeerSelector)
-	if err != nil {
-		log.Fatalf("Failed to create K/V store: %v", err)
-	}
+	kv := kvstore.New(*kvPeerSelector)
 	kvStarted := make(chan struct{})
 	go func() {
 		if err := kv.Start(kvStarted); err != nil {
