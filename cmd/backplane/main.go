@@ -75,7 +75,7 @@ var (
 
 	useEnvoyContrib = flag.Bool("use_envoy_contrib", false, "Use Envoy contrib filters.")
 
-	kvPeerSelector = flag.String("kv_peer_selector", "app=apoxy-backplane", "Label selector for K/V store peer.")
+	kvPeerSelector = flag.String("kv_peer_selector", "app.kubernetes.io/component=backplane", "Label selector for K/V store peer.")
 
 	wsRouterPort = flag.Int("ws_router_port", 8082, "Port for the WebSocket router.")
 )
