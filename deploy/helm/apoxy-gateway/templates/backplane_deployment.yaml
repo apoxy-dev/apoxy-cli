@@ -71,6 +71,9 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /var/run/apoxy
+      # Set the termination grace period to the drain timeout plus a buffer
+      # to allow for the proxy to finish draining connections.
+      terminationGracePeriodSeconds: {{ .Values.backplane.proxy.drainTimeoutSeconds | add 5 }}
       {{- with .Values.backplane.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

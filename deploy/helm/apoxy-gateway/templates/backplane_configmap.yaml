@@ -13,6 +13,7 @@ data:
       name: {{ .Values.backplane.proxy.name }}
     spec:
       provider: unmanaged
+      drainTimeout: {{ duration .Values.backplane.proxy.drainTimeoutSeconds }}
       listeners:
         - name: https
           protocol: TCP

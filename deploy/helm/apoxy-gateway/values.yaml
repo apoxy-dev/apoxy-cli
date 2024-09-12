@@ -69,6 +69,7 @@ backplane:
   proxy:
     name: default
     internalPort: 10080
+    drainTimeoutSeconds: 30
 
   resources: {}
 
