@@ -10,16 +10,19 @@ import (
 )
 
 type k8sProvider struct {
-	d             discover.Discover
-	log           *stdlog.Logger
+	d   discover.Discover
+	log *stdlog.Logger
+
+	namespace     string
 	labelSelector string
 }
 
 // NewK8sServiceDiscovery creates a new k8s service discovery plugin.
-func NewK8sServiceDiscovery(labelSelector string) map[string]interface{} {
+func NewK8sServiceDiscovery(namespace, labelSelector string) map[string]interface{} {
 	return map[string]interface{}{
 		"plugin":        &k8sProvider{},
 		"provider":      "k8s",
+		"namespace":     namespace,
 		"labelSelector": labelSelector,
 	}
 }
@@ -41,25 +44,39 @@ func (p *k8sProvider) SetLogger(l *stdlog.Logger) {
 func (p *k8sProvider) SetConfig(cfg map[string]interface{}) error {
 	c := struct {
 		Provider      string
+		Namespace     interface{}
 		LabelSelector interface{}
 	}{}
 	err := mapstructure.Decode(cfg, &c)
 	if err != nil {
 		return err
 	}
+
 	if c.Provider != "k8s" {
 		return fmt.Errorf("provider must be k8s")
 	}
-	ls, ok := c.LabelSelector.(string)
+	p.log.Printf("[INFO] Provider: %s", c.Provider)
+
+	var ok bool
+	p.namespace, ok = c.Namespace.(string)
 	if !ok {
-		return fmt.Errorf("args must be a map[string]string")
+		return fmt.Errorf("namespace must be a string")
 	}
-	p.labelSelector = ls
+	p.log.Printf("[INFO] Namespace: %s", p.namespace)
+
+	p.labelSelector, ok = c.LabelSelector.(string)
+	if !ok {
+		return fmt.Errorf("labelSelector must be a string")
+	}
+	p.log.Printf("[INFO] Label selector: %s", p.labelSelector)
 	return nil
 }
 
 func (p *k8sProvider) getArgs() string {
 	args := "provider=k8s"
+	if p.namespace != "" {
+		args += fmt.Sprintf(` namespace="%s"`, p.namespace)
+	}
 	if p.labelSelector != "" {
 		args += fmt.Sprintf(` label_selector="%s"`, p.labelSelector)
 	}

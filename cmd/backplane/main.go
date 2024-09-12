@@ -75,7 +75,8 @@ var (
 
 	useEnvoyContrib = flag.Bool("use_envoy_contrib", false, "Use Envoy contrib filters.")
 
-	kvPeerSelector = flag.String("kv_peer_selector", "app.kubernetes.io/component=backplane", "Label selector for K/V store peer.")
+	k8sKVNamespace    = flag.String("k8s_kv_namespace", os.Getenv("POD_NAMESPACE"), "Namespace for the K/V store.")
+	k8sKVPeerSelector = flag.String("k8s_kv_peer_selector", "app.kubernetes.io/component=backplane", "Label selector for K/V store peers.")
 
 	wsRouterPort = flag.Int("ws_router_port", 8082, "Port for the WebSocket router.")
 )
@@ -188,7 +189,7 @@ func main() {
 	}
 
 	log.Infof("Setting up K/V store")
-	kv := kvstore.New(*kvPeerSelector)
+	kv := kvstore.New(*k8sKVNamespace, *k8sKVPeerSelector)
 	kvStarted := make(chan struct{})
 	go func() {
 		if err := kv.Start(kvStarted); err != nil {
