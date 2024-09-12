@@ -43,6 +43,11 @@ spec:
           {{- with .Values.backplane.extraArgs }}
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          env:
+          - name: POD_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
           ports:
             - name: https
               containerPort: {{ .Values.backplane.service.port }}
