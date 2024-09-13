@@ -13,7 +13,8 @@ data:
       name: {{ .Values.backplane.proxy.name }}
     spec:
       provider: unmanaged
-      drainTimeout: {{ duration .Values.backplane.proxy.drainTimeoutSeconds }}
+      # Helm is trash: https://github.com/Masterminds/sprig/issues/269
+      drainTimeout: {{ duration (.Values.backplane.proxy.drainTimeoutSeconds | toString) }}
       listeners:
         - name: https
           protocol: TCP
