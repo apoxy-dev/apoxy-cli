@@ -130,6 +130,11 @@ func (r *EdgeFunctionReconciler) Reconcile(ctx context.Context, request reconcil
 		} else if f.Spec.Code.GoPluginSource != nil {
 			log.Info("Go plugin source detected", "ref", ref)
 
+			if _, err := os.Stat(filepath.Join(r.goStoreDir, ref, "func.so")); err == nil {
+				log.Info("Go plugin already exists for ref", "ref", ref)
+				return ctrl.Result{}, nil
+			}
+
 			soData, err := r.downloadFuncData(clog.IntoContext(ctx, log), "go", ref)
 			if err != nil {
 				return ctrl.Result{}, fmt.Errorf("failed to download Wasm data: %w", err)
@@ -139,8 +144,12 @@ func (r *EdgeFunctionReconciler) Reconcile(ctx context.Context, request reconcil
 				return ctrl.Result{}, fmt.Errorf("failed to create Go plugin directory: %w", err)
 			}
 
-			if err := os.WriteFile(filepath.Join(r.goStoreDir, ref, "func.so"), soData, 0644); err != nil {
+			if err := os.WriteFile(filepath.Join(r.goStoreDir, ref, "data"), soData, 0644); err != nil {
 				return ctrl.Result{}, fmt.Errorf("failed to write Go plugin data: %w", err)
+			}
+			// Symlinking prevents Envoy from loading the plugin while it's being written to.
+			if err := os.Symlink("data", filepath.Join(r.goStoreDir, ref, "func.so")); err != nil {
+				return ctrl.Result{}, fmt.Errorf("failed to create Go plugin symlink: %w", err)
 			}
 		} else {
 			log.Info("No source detected", "ref", ref)

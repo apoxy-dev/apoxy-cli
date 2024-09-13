@@ -77,7 +77,20 @@ func (r *EdgeFunctionReconciler) Reconcile(ctx context.Context, request reconcil
 		_, found, err := r.findIngestWorkflow(clog.IntoContext(ctx, log), wid)
 		if err != nil {
 			return ctrl.Result{}, fmt.Errorf("failed to find ingest workflow: %w", err)
-		} else if !found {
+		} else if found {
+			// Push existing ref to the top of the list.
+			var revs []v1alpha1.EdgeFunctionRevision
+			for i, r := range f.Status.Revisions {
+				if r.Ref == wid {
+					revs = append([]v1alpha1.EdgeFunctionRevision{r},
+						append(f.Status.Revisions[0:i], f.Status.Revisions[i+1:]...)...)
+				}
+			}
+			f.Status.Revisions = revs
+			if err := r.Status().Update(ctx, f); err != nil {
+				return ctrl.Result{}, fmt.Errorf("failed to update EdgeFunction: %w", err)
+			}
+		} else {
 			log.Info("Detected changes in EdgeFunction code, switching to Updating phase")
 			// Workflow with the given ID not found, means we haven't ingested this configuration yet.
 			// Switch the state to Updating to trigger a new ingest.
