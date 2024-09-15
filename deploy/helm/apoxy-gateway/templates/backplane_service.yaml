@@ -32,6 +32,14 @@ spec:
       targetPort: internal
       protocol: TCP
       name: internal
+  {{- with .Values.backplane.proxy.extraListeners }}
+  {{- range . }}
+    - port: {{ .port }}
+      targetPort: {{ .port }}
+      protocol: TCP
+      name: {{ .name }}
+  {{- end }}
+  {{- end }}
   selector:
     {{- include "apoxy-gateway.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: backplane
