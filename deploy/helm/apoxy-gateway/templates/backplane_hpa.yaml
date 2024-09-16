@@ -18,9 +18,13 @@ spec:
     - type: Resource
       resource:
         name: cpu
-        targetAverageUtilization: {{ .Values.backplane.autoscaling.targetCPUUtilizationPercentage | default 80 }}
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.backplane.autoscaling.targetCPUUtilizationPercentage | default 70 }}
     - type: Resource
       resource:
         name: memory
-        targetAverageUtilization: {{ .Values.backplane.autoscaling.targetMemoryUtilizationPercentage | default 80 }}
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.backplane.autoscaling.targetMemoryUtilizationPercentage | default 50 }}
 {{ end }}
