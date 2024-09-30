@@ -71,9 +71,55 @@ type WasmSource struct {
 	URL string `json:"url"`
 }
 
+type OCICredentialsObjectReference struct {
+	// Group is the group of the target resource.
+	// Currently only controllers.apoxy.dev/v1alpha1 is supported.
+	Group gwapiv1.Group `json:"group"`
+
+	// Kind is kind of the target resource.
+	// Supports Secret with on-prem deploys and
+	Kind gwapiv1.Kind `json:"kind"`
+
+	// Name is the name of the target resource.
+	Name gwapiv1.ObjectName `json:"name"`
+}
+
+type OCICredentials struct {
+	// Username is the username for the OCI registry.
+	Username string `json:"username,omitempty"`
+
+	// Password is the password for the OCI registry.
+	Password []byte `json:"password,omitempty"`
+}
+
+type OCIImageRef struct {
+	// Repo is the repository of the OCI image.
+	Repo string `json:"repo"`
+
+	// Tag is the tag of the OCI image.
+	// +optional
+	// +kubebuilder:default="latest"
+	Tag string `json:"tag"`
+
+	// Credentials is the credentials for pulling the OCI image.
+	// Only one of Credentials or CredentialsRef may be specified.
+	// +optional
+	Credentials *OCICredentials `json:"credentials,omitempty"`
+
+	// CredentialsRef is the reference to the secret containing the credentials for pulling the OCI image.
+	// Only one of Credentials or CredentialsRef may be specified.
+	// +optional
+	CredentialsRef *OCICredentialsObjectReference `json:"credentialsRef,omitempty"`
+}
+
 type GoPluginSource struct {
 	// URL is the URL to the Go plugin .so
+	// +optional
 	URL string `json:"url"`
+
+	// OCI is the OCI image reference to the Go plugin.
+	// +optional
+	OCI OCIImageRef `json:"oci,omitempty"`
 
 	// PluginConfig is the configuration passed to the Go plugin as JSON-encoded
 	// structpb.Struct message. Plugin will receive it as anypb.Any message.
