@@ -2159,7 +2159,6 @@ func schema_apoxy_cli_api_extensions_v1alpha1_GoPluginSource(ref common.Referenc
 					"url": {
 						SchemaProps: spec.SchemaProps{
 							Description: "URL is the URL to the Go plugin .so",
-							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -2167,7 +2166,6 @@ func schema_apoxy_cli_api_extensions_v1alpha1_GoPluginSource(ref common.Referenc
 					"oci": {
 						SchemaProps: spec.SchemaProps{
 							Description: "OCI is the OCI image reference to the Go plugin.",
-							Default:     map[string]interface{}{},
 							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.OCIImageRef"),
 						},
 					},
@@ -2335,6 +2333,13 @@ func schema_apoxy_cli_api_extensions_v1alpha1_OCICredentials(ref common.Referenc
 					"password": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Password is the password for the OCI registry.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"passwordData": {
+						SchemaProps: spec.SchemaProps{
+							Description: "PasswordData is the base64 encoded password for the OCI registry.",
 							Type:        []string{"string"},
 							Format:      "byte",
 						},

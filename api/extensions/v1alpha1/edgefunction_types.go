@@ -88,9 +88,18 @@ type OCICredentials struct {
 	// Username is the username for the OCI registry.
 	Username string `json:"username,omitempty"`
 
-	// Password is the password for the OCI registry.
-	Password []byte `json:"password,omitempty"`
+	// Password is the password for the OCI registry. This field is write-only
+	// and is not returned in the response.
+	Password string `json:"password,omitempty"`
+
+	// PasswordData is the base64 encoded password for the OCI registry.
+	PasswordData []byte `json:"passwordData,omitempty"`
 }
+
+const (
+	ImageConfigMediaType = "application/vnd.apoxy.dev.image.config.v1+json"
+	ImageLayerMediaType  = "application/vnd.apoxy.dev.image.content.v1.tar+gzip"
+)
 
 type OCIImageRef struct {
 	// Repo is the repository of the OCI image.
@@ -115,11 +124,11 @@ type OCIImageRef struct {
 type GoPluginSource struct {
 	// URL is the URL to the Go plugin .so
 	// +optional
-	URL string `json:"url"`
+	URL *string `json:"url"`
 
 	// OCI is the OCI image reference to the Go plugin.
 	// +optional
-	OCI OCIImageRef `json:"oci,omitempty"`
+	OCI *OCIImageRef `json:"oci,omitempty"`
 
 	// PluginConfig is the configuration passed to the Go plugin as JSON-encoded
 	// structpb.Struct message. Plugin will receive it as anypb.Any message.

@@ -3,6 +3,7 @@ package ingest
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -12,9 +13,11 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"time"
 
+	ocispecv1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"go.temporal.io/sdk/activity"
 	tlog "go.temporal.io/sdk/log"
 	"go.temporal.io/sdk/temporal"
@@ -22,6 +25,12 @@ import (
 	"go.temporal.io/sdk/workflow"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/util/retry"
+	"oras.land/oras-go/v2"
+	"oras.land/oras-go/v2/content"
+	"oras.land/oras-go/v2/content/file"
+	"oras.land/oras-go/v2/registry/remote"
+	"oras.land/oras-go/v2/registry/remote/auth"
+	orasretry "oras.land/oras-go/v2/registry/remote/retry"
 
 	"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1"
 	"github.com/apoxy-dev/apoxy-cli/client/versioned"
@@ -200,7 +209,7 @@ const (
 	MaxErrorSize = 1024
 )
 
-func (w *worker) downloadFile(ctx context.Context, url, target string) error {
+func (w *worker) downloadFile(ctx context.Context, url, target string) (os.FileInfo, error) {
 	c := http.Client{
 		Timeout: 1 * time.Minute,
 		Transport: &http.Transport{
@@ -210,11 +219,11 @@ func (w *worker) downloadFile(ctx context.Context, url, target string) error {
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	resp, err := c.Do(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
@@ -232,23 +241,23 @@ func (w *worker) downloadFile(ctx context.Context, url, target string) error {
 			}
 		}
 
-		return fmt.Errorf("Failed to download file: %s (%s)", resp.Status, string(msg))
+		return nil, fmt.Errorf("Failed to download file: %s (%s)", resp.Status, string(msg))
 	}
 
 	if resp.ContentLength > MaxFileSize {
-		return fmt.Errorf("File size exceeds maximum allowed size: %d", resp.ContentLength)
+		return nil, fmt.Errorf("File size exceeds maximum allowed size: %d", resp.ContentLength)
 	}
 
 	tf, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if _, err := io.Copy(tf, io.LimitReader(resp.Body, MaxFileSize)); err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return tf.Stat()
 }
 
 // DownloadWasmActivity downloads the Edge Function .wasm file.
@@ -268,14 +277,9 @@ func (w *worker) DownloadWasmActivity(
 	}
 
 	wasmFile := filepath.Join(targetDir, "func.wasm")
-	if err := w.downloadFile(ctx, in.Obj.Spec.Code.WasmSource.URL, wasmFile); err != nil {
-		log.Error("Failed to download WASM file", "Error", err)
-		return nil, err
-	}
-
-	stat, err := os.Stat(wasmFile)
+	stat, err := w.downloadFile(ctx, in.Obj.Spec.Code.WasmSource.URL, wasmFile)
 	if err != nil {
-		log.Error("Failed to stat WASM file", "Error", err)
+		log.Error("Failed to download WASM file", "Error", err)
 		return nil, err
 	}
 
@@ -313,6 +317,116 @@ func (w *worker) StoreWasmActivity(
 	return nil
 }
 
+func (w *worker) pullOCIImage(
+	ctx context.Context,
+	log tlog.Logger,
+	targetPath string,
+	ociRef *v1alpha1.OCIImageRef,
+) (os.FileInfo, error) {
+	log.Info("Pulling OCI image", "Ref", ociRef)
+
+	fs, err := file.New(filepath.Dir(targetPath))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create file system: %w", err)
+	}
+	defer fs.Close()
+
+	repo, err := remote.NewRepository(ociRef.Repo)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create repository: %w", err)
+	}
+
+	var credsFunc auth.CredentialFunc
+	if ociRef.Credentials != nil {
+		var pwd []byte
+		_, err := base64.StdEncoding.Decode(pwd, ociRef.Credentials.PasswordData)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode password: %w", err)
+		}
+
+		credsFunc = auth.StaticCredential(
+			repo.Reference.Registry,
+			auth.Credential{
+				Username: ociRef.Credentials.Username,
+				Password: string(pwd),
+			},
+		)
+	} else if ociRef.CredentialsRef != nil {
+		// TODO(dsky): Implement credentials ref.
+	} else {
+		log.Debug("No credentials provided for OCI registry")
+	}
+
+	repo.Client = &auth.Client{
+		Client:     orasretry.DefaultClient,
+		Cache:      auth.NewCache(),
+		Credential: credsFunc,
+	}
+
+	opts := oras.CopyOptions{
+		CopyGraphOptions: oras.CopyGraphOptions{
+			PreCopy: func(ctx context.Context, desc ocispecv1.Descriptor) error {
+				log.Debug("Pre-copy", "MediaType", desc.MediaType)
+				if desc.MediaType == ocispecv1.MediaTypeImageManifest {
+					return nil
+				}
+				return oras.SkipNode
+			},
+		},
+	}
+	opts.WithTargetPlatform(&ocispecv1.Platform{
+		Architecture: runtime.GOARCH,
+	})
+	manifest, err := oras.Copy(ctx, repo, ociRef.Tag, fs, "", opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to pull OCI image: %w", err)
+	}
+
+	log.Info("OCI image pulled", "Digest", manifest.Digest.String())
+
+	if manifest.MediaType != ocispecv1.MediaTypeImageManifest {
+		return nil, fmt.Errorf("unexpected manifest media type: %s", manifest.MediaType)
+	}
+
+	manifestblob, err := content.FetchAll(ctx, fs, manifest)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch manifest blob: %w", err)
+	}
+	var imgManifest ocispecv1.Manifest
+	if err := json.Unmarshal(manifestblob, &imgManifest); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal manifest: %w", err)
+	}
+
+	if len(imgManifest.Layers) == 0 {
+		return nil, fmt.Errorf("no layers found in the manifest")
+	}
+
+	// See: https://oras.land/docs/concepts/artifact#determining-the-artifact-type
+	if imgManifest.ArtifactType != v1alpha1.ImageConfigMediaType ||
+		imgManifest.Config.MediaType != v1alpha1.ImageConfigMediaType {
+		for _, layer := range imgManifest.Layers {
+			if layer.MediaType == v1alpha1.ImageLayerMediaType {
+				log.Info("Found image layer", "Digest", layer.Digest.String())
+				tar, err := content.FetchAll(ctx, fs, layer)
+				if err != nil {
+					return nil, fmt.Errorf("failed to fetch layer: %w", err)
+				}
+
+				if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+					return nil, fmt.Errorf("failed to create target directory: %w", err)
+				}
+				if err := os.WriteFile(targetPath, tar, 0644); err != nil {
+					return nil, fmt.Errorf("failed to write file: %w", err)
+				}
+
+				return os.Stat(targetPath)
+			}
+		}
+	}
+
+	return nil, fmt.Errorf("no image layer found in the manifest")
+}
+
 // DownloadGoPluginActivity downloads the Edge Function Go plugin .so file and stores it in the staging directory.
 func (w *worker) DownloadGoPluginActivity(
 	ctx context.Context,
@@ -331,16 +445,27 @@ func (w *worker) DownloadGoPluginActivity(
 		return nil, err
 	}
 
-	soFile := filepath.Join(targetDir, "func.so")
-	if err := w.downloadFile(ctx, in.Obj.Spec.Code.GoPluginSource.URL, soFile); err != nil {
-		log.Error("Failed to download .so file", "Error", err)
-		return nil, err
+	if in.Obj.Spec.Code.GoPluginSource.OCI != nil && in.Obj.Spec.Code.GoPluginSource.URL != nil {
+		return nil, fmt.Errorf("both OCI and URL sources are specified")
 	}
 
-	stat, err := os.Stat(soFile)
-	if err != nil {
-		log.Error("Failed to stat .so file", "Error", err)
-		return nil, err
+	soFile := filepath.Join(targetDir, "func.so")
+	var stat os.FileInfo
+	var err error
+	if in.Obj.Spec.Code.GoPluginSource.OCI != nil {
+		stat, err = w.pullOCIImage(ctx, log, soFile, in.Obj.Spec.Code.GoPluginSource.OCI)
+		if err != nil {
+			log.Error("Failed to pull OCI image", "Error", err)
+			return nil, err
+		}
+	} else if in.Obj.Spec.Code.GoPluginSource.URL != nil {
+		stat, err = w.downloadFile(ctx, *in.Obj.Spec.Code.GoPluginSource.URL, soFile)
+		if err != nil {
+			log.Error("Failed to download .so file", "Error", err)
+			return nil, err
+		}
+	} else {
+		return nil, fmt.Errorf("no source specified")
 	}
 
 	return &EdgeFunctionIngestResult{
