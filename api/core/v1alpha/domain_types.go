@@ -19,7 +19,6 @@ const (
 // +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// Domain is the Schema for the domains API.
 type Domain struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -29,46 +28,81 @@ type Domain struct {
 	Status DomainStatus `json:"status,omitempty"`
 }
 
-// DomainStyle is the style of the domain.
-type DomainStyle string
-
-const (
-	// DomainStyleApoxy is an Apoxy managed DNS provider.
-	// The apoxydns.com nameservers will be configured.
-	// Announcing nameservers will be set in the DomainStatus.
-	// Users may choose to CNAME the provided hostnames to {hostname}.apoxydns.com.
-	// For example, if the hostname is "foo.com", the user may CNAME "foo.com" to
-	// "foo.com.apoxydns.com".
-	// This is the default configuration.
-	DomainStyleApoxy = "apoxy"
-	// DomainStyleMagic is an Apoxy Cloud magic domain.
-	// A subdomain on apoxy.io will be allocated and announced.
-	DomainStyleMagic = "magic"
-	// TODO(mattward): Other potentially supported DomainStyles include
-	// DomainStyleRoute53 or DomainStyleNS1 where the domain is managed by
-	// Route53 or NS1, for example.
-)
-
 type DomainSpec struct {
-	// Selector is a label selector used to find healthy proxies for the domain.
-	Selector metav1.LabelSelector `json:"selector"`
+	// Name is the name of the domain record.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=253
+	// +kubebuilder:validation:Pattern=`^[a-zA-Z0-9]([-a-zA-Z0-9]*[a-zA-Z0-9])?$`
+	// +kubebuilder:validation:Required
+	Name string `json:"name"`
 
-	// Style of the domain.
-	// See style constants for more information.
-	// Defaults to DomainStyleApoxy.
-	// +optional
-	Style DomainStyle `json:"style,omitempty"`
+	// Type is the type of the domain record.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Enum=A,AAAA,CNAME,TXT,ALIAS
+	Type string `json:"type"`
 
-	// A list of hostnames.
-	// +optional
-	Hostnames []string `json:"hostnames,omitempty"`
+	// TTL is the time-to-live of the domain record.
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:validation:Required
+	// +kubebuilder:default=300
+	// +kubebuilder:validation:Format=int32
+	// +kubebuilder:validation:Maximum=3600
+	TTL int32 `json:"ttl"`
 
-	// The magic key that was allocated if this domain is DomainStyleMagic.
-	// When the domain is DomainPhaseAttached, {magicKey}.apoxy.io will be available.
-	// This is immutable and cannot be changed because it is allocated by the
-	// Apoxy Cloud magic domain manager.
+	// Value is the value of the domain record.
+	// +kubebuilder:validation:Required
+	Value DomainValue `json:"value"`
+
+	// DNSOnly is a flag to indicate if the domain represents only a DNS record
+	// and no traffic is routed via Apoxy.
+	// +kubebuilder:validation:Default=false
 	// +optional
-	MagicKey string `json:"magicKey,omitempty"`
+	DNSOnly bool `json:"dnsOnly,omitempty"`
+}
+
+type DomainTargetRef struct {
+	// Group is the API Group of the target object.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=253
+	Group string `json:"group"`
+
+	// Kind is the kind of the target object.
+	// Currently supports Proxy, EdgeFunction, TunnelEndpoint kinds.
+	// +kubebuilder:validation:Required
+	Kind string `json:"kind"`
+
+	// Name is the name of the target object.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=253
+	// +kubebuilder:validation:Pattern=`^[a-zA-Z0-9]([-a-zA-Z0-9]*[a-zA-Z0-9])?$`
+	Name string `json:"name"`
+}
+
+type DomainValue struct {
+	// IP is the IP address of the domain record.
+	// Applicable for A and AAAA records.
+	// +kubebuilder:validation:MaxItems=20
+	IP []string `json:"ip,omitempty"`
+
+	// FQDN is the fully qualified domain name of the domain record.
+	// Applicable for CNAME records.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=253
+	// +kubebuilder:validation:Pattern=`^[a-zA-Z0-9]([-a-zA-Z0-9]*[a-zA-Z0-9])?$`
+	FQDN *string `json:"fqdn,omitempty"`
+
+	// Text is the text of the domain record.
+	// Applicable for TXT records and when DNSOnly is set to true.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=255
+	Text *string `json:"text,omitempty"`
+
+	// ProxyRef is the reference to the proxy object.
+	// Applicable for ALIAS records and when DNSOnly is set to false.
+	// +optional
+	TargetRef *DomainTargetRef `json:"targetRef,omitempty"`
 }
 
 // DomainPhase is the phase of the domain.
@@ -79,8 +113,6 @@ const (
 	// This is the initial phase of the domain.
 	DomainPhasePending = "Pending"
 	// DomainPhaseAllocated is the allocated phase of the domain.
-	// This is the phase of the domain when it is allocated a magic domain
-	// if the style of this domain is DomainStyleMagic.
 	DomainPhaseAllocated = "Allocated"
 	// DomainPhaseAttached is the state of the domain when it is attached to
 	// one or more addresses. If there are no addresses found, the domain

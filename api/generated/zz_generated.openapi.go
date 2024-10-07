@@ -37,6 +37,8 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainList":                           schema_apoxy_cli_api_core_v1alpha_DomainList(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainSpec":                           schema_apoxy_cli_api_core_v1alpha_DomainSpec(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainStatus":                         schema_apoxy_cli_api_core_v1alpha_DomainStatus(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainTargetRef":                      schema_apoxy_cli_api_core_v1alpha_DomainTargetRef(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainValue":                          schema_apoxy_cli_api_core_v1alpha_DomainValue(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DynamicProxyDnsCacheConfig":           schema_apoxy_cli_api_core_v1alpha_DynamicProxyDnsCacheConfig(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DynamicProxySpec":                     schema_apoxy_cli_api_core_v1alpha_DynamicProxySpec(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.FileAccessLog":                        schema_apoxy_cli_api_core_v1alpha_FileAccessLog(ref),
@@ -1120,8 +1122,7 @@ func schema_apoxy_cli_api_core_v1alpha_Domain(ref common.ReferenceCallback) comm
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "Domain is the Schema for the domains API.",
-				Type:        []string{"object"},
+				Type: []string{"object"},
 				Properties: map[string]spec.Schema{
 					"kind": {
 						SchemaProps: spec.SchemaProps{
@@ -1218,48 +1219,50 @@ func schema_apoxy_cli_api_core_v1alpha_DomainSpec(ref common.ReferenceCallback) 
 			SchemaProps: spec.SchemaProps{
 				Type: []string{"object"},
 				Properties: map[string]spec.Schema{
-					"selector": {
+					"name": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Selector is a label selector used to find healthy proxies for the domain.",
-							Default:     map[string]interface{}{},
-							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector"),
-						},
-					},
-					"style": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Style of the domain. See style constants for more information. Defaults to DomainStyleApoxy.",
+							Description: "Name is the name of the domain record.",
+							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
-					"hostnames": {
+					"type": {
 						SchemaProps: spec.SchemaProps{
-							Description: "A list of hostnames.",
-							Type:        []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: "",
-										Type:    []string{"string"},
-										Format:  "",
-									},
-								},
-							},
+							Description: "Type is the type of the domain record.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
 						},
 					},
-					"magicKey": {
+					"ttl": {
 						SchemaProps: spec.SchemaProps{
-							Description: "The magic key that was allocated if this domain is DomainStyleMagic. When the domain is DomainPhaseAttached, {magicKey}.apoxy.io will be available. This is immutable and cannot be changed because it is allocated by the Apoxy Cloud magic domain manager.",
-							Type:        []string{"string"},
+							Description: "TTL is the time-to-live of the domain record.",
+							Default:     0,
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+					"value": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Value is the value of the domain record.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainValue"),
+						},
+					},
+					"dnsOnly": {
+						SchemaProps: spec.SchemaProps{
+							Description: "DNSOnly is a flag to indicate if the domain represents only a DNS record and no traffic is routed via Apoxy.",
+							Type:        []string{"boolean"},
 							Format:      "",
 						},
 					},
 				},
-				Required: []string{"selector"},
+				Required: []string{"name", "type", "ttl", "value"},
 			},
 		},
 		Dependencies: []string{
-			"k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector"},
+			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainValue"},
 	}
 }
 
@@ -1286,6 +1289,92 @@ func schema_apoxy_cli_api_core_v1alpha_DomainStatus(ref common.ReferenceCallback
 				},
 			},
 		},
+	}
+}
+
+func schema_apoxy_cli_api_core_v1alpha_DomainTargetRef(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"group": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Group is the API Group of the target object.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is the kind of the target object. Currently supports Proxy, EdgeFunction, TunnelEndpoint kinds.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Name is the name of the target object.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+				Required: []string{"group", "kind", "name"},
+			},
+		},
+	}
+}
+
+func schema_apoxy_cli_api_core_v1alpha_DomainValue(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"ip": {
+						SchemaProps: spec.SchemaProps{
+							Description: "IP is the IP address of the domain record. Applicable for A and AAAA records.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
+					"fqdn": {
+						SchemaProps: spec.SchemaProps{
+							Description: "FQDN is the fully qualified domain name of the domain record. Applicable for CNAME records.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"text": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Text is the text of the domain record. Applicable for TXT records and when DNSOnly is set to true.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"targetRef": {
+						SchemaProps: spec.SchemaProps{
+							Description: "ProxyRef is the reference to the proxy object. Applicable for ALIAS records and when DNSOnly is set to false.",
+							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainTargetRef"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainTargetRef"},
 	}
 }
 
@@ -2332,7 +2421,7 @@ func schema_apoxy_cli_api_extensions_v1alpha1_OCICredentials(ref common.Referenc
 					},
 					"password": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Password is the password for the OCI registry.",
+							Description: "Password is the password for the OCI registry. This field is write-only and is not returned in the response.",
 							Type:        []string{"string"},
 							Format:      "",
 						},
