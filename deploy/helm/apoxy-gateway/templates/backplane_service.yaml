@@ -13,6 +13,7 @@ spec:
   loadBalancerSourceRanges:
     {{- toYaml . | nindent 4 }}
   {{- end }}
+  externalTrafficPolicy: {{ .Values.backplane.service.externalTrafficPolicy }}
   ports:
     - port: {{ .Values.backplane.service.port }}
       targetPort: https

@@ -65,6 +65,7 @@ backplane:
     type: ClusterIP
     port: 10443
     annotations: {}
+    externalTrafficPolicy: Cluster
     sourceRanges: []
 
   proxy:
