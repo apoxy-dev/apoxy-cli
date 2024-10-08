@@ -4,11 +4,15 @@ metadata:
   name: {{ include "apoxy-gateway.fullname" . }}
   namespace: {{ include "apoxy-gateway.namespace" . }}
   annotations:
-    {{ .Values.backplane.service.annotations | toYaml | nindent 4 }}
+    {{- .Values.backplane.service.annotations | toYaml | nindent 4 }}
   labels:
     {{- include "apoxy-gateway.labels" . | nindent 4 }}
 spec:
   type: {{ .Values.backplane.service.type }}
+  {{- with .Values.backplane.service.sourceRanges }}
+  loadBalancerSourceRanges:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   ports:
     - port: {{ .Values.backplane.service.port }}
       targetPort: https
