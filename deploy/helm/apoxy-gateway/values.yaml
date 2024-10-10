@@ -87,3 +87,6 @@ backplane:
   tolerations: []
 
   affinity: {}
+
+  extraVolumes: {}
+  extraVolumeMounts: {}
