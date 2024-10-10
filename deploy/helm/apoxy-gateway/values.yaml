@@ -53,6 +53,8 @@ backplane:
 
   extraArgs: []
 
+  extraEnv: {}
+
   imagePullSecrets: []
 
   podAnnotations: {}
