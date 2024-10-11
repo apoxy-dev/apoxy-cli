@@ -137,30 +137,32 @@ func (t *Translator) validateBackendRefFilters(backendRef BackendRefContext, par
 
 func (t *Translator) validateBackendNamespace(backendRef *gwapiv1a2.BackendRef, parentRef *RouteParentContext, route RouteContext,
 	resources *Resources, routeKind gwapiv1.Kind) bool {
-	if backendRef.Namespace != nil && string(*backendRef.Namespace) != "" && string(*backendRef.Namespace) != route.GetNamespace() {
-		if !t.validateCrossNamespaceRef(
-			crossNamespaceFrom{
-				group:     agwapiv1a1.GroupName,
-				kind:      string(routeKind),
-				namespace: route.GetNamespace(),
-			},
-			crossNamespaceTo{
-				group:     GroupDerefOr(backendRef.Group, ""),
-				kind:      KindDerefOr(backendRef.Kind, KindService),
-				namespace: string(*backendRef.Namespace),
-				name:      string(backendRef.Name),
-			},
-			resources.ReferenceGrants,
-		) {
-			parentRef.SetCondition(route,
-				gwapiv1.RouteConditionResolvedRefs,
-				metav1.ConditionFalse,
-				gwapiv1.RouteReasonRefNotPermitted,
-				fmt.Sprintf("Backend ref to %s %s/%s not permitted by any ReferenceGrant.", KindDerefOr(backendRef.Kind, KindService), *backendRef.Namespace, backendRef.Name),
-			)
-			return false
-		}
-	}
+	// TODO(dilyevsky): Allow referencing all namespaces right now.
+	// https://linear.app/apoxy/issue/APO-256/restrict-which-namespaces-gateway-api-backend-can-refer-to
+	//if backendRef.Namespace != nil && string(*backendRef.Namespace) != "" && string(*backendRef.Namespace) != route.GetNamespace() {
+	//	if !t.validateCrossNamespaceRef(
+	//		crossNamespaceFrom{
+	//			group:     agwapiv1a1.GroupName,
+	//			kind:      string(routeKind),
+	//			namespace: route.GetNamespace(),
+	//		},
+	//		crossNamespaceTo{
+	//			group:     GroupDerefOr(backendRef.Group, ""),
+	//			kind:      KindDerefOr(backendRef.Kind, KindService),
+	//			namespace: string(*backendRef.Namespace),
+	//			name:      string(backendRef.Name),
+	//		},
+	//		resources.ReferenceGrants,
+	//	) {
+	//		parentRef.SetCondition(route,
+	//			gwapiv1.RouteConditionResolvedRefs,
+	//			metav1.ConditionFalse,
+	//			gwapiv1.RouteReasonRefNotPermitted,
+	//			fmt.Sprintf("Backend ref to %s %s/%s not permitted by any ReferenceGrant.", KindDerefOr(backendRef.Kind, KindService), *backendRef.Namespace, backendRef.Name),
+	//		)
+	//		return false
+	//	}
+	//}
 	return true
 }
 
