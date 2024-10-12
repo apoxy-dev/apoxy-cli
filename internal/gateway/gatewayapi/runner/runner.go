@@ -93,6 +93,9 @@ func (r *Runner) subscribeAndTranslate(ctx context.Context) {
 					GatewayControllerName: ControllerName,
 					GatewayClassName:      gwapiv1.ObjectName(resources.GatewayClass.Name),
 					ExtensionGroupKinds:   extensionsGroupKinds,
+					// TODO(dilyevsky): Re-enable support for Endpoint slices.
+					// https://linear.app/apoxy/issue/APO-257/enable-support-for-endpoint-slices
+					EndpointRoutingDisabled: true,
 				}
 
 				log.Info("translating resources", "resources", resources)
