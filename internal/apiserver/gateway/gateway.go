@@ -42,6 +42,7 @@ const (
 	classGatewayIndex      = "classGatewayIndex"
 	gatewayHTTPRouteIndex  = "gatewayHTTPRouteIndex"
 	backendHTTPRouteIndex  = "backendHTTPRouteIndex"
+	serviceHTTPRouteIndex  = "serviceHTTPRouteIndex"
 	gatewayInfraRefIndex   = "gatewayInfraRefIndex"
 	edgeFunctionReadyIndex = "edgeFunctionReadyIndex"
 )
@@ -117,7 +118,9 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, request reconcile.Req
 		if err := r.reconcileBackends(clog.IntoContext(ctx, log), res); err != nil {
 			log.Error(err, "Failed to reconcile BackendRefs for GatewayClass", "name", gwc.Name)
 		}
-
+		if err := r.reconcileServices(clog.IntoContext(ctx, log), res); err != nil {
+			log.Error(err, "Failed to reconcile Services for GatewayClass", "name", gwc.Name)
+		}
 		ress = append(ress, res)
 	}
 
@@ -341,6 +344,39 @@ func (r *GatewayReconciler) reconcileBackends(
 	return nil
 }
 
+func (r *GatewayReconciler) reconcileServices(
+	ctx context.Context,
+	res *gatewayapi.Resources,
+) error {
+	log := clog.FromContext(ctx)
+
+	var svcl corev1.ServiceList
+	if err := r.List(ctx, &svcl); err != nil {
+		return fmt.Errorf("failed to list Services: %w", err)
+	}
+
+	for _, svc := range svcl.Items {
+		if !svc.DeletionTimestamp.IsZero() {
+			log.V(1).Info("Service is being deleted", "name", svc.Name)
+			continue
+		}
+
+		log.Info("Reconciling Service", "name", svc.Name)
+
+		var hrsl gatewayv1.HTTPRouteList
+		if err := r.List(ctx, &hrsl, client.MatchingFields{serviceHTTPRouteIndex: string(svc.Name)}); err != nil {
+			return fmt.Errorf("failed to list HTTPRoutes for Service %s: %w", svc.Name, err)
+		} else if len(hrsl.Items) == 0 {
+			log.Info("No matching HTTPRoute objects found for Service", "name", svc.Name)
+			continue
+		}
+
+		res.Services = append(res.Services, &svc) // No longer requires copy since 1.22. See: https://go.dev/blog/loopvar-preview
+	}
+
+	return nil
+}
+
 // SetupWithManager sets up the controller with the Controller Manager.
 func (r *GatewayReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
 	// Indexes Gateway objects by the name of the referenced GatewayClass object.
@@ -391,6 +427,21 @@ func (r *GatewayReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manag
 	}); err != nil {
 		return fmt.Errorf("failed to setup field indexer: %w", err)
 	}
+	// Indexes HTTPRoute objects by the name of the referenced Service object.
+	if err := mgr.GetFieldIndexer().IndexField(ctx, &gatewayv1.HTTPRoute{}, serviceHTTPRouteIndex, func(obj client.Object) []string {
+		route := obj.(*gatewayv1.HTTPRoute)
+		var services []string
+		for _, rule := range route.Spec.Rules {
+			for _, backend := range rule.BackendRefs {
+				if backend.Kind != nil && *backend.Kind == "Service" {
+					services = append(services, string(backend.Name))
+				}
+			}
+		}
+		return services
+	}); err != nil {
+		return fmt.Errorf("failed to setup field indexer: %w", err)
+	}
 	// Index EdgeFunction objects that are in the "Ready" phase.
 	if err := mgr.GetFieldIndexer().IndexField(ctx, &extensionsv1alpha1.EdgeFunction{}, edgeFunctionReadyIndex, func(obj client.Object) []string {
 		if obj.(*extensionsv1alpha1.EdgeFunction).Status.Phase == extensionsv1alpha1.EdgeFunctionPhaseReady {
@@ -420,6 +471,11 @@ func (r *GatewayReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manag
 		).
 		Watches(
 			&corev1alpha.Backend{},
+			handler.EnqueueRequestsFromMapFunc(r.enqueueClass),
+			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
+		).
+		Watches(
+			&corev1.Service{},
 			handler.EnqueueRequestsFromMapFunc(r.enqueueClass),
 			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
 		).
