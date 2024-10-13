@@ -29,6 +29,11 @@ type Domain struct {
 }
 
 type DomainSpec struct {
+	// Zone is the zone of the domain.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	Zone string `json:"zone"`
+
 	// Name is the name of the domain record.
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253

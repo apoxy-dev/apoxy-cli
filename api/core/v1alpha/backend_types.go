@@ -51,8 +51,8 @@ type BackendSpec struct {
 	// +optional
 	DynamicProxy *DynamicProxySpec `json:"dynamicProxy,omitempty"`
 
-	// Protocol defines the protocol to use for the backend.
-	Protocols []BackendProto `json:"protocols"`
+	// Protocol defines a protocol to use for the backend.
+	Protocol BackendProto `json:"protocol"`
 }
 
 type BackendEndpoint struct {

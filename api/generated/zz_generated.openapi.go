@@ -1058,23 +1058,16 @@ func schema_apoxy_cli_api_core_v1alpha_BackendSpec(ref common.ReferenceCallback)
 							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DynamicProxySpec"),
 						},
 					},
-					"protocols": {
+					"protocol": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Protocol defines the protocol to use for the backend.",
-							Type:        []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: "",
-										Type:    []string{"string"},
-										Format:  "",
-									},
-								},
-							},
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
 						},
 					},
 				},
-				Required: []string{"endpoints", "protocols"},
+				Required: []string{"endpoints", "protocol"},
 			},
 		},
 		Dependencies: []string{
@@ -1219,6 +1212,14 @@ func schema_apoxy_cli_api_core_v1alpha_DomainSpec(ref common.ReferenceCallback) 
 			SchemaProps: spec.SchemaProps{
 				Type: []string{"object"},
 				Properties: map[string]spec.Schema{
+					"zone": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Zone is the zone of the domain.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 					"name": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Name is the name of the domain record.",
@@ -1258,7 +1259,7 @@ func schema_apoxy_cli_api_core_v1alpha_DomainSpec(ref common.ReferenceCallback) 
 						},
 					},
 				},
-				Required: []string{"name", "type", "ttl", "value"},
+				Required: []string{"zone", "name", "type", "ttl", "value"},
 			},
 		},
 		Dependencies: []string{

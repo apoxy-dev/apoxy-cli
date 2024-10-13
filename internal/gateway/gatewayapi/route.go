@@ -1472,20 +1472,18 @@ func (t *Translator) processBackendDestinationSetting(backendRef gwapiv1.Backend
 		ds.AddressType = dstAddrType
 	}
 
-	for _, p := range backend.Spec.Protocols {
-		switch p {
-		case v1alpha.BackendProtoH2:
-			ds.Protocol = ir.HTTP2
-			ds.TLS = &ir.TLSUpstreamConfig{
-				UseSystemTrustStore: true,
-			}
-		case v1alpha.BackendProtoH2C:
-			ds.Protocol = ir.HTTP2
-		case v1alpha.BackendProtoTLS:
-			ds.Protocol = ir.HTTP
-			ds.TLS = &ir.TLSUpstreamConfig{
-				UseSystemTrustStore: true,
-			}
+	switch backend.Spec.Protocol {
+	case v1alpha.BackendProtoH2:
+		ds.Protocol = ir.HTTP2
+		ds.TLS = &ir.TLSUpstreamConfig{
+			UseSystemTrustStore: true,
+		}
+	case v1alpha.BackendProtoH2C:
+		ds.Protocol = ir.HTTP2
+	case v1alpha.BackendProtoTLS:
+		ds.Protocol = ir.HTTP
+		ds.TLS = &ir.TLSUpstreamConfig{
+			UseSystemTrustStore: true,
 		}
 	}
 
