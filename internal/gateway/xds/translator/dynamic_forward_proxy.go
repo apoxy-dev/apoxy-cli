@@ -12,7 +12,6 @@ import (
 	dfpconfigv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/common/dynamic_forward_proxy/v3"
 	dfpfilterv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/dynamic_forward_proxy/v3"
 	hcmv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
-	caresv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/network/dns_resolver/cares/v3"
 	resourcev3 "github.com/envoyproxy/go-control-plane/pkg/resource/v3"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -20,7 +19,6 @@ import (
 
 	"github.com/apoxy-dev/apoxy-cli/internal/gateway/ir"
 	"github.com/apoxy-dev/apoxy-cli/internal/gateway/xds/types"
-	"github.com/apoxy-dev/apoxy-cli/internal/log"
 )
 
 const (
@@ -115,26 +113,26 @@ func dnsCacheConfig(dfp *ir.DynamicForwardProxy) *dfpconfigv3.DnsCacheConfig {
 		maxHosts = wrapperspb.UInt32(*dfp.MaxHosts)
 	}
 
-	caresConfig, err := anypb.New(&caresv3.CaresDnsResolverConfig{
-		Resolvers: []*corev3.Address{
-			{
-				// Point to the local DNS server embedded within Backplane.
-				Address: &corev3.Address_SocketAddress{
-					SocketAddress: &corev3.SocketAddress{
-						Protocol: corev3.SocketAddress_UDP,
-						Address:  "127.0.0.1",
-						PortSpecifier: &corev3.SocketAddress_PortValue{
-							PortValue: 1053,
-						},
-					},
-				},
-			},
-		},
-	})
-	if err != nil {
-		log.Errorf("failed to marshal cares dns resolver config: %v", err)
-		return nil
-	}
+	//caresConfig, err := anypb.New(&caresv3.CaresDnsResolverConfig{
+	//	Resolvers: []*corev3.Address{
+	//		{
+	//			// Point to the local DNS server embedded within Backplane.
+	//			Address: &corev3.Address_SocketAddress{
+	//				SocketAddress: &corev3.SocketAddress{
+	//					Protocol: corev3.SocketAddress_UDP,
+	//					Address:  "127.0.0.1",
+	//					PortSpecifier: &corev3.SocketAddress_PortValue{
+	//						PortValue: 1053,
+	//					},
+	//				},
+	//			},
+	//		},
+	//	},
+	//})
+	//if err != nil {
+	//	log.Errorf("failed to marshal cares dns resolver config: %v", err)
+	//	return nil
+	//}
 
 	return &dfpconfigv3.DnsCacheConfig{
 		Name:            dfp.Name,
@@ -143,8 +141,8 @@ func dnsCacheConfig(dfp *ir.DynamicForwardProxy) *dfpconfigv3.DnsCacheConfig {
 		HostTtl:         hostTTL,
 		MaxHosts:        maxHosts,
 		TypedDnsResolverConfig: &corev3.TypedExtensionConfig{
-			Name:        "envoy.extensions.network.dns_resolver.cares",
-			TypedConfig: caresConfig,
+			Name: "envoy.extensions.network.dns_resolver.cares",
+			//TypedConfig: caresConfig,
 		},
 	}
 }
