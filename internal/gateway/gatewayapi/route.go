@@ -1476,12 +1476,16 @@ func (t *Translator) processBackendDestinationSetting(backendRef gwapiv1.Backend
 		switch p {
 		case v1alpha.BackendProtoH2:
 			ds.Protocol = ir.HTTP2
-			ds.TLS = &ir.TLSUpstreamConfig{}
+			ds.TLS = &ir.TLSUpstreamConfig{
+				UseSystemTrustStore: true,
+			}
 		case v1alpha.BackendProtoH2C:
 			ds.Protocol = ir.HTTP2
 		case v1alpha.BackendProtoTLS:
 			ds.Protocol = ir.HTTP
-			ds.TLS = &ir.TLSUpstreamConfig{}
+			ds.TLS = &ir.TLSUpstreamConfig{
+				UseSystemTrustStore: true,
+			}
 		}
 	}
 
