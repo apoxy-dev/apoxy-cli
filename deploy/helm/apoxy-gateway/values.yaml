@@ -53,7 +53,9 @@ backplane:
 
   extraArgs: []
 
-  extraEnv: {}
+  envFrom: []
+
+  extraEnv: []
 
   imagePullSecrets: []
 
@@ -90,5 +92,6 @@ backplane:
 
   affinity: {}
 
-  extraVolumes: {}
-  extraVolumeMounts: {}
+  extraVolumes: []
+
+  extraVolumeMounts: []

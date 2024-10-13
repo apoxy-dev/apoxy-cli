@@ -51,6 +51,10 @@ spec:
           {{- with .Values.backplane.extraEnv }}
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          envFrom:
+          {{- with .Values.backplane.envFrom }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           ports:
             - name: https
               containerPort: {{ .Values.backplane.service.port }}
