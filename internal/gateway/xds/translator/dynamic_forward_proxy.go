@@ -161,7 +161,7 @@ func (*dynamicForwardProxy) patchResources(
 		}
 
 		if err := createDynamicForwardProxyCluster(
-			r.Destination.Settings[0].DynamicForwardProxy,
+			r.Destination.Settings[0],
 			tCtx,
 		); err != nil && !errors.Is(err, ErrXdsClusterExists) {
 			errs = errors.Join(errs, err)
@@ -172,9 +172,10 @@ func (*dynamicForwardProxy) patchResources(
 }
 
 func createDynamicForwardProxyCluster(
-	dfp *ir.DynamicForwardProxy,
+	setting *ir.DestinationSetting,
 	tCtx *types.ResourceVersionTable,
 ) error {
+	dfp := setting.DynamicForwardProxy
 	if dfp == nil {
 		return errors.New("dynamic forward proxy is nil")
 	}
@@ -201,6 +202,12 @@ func createDynamicForwardProxyCluster(
 				TypedConfig: pb,
 			},
 		},
+	}
+
+	if setting.TLS != nil {
+		if cluster.TransportSocket, err = buildXdsUpstreamTLSSocketWthCert(setting.TLS); err != nil {
+			return fmt.Errorf("failed to build xds upstream tls socket: %w", err)
+		}
 	}
 
 	return tCtx.AddXdsResource(resourcev3.ClusterType, cluster)
