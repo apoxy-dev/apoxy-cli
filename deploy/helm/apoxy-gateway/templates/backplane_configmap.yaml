@@ -18,10 +18,10 @@ data:
       listeners:
         - name: external
           protocol: TCP
-          port: {{ .Values.backplane.externalPort }}
+          port: {{ .Values.backplane.proxy.externalPort }}
         - name: internal
           protocol: TCP
-          port: {{ .Values.backplane.internalPort }}
+          port: {{ .Values.backplane.proxy.internalPort }}
       {{- with .Values.backplane.proxy.extraListeners }}
         {{- toYaml . | nindent 8 }}
       {{- end }}

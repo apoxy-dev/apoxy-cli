@@ -57,10 +57,10 @@ spec:
           {{- end }}
           ports:
             - name: external
-              containerPort: {{ .Values.backplane.externalPort }}
+              containerPort: {{ .Values.backplane.proxy.externalPort }}
               protocol: TCP
             - name: internal
-              containerPort: {{ .Values.backplane.internalPort }}
+              containerPort: {{ .Values.backplane.proxy.internalPort }}
               protocol: TCP
             - name: metrics
               containerPort: 8081

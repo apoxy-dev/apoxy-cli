@@ -65,10 +65,6 @@ backplane:
 
   securityContext: {}
 
-  externalPort: 10443
-
-  internalPort: 10080
-
   service:
     type: ClusterIP
     externalPort: 443
@@ -79,6 +75,7 @@ backplane:
 
   proxy:
     name: default
+    externalPort: 10443
     internalPort: 10080
     drainTimeoutSeconds: 30
     extraListeners: []
