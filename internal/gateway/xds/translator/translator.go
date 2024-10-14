@@ -657,7 +657,6 @@ func buildXdsUpstreamTLSCASecret(tlsConfig *ir.TLSUpstreamConfig) *tlsv3.Secret 
 }
 
 func buildXdsUpstreamTLSSocketWthCert(tlsConfig *ir.TLSUpstreamConfig) (*corev3.TransportSocket, error) {
-
 	var tlsCtx *tlsv3.UpstreamTlsContext
 
 	if tlsConfig.UseSystemTrustStore {
@@ -676,20 +675,23 @@ func buildXdsUpstreamTLSSocketWthCert(tlsConfig *ir.TLSUpstreamConfig) (*corev3.
 								Filename: "/etc/ssl/certs/ca-certificates.crt",
 							},
 						},
-						MatchTypedSubjectAltNames: []*tlsv3.SubjectAltNameMatcher{
-							{
-								SanType: tlsv3.SubjectAltNameMatcher_DNS,
-								Matcher: &matcherv3.StringMatcher{
-									MatchPattern: &matcherv3.StringMatcher_Exact{
-										Exact: tlsConfig.SNI,
-									},
-								},
-							},
-						},
 					},
 				},
 			},
-			Sni: tlsConfig.SNI,
+		}
+		if tlsConfig.SNI != "" {
+			tlsCtx.Sni = tlsConfig.SNI
+			subjAltMatcher := &tlsv3.SubjectAltNameMatcher{
+				SanType: tlsv3.SubjectAltNameMatcher_DNS,
+				Matcher: &matcherv3.StringMatcher{
+					MatchPattern: &matcherv3.StringMatcher_Exact{
+						Exact: tlsConfig.SNI,
+					},
+				},
+			}
+			tlsCtx.CommonTlsContext.
+				ValidationContextType.(*tlsv3.CommonTlsContext_ValidationContext).
+				ValidationContext.MatchTypedSubjectAltNames = []*tlsv3.SubjectAltNameMatcher{subjAltMatcher}
 		}
 	} else {
 		tlsCtx = &tlsv3.UpstreamTlsContext{
@@ -701,22 +703,23 @@ func buildXdsUpstreamTLSSocketWthCert(tlsConfig *ir.TLSUpstreamConfig) (*corev3.
 							Name:      tlsConfig.CACertificate.Name,
 							SdsConfig: makeConfigSource(),
 						},
-						DefaultValidationContext: &tlsv3.CertificateValidationContext{
-							MatchTypedSubjectAltNames: []*tlsv3.SubjectAltNameMatcher{
-								{
-									SanType: tlsv3.SubjectAltNameMatcher_DNS,
-									Matcher: &matcherv3.StringMatcher{
-										MatchPattern: &matcherv3.StringMatcher_Exact{
-											Exact: tlsConfig.SNI,
-										},
-									},
-								},
-							},
-						},
 					},
 				},
 			},
-			Sni: tlsConfig.SNI,
+		}
+		if tlsConfig.SNI != "" {
+			tlsCtx.Sni = tlsConfig.SNI
+			subjAltMatcher := &tlsv3.SubjectAltNameMatcher{
+				SanType: tlsv3.SubjectAltNameMatcher_DNS,
+				Matcher: &matcherv3.StringMatcher{
+					MatchPattern: &matcherv3.StringMatcher_Exact{
+						Exact: tlsConfig.SNI,
+					},
+				},
+			}
+			tlsCtx.CommonTlsContext.
+				ValidationContextType.(*tlsv3.CommonTlsContext_CombinedValidationContext).
+				CombinedValidationContext.DefaultValidationContext.MatchTypedSubjectAltNames = []*tlsv3.SubjectAltNameMatcher{subjAltMatcher}
 		}
 	}
 
