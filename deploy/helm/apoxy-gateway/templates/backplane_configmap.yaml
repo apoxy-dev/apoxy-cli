@@ -16,13 +16,12 @@ data:
       # Helm is trash: https://github.com/Masterminds/sprig/issues/269
       drainTimeout: {{ duration (.Values.backplane.proxy.drainTimeoutSeconds | toString) }}
       listeners:
-        - name: https
+        - name: external
           protocol: TCP
-          port: {{ .Values.backplane.service.port }}
+          port: {{ .Values.backplane.externalPort }}
         - name: internal
           protocol: TCP
-          port: {{ .Values.backplane.proxy.internalPort }}
+          port: {{ .Values.backplane.internalPort }}
       {{- with .Values.backplane.proxy.extraListeners }}
         {{- toYaml . | nindent 8 }}
       {{- end }}
-

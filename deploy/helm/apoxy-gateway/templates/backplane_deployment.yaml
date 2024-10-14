@@ -56,11 +56,11 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           ports:
-            - name: https
-              containerPort: {{ .Values.backplane.service.port }}
+            - name: external
+              containerPort: {{ .Values.backplane.externalPort }}
               protocol: TCP
             - name: internal
-              containerPort: {{ .Values.backplane.proxy.internalPort }}
+              containerPort: {{ .Values.backplane.internalPort }}
               protocol: TCP
             - name: metrics
               containerPort: 8081

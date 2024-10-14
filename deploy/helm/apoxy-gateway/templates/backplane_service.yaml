@@ -15,10 +15,10 @@ spec:
   {{- end }}
   externalTrafficPolicy: {{ .Values.backplane.service.externalTrafficPolicy }}
   ports:
-    - port: {{ .Values.backplane.service.port }}
-      targetPort: https
+    - port: {{ .Values.backplane.service.externalPort }}
+      targetPort: external
       protocol: TCP
-      name: https
+      name: external
   selector:
     {{- include "apoxy-gateway.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: backplane

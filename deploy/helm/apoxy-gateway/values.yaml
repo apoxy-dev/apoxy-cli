@@ -65,9 +65,14 @@ backplane:
 
   securityContext: {}
 
+  externalPort: 10443
+
+  internalPort: 10080
+
   service:
     type: ClusterIP
-    port: 10443
+    externalPort: 443
+    internalPort: 80
     annotations: {}
     externalTrafficPolicy: Cluster
     sourceRanges: []
