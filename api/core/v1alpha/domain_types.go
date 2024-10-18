@@ -29,40 +29,107 @@ type Domain struct {
 }
 
 type DomainSpec struct {
-	// Zone is the zone of the domain.
+	// Owner is the owner of the domain.
 	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:MinLength=1
-	Zone string `json:"zone"`
+	Owner DomainOwner `json:"owner"`
 
-	// Name is the name of the domain record.
+	// The list of subdomains nested under the domain.
+	// Allows for wildcard subdomains.
+	// +kubebuilder:validation:MaxItems=50
+	Subdomains []string `json:"subdomains,omitempty"`
+
+	// Target of the domain.
+	// +kubebuilder:validation:Required
+	Target DomainTargetSpec `json:"target"`
+
+	// SSL configuration for the domain.
+	SSLSpec *DomainSSLSpec `json:"ssl,omitempty"`
+}
+
+type DomainOwner struct {
+	// If zone is specified, the Domain is owned by the
+	// zone managed by Apoxy (either user zone or Apoxy built-in zone).
+	Zone *ZoneDomainOwner `json:"zone,omitempty"`
+
+	// If external is specified, the Domain is owned by an external entity.
+	// As Apoxy does not have control over the zone, the user is responsible
+	// for creating the necessary records in the zone to point to the Apoxy
+	// nameservers as well as required validation records.
+	External *ExternalDomainOwner `json:"external,omitempty"`
+}
+
+type ZoneDomainOwner struct {
+	// Zone is the name of the zone.
+	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
 	// +kubebuilder:validation:Pattern=`^[a-zA-Z0-9]([-a-zA-Z0-9]*[a-zA-Z0-9])?$`
-	// +kubebuilder:validation:Required
-	Name string `json:"name"`
+	Zone string `json:"zone"`
+}
 
-	// Type is the type of the domain record.
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Enum=A,AAAA,CNAME,TXT,ALIAS
-	Type string `json:"type"`
+type ExternalDomainOwner struct {
+}
 
-	// TTL is the time-to-live of the domain record.
-	// +kubebuilder:validation:Minimum=0
-	// +kubebuilder:validation:Required
-	// +kubebuilder:default=300
-	// +kubebuilder:validation:Format=int32
-	// +kubebuilder:validation:Maximum=3600
-	TTL int32 `json:"ttl"`
+type DomainTargetSpec struct {
+	// Represents targets specified via DNS.
+	DNS *DomainTargetDNS `json:"dns,omitempty"`
 
-	// Value is the value of the domain record.
-	// +kubebuilder:validation:Required
-	Value DomainValue `json:"value"`
+	// Represent a target specified via a reference to another object
+	// within Apoxy (e.g. Proxy, EdgeFunction, TunnelEndpoint).
+	Ref *DomainTargetRef `json:"ref,omitempty"`
+}
+
+type DomainTargetDNSType string
+
+const (
+	DomainTargetDNSTypeA     = "A"
+	DomainTargetDNSTypeAAAA  = "AAAA"
+	DomainTargetDNSTypeCNAME = "CNAME"
+	DomainTargetDNSTypeTXT   = "TXT"
+)
+
+type DomainTargetDNS struct {
+	// IP address of the target.
+	// Setting this field will create an A/AAAA record.
+	// Cannot be set with FQDN.
+	// +optional
+	IP string `json:"ip,omitempty"`
+
+	// IPs is the list of IP addresses of the target.
+	// When both IP and IPs are specified, IP will be appended to IPs.
+	// Setting this field will create an A/AAAA record (multi-value).
+	// Cannot be set with FQDN.
+	// +kubebuilder:validation:MaxItems=20
+	// +optional
+	IPs []string `json:"ips,omitempty"`
+
+	// FQDN is the fully qualified domain name of the target.
+	// Setting this field will create an CNAME record.
+	// Cannot be set with IP or IPs.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=253
+	// +kubebuilder:validation:Pattern=`^[a-zA-Z0-9]([-a-zA-Z0-9]*[a-zA-Z0-9])?$`
+	FQDN *string `json:"fqdn,omitempty"`
+
+	// Text represent a TXT record value.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=255
+	Text *string `json:"text,omitempty"`
 
 	// DNSOnly is a flag to indicate if the domain represents only a DNS record
 	// and no traffic is routed via Apoxy.
 	// +kubebuilder:validation:Default=false
 	// +optional
 	DNSOnly bool `json:"dnsOnly,omitempty"`
+
+	// TTL is the time-to-live of the domain record.
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:validation:Required
+	// +kubebuilder:default=20
+	// +kubebuilder:validation:Format=int32
+	// +kubebuilder:validation:Maximum=3600
+	// +optional
+	TTL *int32 `json:"ttl"`
 }
 
 type DomainTargetRef struct {
@@ -85,29 +152,11 @@ type DomainTargetRef struct {
 	Name string `json:"name"`
 }
 
-type DomainValue struct {
-	// IP is the IP address of the domain record.
-	// Applicable for A and AAAA records.
-	// +kubebuilder:validation:MaxItems=20
-	IP []string `json:"ip,omitempty"`
-
-	// FQDN is the fully qualified domain name of the domain record.
-	// Applicable for CNAME records.
-	// +kubebuilder:validation:MinLength=1
-	// +kubebuilder:validation:MaxLength=253
-	// +kubebuilder:validation:Pattern=`^[a-zA-Z0-9]([-a-zA-Z0-9]*[a-zA-Z0-9])?$`
-	FQDN *string `json:"fqdn,omitempty"`
-
-	// Text is the text of the domain record.
-	// Applicable for TXT records and when DNSOnly is set to true.
-	// +kubebuilder:validation:MinLength=1
-	// +kubebuilder:validation:MaxLength=255
-	Text *string `json:"text,omitempty"`
-
-	// ProxyRef is the reference to the proxy object.
-	// Applicable for ALIAS records and when DNSOnly is set to false.
+type DomainSSLSpec struct {
+	// The Certificate Authority used to issue the SSL certificate.
+	// Currently supports "letsencrypt".
 	// +optional
-	TargetRef *DomainTargetRef `json:"targetRef,omitempty"`
+	CertificateAuthority string `json:"certificateAuthority,omitempty"`
 }
 
 // DomainPhase is the phase of the domain.
@@ -117,24 +166,17 @@ const (
 	// DomainPhasePending is the pending phase of the domain.
 	// This is the initial phase of the domain.
 	DomainPhasePending = "Pending"
-	// DomainPhaseAllocated is the allocated phase of the domain.
-	DomainPhaseAllocated = "Allocated"
-	// DomainPhaseAttached is the state of the domain when it is attached to
-	// one or more addresses. If there are no addresses found, the domain
-	// will be stuck in either the pending or allocated phase.
-	DomainPhaseAttached = "Attached"
-	// DomainPhaseError is the state of the domain when an unrecoverable
-	// error has occured.
-	DomainPhaseError = "Error"
+	DomainPhaseActive  = "Active"
+	DomainPhaseError   = "Errored"
 )
 
 type DomainStatus struct {
 	// Phase of the domain.
 	Phase DomainPhase `json:"phase,omitempty"`
 
-	// Status of the domain.
+	// Conditions recorded for the domain.
 	// +optional
-	Status string `json:"status,omitempty"`
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
 var _ resource.StatusSubResource = &DomainStatus{}
