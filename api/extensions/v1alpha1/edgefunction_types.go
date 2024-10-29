@@ -171,9 +171,14 @@ type RuntimeCapabilities struct {
 	// Defaults to true.
 	// +optional
 	FetchAPI *bool `json:"fetchAPI,omitempty"`
+
+	// K/V is the capability to access the key/value store.
+	// Defaults to true.
+	// +optional
+	KV *bool `json:"kv,omitempty"`
 }
 
-type RuntimeConfig struct {
+type Runtime struct {
 	// Timeout is the maximum time the function is allowed to run.
 	// Defaults to 30 seconds but can be increased depending on your plan.
 	// +optional
@@ -198,10 +203,6 @@ type EdgeFunctionTargetReference struct {
 }
 
 type EdgeFunctionSpec struct {
-	// TargetRefs are the resources that the function is associated with.
-	// Currently we only support Proxy targets and not Routes or Backends.
-	TargetRefs []EdgeFunctionTargetReference `json:"targetRefs"`
-
 	// Code is the source of the function code/binary.
 	Code EdgeFunctionCodeSource `json:"code"`
 
@@ -211,9 +212,9 @@ type EdgeFunctionSpec struct {
 	// +optional
 	Env []EnvVar `json:"env,omitempty"`
 
-	// RuntimeConfig is the configuration for the function runtime.
+	// Configuration for the function runtime.
 	// +optional
-	RuntimeConfig RuntimeConfig `json:"runtimeConfig"`
+	Runtime Runtime `json:"runtime"`
 }
 
 type EdgeFunctionRevision struct {

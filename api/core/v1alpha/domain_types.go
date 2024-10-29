@@ -44,30 +44,28 @@ type DomainSpec struct {
 
 	// SSL configuration for the domain.
 	SSLSpec *DomainSSLSpec `json:"ssl,omitempty"`
+
+	// Used to specify routing non-HTTP/S forwarding rules.
+	// For example, forwarding tcp:10000-20000 to a specified port of a target
+	// (e.g. an EdgeFunction or a TunnelEndpoint).
+	// This is a Pro feature only.
+	ForwardingSpec *DomainForwardingSpec `json:"forwarding,omitempty"`
 }
 
 type DomainOwner struct {
 	// If zone is specified, the Domain is owned by the
 	// zone managed by Apoxy (either user zone or Apoxy built-in zone).
-	Zone *ZoneDomainOwner `json:"zone,omitempty"`
-
-	// If external is specified, the Domain is owned by an external entity.
-	// As Apoxy does not have control over the zone, the user is responsible
-	// for creating the necessary records in the zone to point to the Apoxy
-	// nameservers as well as required validation records.
-	External *ExternalDomainOwner `json:"external,omitempty"`
-}
-
-type ZoneDomainOwner struct {
-	// Zone is the name of the zone.
 	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
 	// +kubebuilder:validation:Pattern=`^[a-zA-Z0-9]([-a-zA-Z0-9]*[a-zA-Z0-9])?$`
-	Zone string `json:"zone"`
-}
+	Zone string `json:"zone,omitempty"`
 
-type ExternalDomainOwner struct {
+	// If external is true, the Domain is owned by an external entity.
+	// As Apoxy does not have control over the zone, the user is responsible
+	// for creating the necessary records to point to the Apoxy
+	// nameservers as well as any required validation records.
+	// +optional
+	External bool `json:"external,omitempty"`
 }
 
 type DomainTargetSpec struct {
@@ -79,24 +77,14 @@ type DomainTargetSpec struct {
 	Ref *DomainTargetRef `json:"ref,omitempty"`
 }
 
-type DomainTargetDNSType string
-
-const (
-	DomainTargetDNSTypeA     = "A"
-	DomainTargetDNSTypeAAAA  = "AAAA"
-	DomainTargetDNSTypeCNAME = "CNAME"
-	DomainTargetDNSTypeTXT   = "TXT"
-)
-
 type DomainTargetDNS struct {
-	// IP address of the target.
-	// Setting this field will create an A/AAAA record.
-	// Cannot be set with FQDN.
+	// DNSOnly is a flag to indicate if the domain represents only a DNS record
+	// and no traffic is routed via Apoxy. This flag only applies to A/AAAA/CNAME records.
+	// +kubebuilder:validation:Default=false
 	// +optional
-	IP string `json:"ip,omitempty"`
+	DNSOnly bool `json:"dnsOnly,omitempty"`
 
 	// IPs is the list of IP addresses of the target.
-	// When both IP and IPs are specified, IP will be appended to IPs.
 	// Setting this field will create an A/AAAA record (multi-value).
 	// Cannot be set with FQDN.
 	// +kubebuilder:validation:MaxItems=20
@@ -105,22 +93,70 @@ type DomainTargetDNS struct {
 
 	// FQDN is the fully qualified domain name of the target.
 	// Setting this field will create an CNAME record.
-	// Cannot be set with IP or IPs.
+	// Cannot be set with IPs.
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
 	// +kubebuilder:validation:Pattern=`^[a-zA-Z0-9]([-a-zA-Z0-9]*[a-zA-Z0-9])?$`
 	FQDN *string `json:"fqdn,omitempty"`
 
-	// Text represent a TXT record value.
+	// TXT record value.
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=255
-	Text *string `json:"text,omitempty"`
+	TXT []string `json:"txt,omitempty"`
 
-	// DNSOnly is a flag to indicate if the domain represents only a DNS record
-	// and no traffic is routed via Apoxy.
-	// +kubebuilder:validation:Default=false
+	// MX represents a Mail Exchange record.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=253
 	// +optional
-	DNSOnly bool `json:"dnsOnly,omitempty"`
+	MX []string `json:"mx,omitempty"`
+
+	// DKIM represents a DomainKeys Identified Mail record.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=255
+	// +optional
+	DKIM []string `json:"dkim,omitempty"`
+
+	// SPF represents a Sender Policy Framework record.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=255
+	// +optional
+	SPF []string `json:"spf,omitempty"`
+
+	// DMARC represents a Domain-based Message Authentication, Reporting & Conformance record.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=255
+	// +optional
+	DMARC []string `json:"dmarc,omitempty"`
+
+	// CAA represents a Certification Authority Authorization record.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=255
+	// +optional
+	CAA []string `json:"caa,omitempty"`
+
+	// SRV represents a Service Locator record.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=255
+	// +optional
+	SRV []string `json:"srv,omitempty"`
+
+	// NS represents a Name Server record.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=253
+	// +optional
+	NS []string `json:"ns,omitempty"`
+
+	// DS represents a Delegation Signer record.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=255
+	// +optional
+	DS []string `json:"ds,omitempty"`
+
+	// DNSKEY represents a DNS Key record.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=255
+	// +optional
+	DNSKEY []string `json:"dnskey,omitempty"`
 
 	// TTL is the time-to-live of the domain record.
 	// +kubebuilder:validation:Minimum=0
@@ -157,6 +193,46 @@ type DomainSSLSpec struct {
 	// Currently supports "letsencrypt".
 	// +optional
 	CertificateAuthority string `json:"certificateAuthority,omitempty"`
+}
+
+type ProtocolType string
+
+const (
+	ProtocolHTTP ProtocolType = "HTTP"
+	ProtocolTLS  ProtocolType = "TLS"
+	ProtocolTCP  ProtocolType = "TCP"
+	ProtocolUDP  ProtocolType = "UDP"
+)
+
+type PortRange struct {
+	// StartPort is the starting port of the range.
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=65535
+	StartPort int32 `json:"startPort"`
+
+	// EndPort is the ending port of the range.
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=65535
+	EndPort int32 `json:"endPort"`
+}
+
+type ForwardingRule struct {
+	// Protocol specifies the protocol for forwarding.
+	// +kubebuilder:validation:Required
+	Protocol ProtocolType `json:"protocol"`
+
+	// PortRanges specifies the port ranges for forwarding.
+	// +kubebuilder:validation:Required
+	PortRanges []PortRange `json:"portRanges"`
+
+	// If not specified, the connections will be forwarded to the same port it
+	// was received on.
+	TargetPort *int32 `json:"targetPort,omitempty"`
+}
+
+type DomainForwardingSpec struct {
+	// ForwardingRules is the list of forwarding rules.
+	ForwardingRules []ForwardingRule `json:"forwardingRules,omitempty"`
 }
 
 // DomainPhase is the phase of the domain.

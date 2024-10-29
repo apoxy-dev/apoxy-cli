@@ -34,6 +34,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.BackendSpec":                          schema_apoxy_cli_api_core_v1alpha_BackendSpec(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.BackendStatus":                        schema_apoxy_cli_api_core_v1alpha_BackendStatus(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.Domain":                               schema_apoxy_cli_api_core_v1alpha_Domain(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainForwardingSpec":                 schema_apoxy_cli_api_core_v1alpha_DomainForwardingSpec(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainList":                           schema_apoxy_cli_api_core_v1alpha_DomainList(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainOwner":                          schema_apoxy_cli_api_core_v1alpha_DomainOwner(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainSSLSpec":                        schema_apoxy_cli_api_core_v1alpha_DomainSSLSpec(ref),
@@ -48,9 +49,10 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainZoneStatus":                     schema_apoxy_cli_api_core_v1alpha_DomainZoneStatus(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DynamicProxyDnsCacheConfig":           schema_apoxy_cli_api_core_v1alpha_DynamicProxyDnsCacheConfig(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DynamicProxySpec":                     schema_apoxy_cli_api_core_v1alpha_DynamicProxySpec(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.ExternalDomainOwner":                  schema_apoxy_cli_api_core_v1alpha_ExternalDomainOwner(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.FileAccessLog":                        schema_apoxy_cli_api_core_v1alpha_FileAccessLog(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.ForwardingRule":                       schema_apoxy_cli_api_core_v1alpha_ForwardingRule(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.PeerStatus":                           schema_apoxy_cli_api_core_v1alpha_PeerStatus(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.PortRange":                            schema_apoxy_cli_api_core_v1alpha_PortRange(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.Proxy":                                schema_apoxy_cli_api_core_v1alpha_Proxy(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.ProxyList":                            schema_apoxy_cli_api_core_v1alpha_ProxyList(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.ProxySpec":                            schema_apoxy_cli_api_core_v1alpha_ProxySpec(ref),
@@ -59,7 +61,6 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNodeList":                       schema_apoxy_cli_api_core_v1alpha_TunnelNodeList(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNodeSpec":                       schema_apoxy_cli_api_core_v1alpha_TunnelNodeSpec(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNodeStatus":                     schema_apoxy_cli_api_core_v1alpha_TunnelNodeStatus(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.ZoneDomainOwner":                      schema_apoxy_cli_api_core_v1alpha_ZoneDomainOwner(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunction":                  schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunction(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionCodeSource":        schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionCodeSource(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionList":              schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionList(ref),
@@ -76,8 +77,8 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.OCICredentials":                schema_apoxy_cli_api_extensions_v1alpha1_OCICredentials(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.OCICredentialsObjectReference": schema_apoxy_cli_api_extensions_v1alpha1_OCICredentialsObjectReference(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.OCIImageRef":                   schema_apoxy_cli_api_extensions_v1alpha1_OCIImageRef(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.Runtime":                       schema_apoxy_cli_api_extensions_v1alpha1_Runtime(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.RuntimeCapabilities":           schema_apoxy_cli_api_extensions_v1alpha1_RuntimeCapabilities(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.RuntimeConfig":                 schema_apoxy_cli_api_extensions_v1alpha1_RuntimeConfig(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.SourceFile":                    schema_apoxy_cli_api_extensions_v1alpha1_SourceFile(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.WasmSource":                    schema_apoxy_cli_api_extensions_v1alpha1_WasmSource(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/gateway/v1.GRPCRoute":                              schema_apoxy_cli_api_gateway_v1_GRPCRoute(ref),
@@ -1166,6 +1167,34 @@ func schema_apoxy_cli_api_core_v1alpha_Domain(ref common.ReferenceCallback) comm
 	}
 }
 
+func schema_apoxy_cli_api_core_v1alpha_DomainForwardingSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"forwardingRules": {
+						SchemaProps: spec.SchemaProps{
+							Description: "ForwardingRules is the list of forwarding rules.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.ForwardingRule"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.ForwardingRule"},
+	}
+}
+
 func schema_apoxy_cli_api_core_v1alpha_DomainList(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -1224,20 +1253,20 @@ func schema_apoxy_cli_api_core_v1alpha_DomainOwner(ref common.ReferenceCallback)
 					"zone": {
 						SchemaProps: spec.SchemaProps{
 							Description: "If zone is specified, the Domain is owned by the zone managed by Apoxy (either user zone or Apoxy built-in zone).",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.ZoneDomainOwner"),
+							Type:        []string{"string"},
+							Format:      "",
 						},
 					},
 					"external": {
 						SchemaProps: spec.SchemaProps{
-							Description: "If external is specified, the Domain is owned by an external entity. As Apoxy does not have control over the zone, the user is responsible for creating the necessary records in the zone to point to the Apoxy nameservers as well as required validation records.",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.ExternalDomainOwner"),
+							Description: "If external is true, the Domain is owned by an external entity. As Apoxy does not have control over the zone, the user is responsible for creating the necessary records to point to the Apoxy nameservers as well as any required validation records.",
+							Type:        []string{"boolean"},
+							Format:      "",
 						},
 					},
 				},
 			},
 		},
-		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.ExternalDomainOwner", "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.ZoneDomainOwner"},
 	}
 }
 
@@ -1301,12 +1330,18 @@ func schema_apoxy_cli_api_core_v1alpha_DomainSpec(ref common.ReferenceCallback) 
 							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainSSLSpec"),
 						},
 					},
+					"forwarding": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Used to specify routing non-HTTP/S forwarding rules. For example, forwarding tcp:10000-20000 to a specified port of a target (e.g. an EdgeFunction or a TunnelEndpoint). This is a Pro feature only.",
+							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainForwardingSpec"),
+						},
+					},
 				},
 				Required: []string{"owner", "target"},
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainOwner", "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainSSLSpec", "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainTargetSpec"},
+			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainForwardingSpec", "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainOwner", "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainSSLSpec", "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainTargetSpec"},
 	}
 }
 
@@ -1351,16 +1386,16 @@ func schema_apoxy_cli_api_core_v1alpha_DomainTargetDNS(ref common.ReferenceCallb
 			SchemaProps: spec.SchemaProps{
 				Type: []string{"object"},
 				Properties: map[string]spec.Schema{
-					"ip": {
+					"dnsOnly": {
 						SchemaProps: spec.SchemaProps{
-							Description: "IP address of the target. Setting this field will create an A/AAAA record. Cannot be set with FQDN.",
-							Type:        []string{"string"},
+							Description: "DNSOnly is a flag to indicate if the domain represents only a DNS record and no traffic is routed via Apoxy. This flag only applies to A/AAAA/CNAME records.",
+							Type:        []string{"boolean"},
 							Format:      "",
 						},
 					},
 					"ips": {
 						SchemaProps: spec.SchemaProps{
-							Description: "IPs is the list of IP addresses of the target. When both IP and IPs are specified, IP will be appended to IPs. Setting this field will create an A/AAAA record (multi-value). Cannot be set with FQDN.",
+							Description: "IPs is the list of IP addresses of the target. Setting this field will create an A/AAAA record (multi-value). Cannot be set with FQDN.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -1375,23 +1410,159 @@ func schema_apoxy_cli_api_core_v1alpha_DomainTargetDNS(ref common.ReferenceCallb
 					},
 					"fqdn": {
 						SchemaProps: spec.SchemaProps{
-							Description: "FQDN is the fully qualified domain name of the target. Setting this field will create an CNAME record. Cannot be set with IP or IPs.",
+							Description: "FQDN is the fully qualified domain name of the target. Setting this field will create an CNAME record. Cannot be set with IPs.",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
-					"text": {
+					"txt": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Text represent a TXT record value.",
-							Type:        []string{"string"},
-							Format:      "",
+							Description: "TXT record value.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
 						},
 					},
-					"dnsOnly": {
+					"mx": {
 						SchemaProps: spec.SchemaProps{
-							Description: "DNSOnly is a flag to indicate if the domain represents only a DNS record and no traffic is routed via Apoxy.",
-							Type:        []string{"boolean"},
-							Format:      "",
+							Description: "MX represents a Mail Exchange record.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
+					"dkim": {
+						SchemaProps: spec.SchemaProps{
+							Description: "DKIM represents a DomainKeys Identified Mail record.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
+					"spf": {
+						SchemaProps: spec.SchemaProps{
+							Description: "SPF represents a Sender Policy Framework record.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
+					"dmarc": {
+						SchemaProps: spec.SchemaProps{
+							Description: "DMARC represents a Domain-based Message Authentication, Reporting & Conformance record.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
+					"caa": {
+						SchemaProps: spec.SchemaProps{
+							Description: "CAA represents a Certification Authority Authorization record.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
+					"srv": {
+						SchemaProps: spec.SchemaProps{
+							Description: "SRV represents a Service Locator record.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
+					"ns": {
+						SchemaProps: spec.SchemaProps{
+							Description: "NS represents a Name Server record.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
+					"ds": {
+						SchemaProps: spec.SchemaProps{
+							Description: "DS represents a Delegation Signer record.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
+					"dnskey": {
+						SchemaProps: spec.SchemaProps{
+							Description: "DNSKEY represents a DNS Key record.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
 						},
 					},
 					"ttl": {
@@ -1681,16 +1852,6 @@ func schema_apoxy_cli_api_core_v1alpha_DynamicProxySpec(ref common.ReferenceCall
 	}
 }
 
-func schema_apoxy_cli_api_core_v1alpha_ExternalDomainOwner(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
-			},
-		},
-	}
-}
-
 func schema_apoxy_cli_api_core_v1alpha_FileAccessLog(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -1708,6 +1869,50 @@ func schema_apoxy_cli_api_core_v1alpha_FileAccessLog(ref common.ReferenceCallbac
 				},
 			},
 		},
+	}
+}
+
+func schema_apoxy_cli_api_core_v1alpha_ForwardingRule(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"protocol": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Protocol specifies the protocol for forwarding.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"portRanges": {
+						SchemaProps: spec.SchemaProps{
+							Description: "PortRanges specifies the port ranges for forwarding.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.PortRange"),
+									},
+								},
+							},
+						},
+					},
+					"targetPort": {
+						SchemaProps: spec.SchemaProps{
+							Description: "If not specified, the connections will be forwarded to the same port it was received on.",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+				},
+				Required: []string{"protocol", "portRanges"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.PortRange"},
 	}
 }
 
@@ -1746,6 +1951,35 @@ func schema_apoxy_cli_api_core_v1alpha_PeerStatus(ref common.ReferenceCallback) 
 						},
 					},
 				},
+			},
+		},
+	}
+}
+
+func schema_apoxy_cli_api_core_v1alpha_PortRange(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"startPort": {
+						SchemaProps: spec.SchemaProps{
+							Description: "StartPort is the starting port of the range.",
+							Default:     0,
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+					"endPort": {
+						SchemaProps: spec.SchemaProps{
+							Description: "EndPort is the ending port of the range.",
+							Default:     0,
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+				},
+				Required: []string{"startPort", "endPort"},
 			},
 		},
 	}
@@ -2144,27 +2378,6 @@ func schema_apoxy_cli_api_core_v1alpha_TunnelNodeStatus(ref common.ReferenceCall
 	}
 }
 
-func schema_apoxy_cli_api_core_v1alpha_ZoneDomainOwner(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
-				Properties: map[string]spec.Schema{
-					"zone": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Zone is the name of the zone.",
-							Default:     "",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-				},
-				Required: []string{"zone"},
-			},
-		},
-	}
-}
-
 func schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunction(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -2341,20 +2554,6 @@ func schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionSpec(ref common.Refere
 			SchemaProps: spec.SchemaProps{
 				Type: []string{"object"},
 				Properties: map[string]spec.Schema{
-					"targetRefs": {
-						SchemaProps: spec.SchemaProps{
-							Description: "TargetRefs are the resources that the function is associated with. Currently we only support Proxy targets and not Routes or Backends.",
-							Type:        []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionTargetReference"),
-									},
-								},
-							},
-						},
-					},
 					"code": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Code is the source of the function code/binary.",
@@ -2376,19 +2575,19 @@ func schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionSpec(ref common.Refere
 							},
 						},
 					},
-					"runtimeConfig": {
+					"runtime": {
 						SchemaProps: spec.SchemaProps{
-							Description: "RuntimeConfig is the configuration for the function runtime.",
+							Description: "Configuration for the function runtime.",
 							Default:     map[string]interface{}{},
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.RuntimeConfig"),
+							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.Runtime"),
 						},
 					},
 				},
-				Required: []string{"targetRefs", "code"},
+				Required: []string{"code"},
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionCodeSource", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionTargetReference", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EnvVar", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.RuntimeConfig"},
+			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionCodeSource", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EnvVar", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.Runtime"},
 	}
 }
 
@@ -2782,26 +2981,7 @@ func schema_apoxy_cli_api_extensions_v1alpha1_OCIImageRef(ref common.ReferenceCa
 	}
 }
 
-func schema_apoxy_cli_api_extensions_v1alpha1_RuntimeCapabilities(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
-				Properties: map[string]spec.Schema{
-					"fetchAPI": {
-						SchemaProps: spec.SchemaProps{
-							Description: "FetchAPI is the capability to fetch data from the internet. Defaults to true.",
-							Type:        []string{"boolean"},
-							Format:      "",
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
-func schema_apoxy_cli_api_extensions_v1alpha1_RuntimeConfig(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_apoxy_cli_api_extensions_v1alpha1_Runtime(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -2824,6 +3004,32 @@ func schema_apoxy_cli_api_extensions_v1alpha1_RuntimeConfig(ref common.Reference
 		},
 		Dependencies: []string{
 			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.RuntimeCapabilities", "k8s.io/apimachinery/pkg/apis/meta/v1.Duration"},
+	}
+}
+
+func schema_apoxy_cli_api_extensions_v1alpha1_RuntimeCapabilities(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"fetchAPI": {
+						SchemaProps: spec.SchemaProps{
+							Description: "FetchAPI is the capability to fetch data from the internet. Defaults to true.",
+							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
+					"kv": {
+						SchemaProps: spec.SchemaProps{
+							Description: "K/V is the capability to access the key/value store. Defaults to true.",
+							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
+				},
+			},
+		},
 	}
 }
 
