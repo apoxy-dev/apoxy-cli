@@ -13,7 +13,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/apoxy-dev/apoxy-cli/internal/log"
+	"github.com/apoxy-dev/apoxy-cli/pkg/log"
 )
 
 var cmd = &cobra.Command{

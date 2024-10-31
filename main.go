@@ -25,7 +25,7 @@ import (
 
 	"github.com/getsentry/sentry-go"
 
-	"github.com/apoxy-dev/apoxy-cli/internal/cmd"
+	"github.com/apoxy-dev/apoxy-cli/pkg/cmd"
 )
 
 func main() {
