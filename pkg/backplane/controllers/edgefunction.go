@@ -19,7 +19,6 @@ import (
 	ctrlv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
 	"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1"
 	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/wasm/manifest"
-	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
 var _ reconcile.Reconciler = &EdgeFunctionReconciler{}
@@ -182,15 +181,6 @@ func targetRefPredicate(proxyName string) predicate.Funcs {
 			if owner.APIVersion == ctrlv1alpha1.GroupVersion.String() &&
 				owner.Kind == "Proxy" &&
 				owner.Name == proxyName {
-				return true
-			}
-		}
-
-		// Otherwise, check if the EdgeFunction has a target reference to the Proxy.
-		for _, ref := range f.Spec.TargetRefs {
-			if ref.Group == ctrlv1alpha1.GroupName &&
-				ref.Kind == "Proxy" &&
-				ref.Name == gwapiv1.ObjectName(proxyName) {
 				return true
 			}
 		}
