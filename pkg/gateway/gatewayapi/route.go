@@ -340,6 +340,13 @@ func (t *Translator) processHTTPRouteRule(httpRoute *HTTPRouteContext, ruleIdx i
 		}
 		processTimeout(irRoute, rule)
 
+		// TODO(dilyevsky): Get this setting from the Proxy object. Put in reasonable defaults for now.
+		// https://linear.app/apoxy/issue/APO-258/implement-tcpkeepalive-settting
+		irRoute.TCPKeepalive = &ir.TCPKeepalive{
+			IdleTime: ptr.To(uint32(30)),
+			Interval: ptr.To(uint32(10)),
+		}
+
 		if match.Path != nil {
 			switch PathMatchTypeDerefOr(match.Path.Type, gwapiv1.PathMatchPathPrefix) {
 			case gwapiv1.PathMatchPathPrefix:
