@@ -8,8 +8,8 @@ package gatewayapi
 import (
 	"cmp"
 	"reflect"
+	"slices"
 
-	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"

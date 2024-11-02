@@ -215,7 +215,7 @@ func (tun *netTun) Write(buf [][]byte, offset int) (int, error) {
 
 func (tun *netTun) WriteNotify() {
 	pkt := tun.ep.Read()
-	if pkt.IsNil() {
+	if pkt == nil {
 		return
 	}
 
@@ -301,7 +301,7 @@ func CreateTunnel(
 		return nil, fmt.Errorf("could not set TCP congestion control: %v", tcpipErr)
 	}
 
-	nicID := tcpip.NICID(ipstack.UniqueID())
+	nicID := ipstack.NextNICID()
 	linkEP := channel.New(4096, uint32(defaultMTU), "")
 	if err := ipstack.CreateNIC(nicID, linkEP); err != nil {
 		return nil, fmt.Errorf("could not create NIC: %v", err)
