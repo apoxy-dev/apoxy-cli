@@ -17,7 +17,8 @@ spec:
     type: {{ .type }}
     {{- with .rollingUpdate }}
     rollingUpdate:
-      maxUnavailable: {{ .maxUnavailable | default 1 }}
+      maxUnavailable: {{ .maxUnavailable }}
+      maxSurge: {{ .maxSurge }}
     {{- end }}
   {{- end }}
   template:
