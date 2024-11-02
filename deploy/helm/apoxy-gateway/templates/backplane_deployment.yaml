@@ -12,6 +12,14 @@ spec:
     matchLabels:
       {{- include "apoxy-gateway.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: backplane
+  {{- with .Values.backplane.strategy }}
+  strategy:
+    type: {{ .type }}
+    {{- with .rollingUpdate }}
+    rollingUpdate:
+      maxUnavailable: {{ .maxUnavailable | default 1 }}
+    {{- end }}
+  {{- end }}
   template:
     metadata:
       {{- with .Values.backplane.podAnnotations }}
@@ -71,8 +79,8 @@ spec:
               port: metrics
           readinessProbe:
             httpGet:
-              path: /metrics
-              port: metrics
+              path: /ready
+              port: 19000
           resources:
             {{- toYaml .Values.backplane.resources | nindent 12 }}
           volumeMounts:
