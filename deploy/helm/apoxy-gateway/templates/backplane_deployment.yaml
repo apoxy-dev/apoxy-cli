@@ -76,12 +76,18 @@ spec:
               protocol: TCP
           livenessProbe:
             httpGet:
-              path: /metrics
-              port: metrics
+              path: /healthz
+              port: 8080
+              initialDelaySeconds: 30
+              periodSeconds: 5
+              timeoutSeconds: 1
           readinessProbe:
             httpGet:
               path: /ready
-              port: 19000
+              port: 8083
+            initialDelaySeconds: 30
+            periodSeconds: 5
+            timeoutSeconds: 1
           resources:
             {{- toYaml .Values.backplane.resources | nindent 12 }}
           volumeMounts:
