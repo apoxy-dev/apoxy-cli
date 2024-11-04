@@ -58,17 +58,32 @@ type GatewayReconciler struct {
 	client.Client
 
 	resources *message.ProviderResources
+	watchK8s  bool
+}
+
+type Option func(*GatewayReconciler)
+
+// WithKubeAPI enables watching for K8s resources.
+func WithKubeAPI() Option {
+	return func(r *GatewayReconciler) {
+		r.watchK8s = true
+	}
 }
 
 // NewGatewayReconciler returns a new reconciler for Gateway API resources.
 func NewGatewayReconciler(
 	c client.Client,
 	pr *message.ProviderResources,
+	opts ...Option,
 ) *GatewayReconciler {
-	return &GatewayReconciler{
+	r := &GatewayReconciler{
 		Client:    c,
 		resources: pr,
 	}
+	for _, opt := range opts {
+		opt(r)
+	}
+	return r
 }
 
 // Reconcile implements reconcile.Reconciler.
@@ -427,20 +442,22 @@ func (r *GatewayReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manag
 	}); err != nil {
 		return fmt.Errorf("failed to setup field indexer: %w", err)
 	}
-	// Indexes HTTPRoute objects by the name of the referenced Service object.
-	if err := mgr.GetFieldIndexer().IndexField(ctx, &gatewayv1.HTTPRoute{}, serviceHTTPRouteIndex, func(obj client.Object) []string {
-		route := obj.(*gatewayv1.HTTPRoute)
-		var services []string
-		for _, rule := range route.Spec.Rules {
-			for _, backend := range rule.BackendRefs {
-				if backend.Kind != nil && *backend.Kind == "Service" {
-					services = append(services, string(backend.Name))
+	if r.watchK8s {
+		// Indexes HTTPRoute objects by the name of the referenced Service object.
+		if err := mgr.GetFieldIndexer().IndexField(ctx, &gatewayv1.HTTPRoute{}, serviceHTTPRouteIndex, func(obj client.Object) []string {
+			route := obj.(*gatewayv1.HTTPRoute)
+			var services []string
+			for _, rule := range route.Spec.Rules {
+				for _, backend := range rule.BackendRefs {
+					if backend.Kind != nil && *backend.Kind == "Service" {
+						services = append(services, string(backend.Name))
+					}
 				}
 			}
+			return services
+		}); err != nil {
+			return fmt.Errorf("failed to setup field indexer: %w", err)
 		}
-		return services
-	}); err != nil {
-		return fmt.Errorf("failed to setup field indexer: %w", err)
 	}
 	// Index EdgeFunction objects that are in the "Ready" phase.
 	if err := mgr.GetFieldIndexer().IndexField(ctx, &extensionsv1alpha1.EdgeFunction{}, edgeFunctionReadyIndex, func(obj client.Object) []string {
@@ -452,7 +469,7 @@ func (r *GatewayReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manag
 		return fmt.Errorf("failed to setup field indexer: %w", err)
 	}
 
-	return ctrl.NewControllerManagedBy(mgr).
+	b := ctrl.NewControllerManagedBy(mgr).
 		For(&gatewayv1.GatewayClass{}).
 		Watches(
 			&gatewayv1.GatewayClass{},
@@ -475,16 +492,20 @@ func (r *GatewayReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manag
 			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
 		).
 		Watches(
-			&corev1.Service{},
-			handler.EnqueueRequestsFromMapFunc(r.enqueueClass),
-			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
-		).
-		Watches(
 			&extensionsv1alpha1.EdgeFunction{},
 			handler.EnqueueRequestsFromMapFunc(r.enqueueClass),
 			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
-		).
-		Complete(r)
+		)
+
+	if r.watchK8s {
+		b = b.Watches(
+			&corev1.Service{},
+			handler.EnqueueRequestsFromMapFunc(r.enqueueClass),
+			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
+		)
+	}
+
+	return b.Complete(r)
 }
 
 func (r *GatewayReconciler) enqueueClass(_ context.Context, _ client.Object) []reconcile.Request {

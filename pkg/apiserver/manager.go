@@ -217,6 +217,7 @@ type options struct {
 	sqlitePath            string
 	sqliteConnArgs        map[string]string
 	certPairName, certDir string
+	enableKubeAPI         bool
 }
 
 // WithClientConfig sets the client configuration.
@@ -272,6 +273,13 @@ func WithCerts(certPairName, certDir string) Option {
 func WithSQLiteConnArgs(args map[string]string) Option {
 	return func(o *options) {
 		o.sqliteConnArgs = args
+	}
+}
+
+// WithKubeAPI enables the Kubernetes API.
+func WithKubeAPI() Option {
+	return func(o *options) {
+		o.enableKubeAPI = true
 	}
 }
 
@@ -369,6 +377,10 @@ func (m *Manager) Start(
 		return fmt.Errorf("failed to set up Proxy webhook: %v", err)
 	}
 
+	gwOpts := []gateway.Option{}
+	if dOpts.enableKubeAPI {
+		gwOpts = append(gwOpts, gateway.WithKubeAPI())
+	}
 	if err := gateway.NewGatewayReconciler(
 		m.manager.GetClient(),
 		gwSrv.Resources,
