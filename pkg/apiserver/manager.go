@@ -384,6 +384,7 @@ func (m *Manager) Start(
 	if err := gateway.NewGatewayReconciler(
 		m.manager.GetClient(),
 		gwSrv.Resources,
+		gwOpts...,
 	).SetupWithManager(ctx, m.manager); err != nil {
 		return fmt.Errorf("failed to set up Project controller: %v", err)
 	}
