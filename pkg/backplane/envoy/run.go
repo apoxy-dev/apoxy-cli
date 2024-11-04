@@ -94,11 +94,20 @@ func WithAdminHost(host string) Option {
 	}
 }
 
-// WithDrainTimeout sets the timeout for draining the runtime.
 // If this is not set, the default timeout is used (30 seconds).
 func WithDrainTimeout(timeout *time.Duration) Option {
 	return func(r *Runtime) {
 		r.drainTimeout = timeout
+	}
+}
+
+func WithReadyChecker(hcPort int, listeners []*Listener) Option {
+	return func(r *Runtime) {
+		r.readyChecker = &readyChecker{
+			port:      hcPort,
+			listeners: listeners,
+			adminHost: r.adminHost,
+		}
 	}
 }
 
@@ -116,6 +125,7 @@ type Runtime struct {
 	goPluginDir  string
 	adminHost    string
 	drainTimeout *time.Duration
+	readyChecker *readyChecker
 
 	mu     sync.RWMutex
 	status RuntimeStatus
@@ -219,6 +229,10 @@ func (r *Runtime) run(ctx context.Context) error {
 	r.status.StartedAt = time.Unix(0, ctime*int64(time.Millisecond)).UTC()
 	r.status.Running = true
 	r.mu.Unlock()
+
+	if r.readyChecker != nil {
+		go r.readyChecker.run(rCtx)
+	}
 
 	// Restart envoy if it exits.
 	if err := r.cmd.Wait(); err != nil {

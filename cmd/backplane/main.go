@@ -62,6 +62,7 @@ var (
 
 	apiserverHost   = flag.String("apiserver_host", "host.docker.internal", "APIServer address.")
 	healthProbePort = flag.Int("health_probe_port", 8080, "Port for the health probe.")
+	readyProbePort  = flag.Int("ready_probe_port", 8083, "Port for the ready probe.")
 
 	chAddrs  = flag.String("ch_addrs", "", "Comma-separated list of ClickHouse host:port addresses.")
 	chSecure = flag.Bool("ch_secure", false, "Whether to connect to Clickhouse using TLS.")
@@ -268,6 +269,9 @@ func main() {
 	}
 	if *useEnvoyContrib {
 		proxyOpts = append(proxyOpts, bpctrl.WithEnvoyContrib())
+	}
+	if *readyProbePort != 0 {
+		proxyOpts = append(proxyOpts, bpctrl.WithReadyCheckerPort(*readyProbePort))
 	}
 	pctrl := bpctrl.NewProxyReconciler(
 		mgr.GetClient(),

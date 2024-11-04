@@ -35,6 +35,7 @@ import (
 	alog "github.com/apoxy-dev/apoxy-cli/pkg/log"
 
 	ctrlv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
+	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
 const (
@@ -61,6 +62,7 @@ type options struct {
 	goPluginDir              string
 	releaseURL               string
 	useEnvoyContrib          bool
+	readyCheckerPort         int
 }
 
 // Option is a functional option for ProxyReconciler.
@@ -100,6 +102,15 @@ func WithURLRelease(url string) Option {
 func WithEnvoyContrib() Option {
 	return func(o *options) {
 		o.useEnvoyContrib = true
+	}
+}
+
+// WithReadyCheckerPort sets the port for the readiness checker.
+// The readiness checker indicates that the proxy is ready to accept traffic.
+// If not set, the health checker will be disabled.
+func WithReadyCheckerPort(port int) Option {
+	return func(o *options) {
+		o.readyCheckerPort = port
 	}
 }
 
@@ -193,10 +204,6 @@ type listenerStatus struct {
 			PortValue uint32 `json:"port_value"`
 		} `json:"socket_address"`
 	} `json:"local_address"`
-}
-
-type listeners struct {
-	ListenerStatuses []listenerStatus `json:"listener_statuses"`
 }
 
 func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
@@ -311,12 +318,13 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 		}
 
 		// TODO(dilyevsky): Pass these values from the Proxy object.
+		adminHost := bootstrap.EnvoyAdminAddress + ":" + strconv.Itoa(bootstrap.EnvoyAdminPort)
 		opts := []envoy.Option{
 			envoy.WithBootstrapConfigYAML(cfg),
 			envoy.WithCluster(p.Name),
 			envoy.WithGoPluginDir(r.options.goPluginDir),
 			envoy.WithDrainTimeout(&p.Spec.DrainTimeout.Duration),
-			envoy.WithAdminHost(bootstrap.EnvoyAdminAddress + ":" + strconv.Itoa(bootstrap.EnvoyAdminPort)),
+			envoy.WithAdminHost(adminHost),
 		}
 		if r.options.releaseURL != "" {
 			opts = append(opts, envoy.WithRelease(&envoy.URLRelease{
@@ -326,6 +334,33 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 			opts = append(opts, envoy.WithRelease(&envoy.GitHubRelease{
 				Contrib: r.options.useEnvoyContrib,
 			}))
+		}
+
+		if r.options.readyCheckerPort > 0 {
+			ls := []*envoy.Listener{}
+			gw2envoyProtos := map[gwapiv1.ProtocolType]corev3.SocketAddress_Protocol{
+				gwapiv1.HTTPProtocolType:  corev3.SocketAddress_TCP,
+				gwapiv1.HTTPSProtocolType: corev3.SocketAddress_TCP,
+				gwapiv1.TLSProtocolType:   corev3.SocketAddress_TCP,
+				gwapiv1.TCPProtocolType:   corev3.SocketAddress_TCP,
+				gwapiv1.UDPProtocolType:   corev3.SocketAddress_UDP,
+			}
+			for _, l := range p.Spec.Listeners {
+				ls = append(ls, &envoy.Listener{
+					Address: corev3.Address{
+						Address: &corev3.Address_SocketAddress{
+							SocketAddress: &corev3.SocketAddress{
+								Protocol: gw2envoyProtos[l.Protocol],
+								PortSpecifier: &corev3.SocketAddress_PortValue{
+									PortValue: uint32(l.Port),
+								},
+							},
+						},
+					},
+				})
+			}
+
+			opts = append(opts, envoy.WithReadyChecker(r.options.readyCheckerPort, ls))
 		}
 
 		if r.options.chConn != nil {
