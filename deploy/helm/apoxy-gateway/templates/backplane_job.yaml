@@ -1,0 +1,16 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "apoxy-gateway.fullname" . }}-backplane-init
+spec:
+  template:
+    spec:
+      containers:
+      - name: scale-backplane
+        image: bitnami/kubectl:latest
+        command:
+        - /bin/sh
+        - -c
+        - |
+          kubectl scale deployment {{ include "apoxy-gateway.fullname" . }}-backplane --replicas=1
+      restartPolicy: OnFailure
