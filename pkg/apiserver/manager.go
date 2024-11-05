@@ -211,19 +211,27 @@ func (c *certSource) GetCertificate(*tls.ClientHelloInfo) (*tls.Certificate, err
 type Option func(*options)
 
 type options struct {
-	clientConfig          *rest.Config
-	enableSimpleAuth      bool
-	enableInClusterAuth   bool
-	sqlitePath            string
-	sqliteConnArgs        map[string]string
-	certPairName, certDir string
-	enableKubeAPI         bool
+	clientConfig          	*rest.Config
+	enableSimpleAuth      	bool
+	enableInClusterAuth   	bool
+	sqlitePath            	string
+	sqliteConnArgs        	map[string]string
+	certPairName, certDir 	string
+	enableKubeAPI         	bool
+	additionalControllers 	[]CreateController     
 }
 
 // WithClientConfig sets the client configuration.
 func WithClientConfig(cfg *rest.Config) Option {
 	return func(o *options) {
 		o.clientConfig = cfg
+	}
+}
+
+// WithAdditionalController adds an additional controller.
+func WithAdditionalController(c CreateController) Option {
+	return func(o *options) {
+		o.additionalControllers = append(o.additionalControllers, c)
 	}
 }
 
@@ -373,9 +381,6 @@ func (m *Manager) Start(
 	).SetupWithManager(ctx, m.manager); err != nil {
 		return fmt.Errorf("failed to set up Project controller: %v", err)
 	}
-	if err := (&ctrlv1alpha1.Proxy{}).SetupWebhookWithManager(m.manager); err != nil {
-		return fmt.Errorf("failed to set up Proxy webhook: %v", err)
-	}
 
 	gwOpts := []gateway.Option{}
 	if dOpts.enableKubeAPI {
@@ -395,8 +400,14 @@ func (m *Manager) Start(
 	).SetupWithManager(ctx, m.manager); err != nil {
 		return fmt.Errorf("failed to set up Project controller: %v", err)
 	}
-	if err := (&extensionsv1alpha1.EdgeFunction{}).SetupWebhookWithManager(m.manager); err != nil {
-		return fmt.Errorf("failed to set up EdgeFunction webhook: %v", err)
+
+	if len(dOpts.additionalControllers) > 0 {
+		log.Infof("Starting API server additional controllers")
+		for _, c := range dOpts.additionalControllers {
+			if err := c(m.manager.GetClient()).SetupWithManager(ctx, m.manager); err != nil {
+				return fmt.Errorf("failed to set up controller: %v", err)
+			}
+		}
 	}
 
 	log.Infof("Starting API server manager")
