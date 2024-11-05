@@ -7,7 +7,7 @@ metadata:
     {{- include "apoxy-gateway.labels" . | nindent 4 }}
     app.kubernetes.io/component: backplane
 spec:
-  replicas: 1
+  replicas: 0
   selector:
     matchLabels:
       {{- include "apoxy-gateway.selectorLabels" . | nindent 6 }}
@@ -96,6 +96,8 @@ spec:
             {{- with .Values.backplane.extraVolumeMounts }}
               {{- toYaml . | nindent 12 }}
             {{- end }}
+          lifecycle:
+            {{- toYaml .Values.backplane.lifecycle | nindent 12 }}
       # Set the termination grace period to the drain timeout plus a buffer
       # to allow for the proxy to finish draining connections.
       terminationGracePeriodSeconds: {{ .Values.backplane.proxy.drainTimeoutSeconds | add 5 }}
