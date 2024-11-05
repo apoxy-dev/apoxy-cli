@@ -203,7 +203,7 @@ func (r *ProxyReconciler) syncProxy(_ context.Context, p *ctrlv1alpha1.Proxy, de
 				return true, nil
 			}
 		default:
-
+			return false, fmt.Errorf("unknown provider: %s", p.Spec.Provider)
 		}
 	}
 	return false, nil
