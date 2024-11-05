@@ -15,6 +15,7 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
+	"k8s.io/utils/ptr"
 
 	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/ir"
 	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/xds/types"
@@ -220,6 +221,14 @@ func createDynamicForwardProxyCluster(
 
 	if args.tcpkeepalive != nil {
 		cluster.UpstreamConnectionOptions = buildXdsClusterUpstreamOptions(args.tcpkeepalive)
+	} else {
+		// TODO(dilyevsky): Get this setting from the Proxy object. Put in reasonable defaults for now.
+		// https://linear.app/apoxy/issue/APO-258/implement-tcpkeepalive-settting
+		cluster.UpstreamConnectionOptions = buildXdsClusterUpstreamOptions(&ir.TCPKeepalive{
+			Probes:   ptr.To(uint32(3)),
+			IdleTime: ptr.To(uint32(30)),
+			Interval: ptr.To(uint32(10)),
+		})
 	}
 
 	return tCtx.AddXdsResource(resourcev3.ClusterType, cluster)
