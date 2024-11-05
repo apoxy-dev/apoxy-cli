@@ -20,7 +20,7 @@ import (
 const (
 	NetworkName = "apoxy"
 
-	statusWaitTimeout  = 10 * time.Second
+	statusWaitTimeout  = 60 * time.Second
 	statusWaitInterval = 500 * time.Millisecond
 )
 
