@@ -46,7 +46,7 @@ spec:
           image: "{{ .Values.backplane.image.repository }}:{{ .Values.backplane.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.backplane.image.pullPolicy }}
           args:
-            - --proxy_path=/var/run/apoxy/proxy.yaml
+            - --proxy={{ .Values.backplane.proxy.name }}
             - --apiserver_host={{ include "apoxy-gateway.fullname" . }}-apiserver
             - --dev
           {{- with .Values.backplane.extraArgs }}
