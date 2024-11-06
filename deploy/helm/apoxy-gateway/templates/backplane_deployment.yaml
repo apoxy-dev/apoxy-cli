@@ -91,8 +91,6 @@ spec:
           resources:
             {{- toYaml .Values.backplane.resources | nindent 12 }}
           volumeMounts:
-            - name: data
-              mountPath: /var/run/apoxy
             {{- with .Values.backplane.extraVolumeMounts }}
               {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -113,10 +111,7 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- with .Values.backplane.extraVolumes }}
       volumes:
-        - name: data
-          configMap:
-            name: {{ include "apoxy-gateway.fullname" . }}-proxy
-        {{- with .Values.backplane.extraVolumes }}
-          {{- toYaml . | nindent 8 }}
-        {{- end }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
