@@ -7,7 +7,7 @@ metadata:
     {{- include "apoxy-gateway.labels" . | nindent 4 }}
     app.kubernetes.io/component: backplane
 spec:
-  replicas: 0
+  replicas: 1
   selector:
     matchLabels:
       {{- include "apoxy-gateway.selectorLabels" . | nindent 6 }}
@@ -83,7 +83,7 @@ spec:
               timeoutSeconds: 1
           readinessProbe:
             httpGet:
-              path: /ready
+              path: /readyz
               port: 8083
             initialDelaySeconds: 30
             periodSeconds: 5

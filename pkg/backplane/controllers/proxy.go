@@ -30,6 +30,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/envoy"
+	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/healthchecker"
 	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/logs"
 	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/xds/bootstrap"
 	alog "github.com/apoxy-dev/apoxy-cli/pkg/log"
@@ -62,7 +63,7 @@ type options struct {
 	goPluginDir              string
 	releaseURL               string
 	useEnvoyContrib          bool
-	readyCheckerPort         int
+	healthChecker            *healthchecker.AggregatedHealthChecker
 }
 
 // Option is a functional option for ProxyReconciler.
@@ -105,12 +106,10 @@ func WithEnvoyContrib() Option {
 	}
 }
 
-// WithReadyCheckerPort sets the port for the readiness checker.
-// The readiness checker indicates that the proxy is ready to accept traffic.
-// If not set, the health checker will be disabled.
-func WithReadyCheckerPort(port int) Option {
+// WithAggregatedHealthChecker sets the health checker for the ProxyReconciler.
+func WithAggregatedHealthChecker(hc *healthchecker.AggregatedHealthChecker) Option {
 	return func(o *options) {
-		o.readyCheckerPort = port
+		o.healthChecker = hc
 	}
 }
 
@@ -336,7 +335,7 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 			}))
 		}
 
-		if r.options.readyCheckerPort > 0 {
+		if r.options.healthChecker != nil {
 			ls := []*envoy.Listener{}
 			gw2envoyProtos := map[gwapiv1.ProtocolType]corev3.SocketAddress_Protocol{
 				gwapiv1.HTTPProtocolType:  corev3.SocketAddress_TCP,
@@ -360,7 +359,10 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 				})
 			}
 
-			opts = append(opts, envoy.WithReadyChecker(r.options.readyCheckerPort, ls))
+			r.options.healthChecker.Register(
+				p.Name+"-admin",
+				envoy.NewReadyChecker(adminHost, ls...),
+			)
 		}
 
 		if r.options.chConn != nil {
@@ -405,6 +407,8 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 			if err := r.Runtime.Shutdown(ctx); err != nil {
 				rStatus.Reason = fmt.Sprintf("Failed to shutdown proxy: %v", err)
 			}
+
+			r.options.healthChecker.Unregister(p.Name + "-admin")
 		case ctrlv1alpha1.ProxyReplicaPhaseStopped:
 			// Replica is stopped but the process still running.
 			log.Info("Proxy is stopped but process is still running")

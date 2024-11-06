@@ -19,29 +19,41 @@ type Listener struct {
 }
 
 type readyChecker struct {
-	port      int
-	listeners []*Listener
 	adminHost string
+	listeners []*Listener
 }
 
-func (hc *readyChecker) checkListeners(w http.ResponseWriter, r *http.Request) {
+// NewReadyChecker creates a new readyChecker.
+func NewReadyChecker(adminHost string, listeners ...*Listener) *readyChecker {
+	return &readyChecker{
+		adminHost: adminHost,
+		listeners: listeners,
+	}
+}
+
+// Check implements the HealthChecker interface for the readyChecker.
+func (hc *readyChecker) Check(ctx context.Context) (bool, error) {
+	if len(hc.listeners) == 0 {
+		return true, nil
+	}
+	if hc.adminHost == "" {
+		return false, fmt.Errorf("admin host not set")
+	}
+
 	resp, err := http.Get(fmt.Sprintf("http://%s/listeners?format=json", hc.adminHost))
 	if err != nil {
-		http.Error(w, "Failed to get listeners from admin endpoint", http.StatusInternalServerError)
-		return
+		return false, fmt.Errorf("failed to get listeners from admin endpoint: %w", err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		http.Error(w, "Failed to read response body", http.StatusInternalServerError)
-		return
+		return false, fmt.Errorf("failed to read response body: %w", err)
 	}
 
 	adminListeners := adminv3.Listeners{}
 	if err := protojson.Unmarshal(body, &adminListeners); err != nil {
-		http.Error(w, "Failed to unmarshal listeners", http.StatusInternalServerError)
-		return
+		return false, fmt.Errorf("failed to unmarshal listeners: %w", err)
 	}
 
 	for _, l := range hc.listeners {
@@ -64,36 +76,12 @@ func (hc *readyChecker) checkListeners(w http.ResponseWriter, r *http.Request) {
 				l.Name,
 				l.Address.GetSocketAddress().GetPortValue(),
 				l.Address.GetSocketAddress().GetProtocol())
-			http.Error(w, "Listener not found: "+l.Name, http.StatusInternalServerError)
-			return
+			return false, fmt.Errorf("listener not found: name=%s, port=%d, protocol=%s",
+				l.Name,
+				l.Address.GetSocketAddress().GetPortValue(),
+				l.Address.GetSocketAddress().GetProtocol())
 		}
 	}
 
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("All listeners are present"))
-}
-
-func (hc *readyChecker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	hc.checkListeners(w, r)
-}
-
-func (hc *readyChecker) run(ctx context.Context) {
-	mux := http.NewServeMux()
-	mux.Handle("/ready", hc)
-	server := &http.Server{
-		Addr:    fmt.Sprintf(":%d", hc.port),
-		Handler: mux,
-	}
-
-	go func() {
-		<-ctx.Done()
-		if err := server.Shutdown(context.Background()); err != nil {
-			log.Errorf("Failed to shutdown server: %v", err)
-		}
-	}()
-
-	log.Infof("Starting health checker on port %d", hc.port)
-	if err := server.ListenAndServe(); err != http.ErrServerClosed {
-		log.Errorf("Server error: %v", err)
-	}
+	return true, nil
 }

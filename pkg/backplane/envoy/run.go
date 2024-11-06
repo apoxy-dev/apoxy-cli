@@ -101,16 +101,6 @@ func WithDrainTimeout(timeout *time.Duration) Option {
 	}
 }
 
-func WithReadyChecker(hcPort int, listeners []*Listener) Option {
-	return func(r *Runtime) {
-		r.readyChecker = &readyChecker{
-			port:      hcPort,
-			listeners: listeners,
-			adminHost: r.adminHost,
-		}
-	}
-}
-
 type Runtime struct {
 	EnvoyPath           string
 	BootstrapConfigYAML string
@@ -125,7 +115,6 @@ type Runtime struct {
 	goPluginDir  string
 	adminHost    string
 	drainTimeout *time.Duration
-	readyChecker *readyChecker
 
 	mu     sync.RWMutex
 	status RuntimeStatus
@@ -229,10 +218,6 @@ func (r *Runtime) run(ctx context.Context) error {
 	r.status.StartedAt = time.Unix(0, ctime*int64(time.Millisecond)).UTC()
 	r.status.Running = true
 	r.mu.Unlock()
-
-	if r.readyChecker != nil {
-		go r.readyChecker.run(rCtx)
-	}
 
 	// Restart envoy if it exits.
 	if err := r.cmd.Wait(); err != nil {

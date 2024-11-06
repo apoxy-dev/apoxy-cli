@@ -33,6 +33,7 @@ import (
 	"github.com/apoxy-dev/apoxy-cli/pkg/apiserver"
 	bpctrl "github.com/apoxy-dev/apoxy-cli/pkg/backplane/controllers"
 	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/dns"
+	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/healthchecker"
 	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/kvstore"
 	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/wasm/ext_proc"
 	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/wasm/manifest"
@@ -271,7 +272,9 @@ func main() {
 		proxyOpts = append(proxyOpts, bpctrl.WithEnvoyContrib())
 	}
 	if *readyProbePort != 0 {
-		proxyOpts = append(proxyOpts, bpctrl.WithReadyCheckerPort(*readyProbePort))
+		hc := healthchecker.NewAggregatedHealthChecker()
+		go hc.Start(ctx, *readyProbePort)
+		proxyOpts = append(proxyOpts, bpctrl.WithAggregatedHealthChecker(hc))
 	}
 	pctrl := bpctrl.NewProxyReconciler(
 		mgr.GetClient(),
