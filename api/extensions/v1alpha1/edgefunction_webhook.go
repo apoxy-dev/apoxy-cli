@@ -28,9 +28,8 @@ func (r *EdgeFunction) Default() {
 		r.Spec.Code.GoPluginSource.OCI != nil &&
 		r.Spec.Code.GoPluginSource.OCI.Credentials != nil &&
 		r.Spec.Code.GoPluginSource.OCI.Credentials.Password != "" {
-		var bs []byte
-		base64.StdEncoding.Encode(bs, []byte(r.Spec.Code.GoPluginSource.OCI.Credentials.Password))
-		r.Spec.Code.GoPluginSource.OCI.Credentials.PasswordData = bs
+		enc := base64.StdEncoding.EncodeToString([]byte(r.Spec.Code.GoPluginSource.OCI.Credentials.Password))
+		r.Spec.Code.GoPluginSource.OCI.Credentials.PasswordData = []byte(enc)
 		r.Spec.Code.GoPluginSource.OCI.Credentials.Password = ""
 	}
 }

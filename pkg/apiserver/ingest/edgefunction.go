@@ -338,11 +338,12 @@ func (w *worker) pullOCIImage(
 
 	var credsFunc auth.CredentialFunc
 	if ociRef.Credentials != nil {
-		var pwd []byte
-		_, err := base64.StdEncoding.Decode(pwd, ociRef.Credentials.PasswordData)
+		pwd := make([]byte, base64.StdEncoding.DecodedLen(len(ociRef.Credentials.PasswordData)))
+		n, err := base64.StdEncoding.Decode(pwd, ociRef.Credentials.PasswordData)
 		if err != nil {
 			return nil, fmt.Errorf("failed to decode password: %w", err)
 		}
+		pwd = pwd[:n]
 
 		credsFunc = auth.StaticCredential(
 			repo.Reference.Registry,
