@@ -69,4 +69,15 @@ metadata:
 spec:
   code:
     goPluginSource:
-      url: http://localhost:8000/websocket.so
+      oci:
+        repo: registry-1.docker.io/apoxy/websocket
+        tag: "5091d06"
+    
+    
+    
+    
+    
+    
+    
+    
+    

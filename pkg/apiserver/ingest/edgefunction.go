@@ -367,7 +367,8 @@ func (w *worker) pullOCIImage(
 		CopyGraphOptions: oras.CopyGraphOptions{
 			PreCopy: func(ctx context.Context, desc ocispecv1.Descriptor) error {
 				log.Debug("Pre-copy", "MediaType", desc.MediaType)
-				if desc.MediaType == ocispecv1.MediaTypeImageManifest {
+				if desc.MediaType == ocispecv1.MediaTypeImageManifest ||
+					desc.MediaType == v1alpha1.ImageLayerMediaType {
 					return nil
 				}
 				return oras.SkipNode
@@ -376,6 +377,7 @@ func (w *worker) pullOCIImage(
 	}
 	opts.WithTargetPlatform(&ocispecv1.Platform{
 		Architecture: runtime.GOARCH,
+		OS:           "linux",
 	})
 	manifest, err := oras.Copy(ctx, repo, ociRef.Tag, fs, "", opts)
 	if err != nil {
