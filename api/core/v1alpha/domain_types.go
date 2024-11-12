@@ -29,9 +29,11 @@ type Domain struct {
 }
 
 type DomainSpec struct {
-	// Owner is the owner of the domain.
+	// The zone this domain is managed under.
 	// +kubebuilder:validation:Required
-	Owner DomainOwner `json:"owner"`
+	// +kubebuilder:validation:MaxLength=253
+	// +kubebuilder:validation:Pattern=`^[a-zA-Z0-9]([-a-zA-Z0-9]*[a-zA-Z0-9])?$`
+	Zone string `json:"zone,omitempty"`
 
 	// The list of subdomains nested under the domain.
 	// Allows for wildcard subdomains.
@@ -50,22 +52,6 @@ type DomainSpec struct {
 	// (e.g. an EdgeFunction or a TunnelEndpoint).
 	// This is a Pro feature only.
 	ForwardingSpec *DomainForwardingSpec `json:"forwarding,omitempty"`
-}
-
-type DomainOwner struct {
-	// If zone is specified, the Domain is owned by the
-	// zone managed by Apoxy (either user zone or Apoxy built-in zone).
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:MaxLength=253
-	// +kubebuilder:validation:Pattern=`^[a-zA-Z0-9]([-a-zA-Z0-9]*[a-zA-Z0-9])?$`
-	Zone string `json:"zone,omitempty"`
-
-	// If external is true, the Domain is owned by an external entity.
-	// As Apoxy does not have control over the zone, the user is responsible
-	// for creating the necessary records to point to the Apoxy
-	// nameservers as well as any required validation records.
-	// +optional
-	External bool `json:"external,omitempty"`
 }
 
 type DomainTargetSpec struct {
