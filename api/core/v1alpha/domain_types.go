@@ -40,12 +40,19 @@ type DomainSpec struct {
 	// +kubebuilder:validation:MaxItems=50
 	Subdomains []string `json:"subdomains,omitempty"`
 
+	// The list of custom domain names to also route
+	// to the target, which may be under another domain.
+	// Routing may require additional verification steps.
+	// +optional
+	// +kubebuilder:validation:MaxItems=50
+	CustomDomains []string `json:"customDomains,omitempty"`
+
 	// Target of the domain.
 	// +kubebuilder:validation:Required
 	Target DomainTargetSpec `json:"target"`
 
-	// SSL configuration for the domain.
-	SSLSpec *DomainSSLSpec `json:"ssl,omitempty"`
+	// TLS configuration for the domain.
+	TLS *DomainTLSSpec `json:"tls,omitempty"`
 
 	// Used to specify routing non-HTTP/S forwarding rules.
 	// For example, forwarding tcp:10000-20000 to a specified port of a target
@@ -174,8 +181,8 @@ type DomainTargetRef struct {
 	Name string `json:"name"`
 }
 
-type DomainSSLSpec struct {
-	// The Certificate Authority used to issue the SSL certificate.
+type DomainTLSSpec struct {
+	// The Certificate Authority used to issue the TLS certificate.
 	// Currently supports "letsencrypt".
 	// +optional
 	CertificateAuthority string `json:"certificateAuthority,omitempty"`
