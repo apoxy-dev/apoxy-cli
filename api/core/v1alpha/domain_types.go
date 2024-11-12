@@ -29,43 +29,36 @@ type Domain struct {
 }
 
 type DomainSpec struct {
-	// Owner is the owner of the domain.
+	// The zone this domain is managed under.
 	// +kubebuilder:validation:Required
-	Owner DomainOwner `json:"owner"`
+	// +kubebuilder:validation:MaxLength=253
+	// +kubebuilder:validation:Pattern=`^[a-zA-Z0-9]([-a-zA-Z0-9]*[a-zA-Z0-9])?$`
+	Zone string `json:"zone,omitempty"`
 
 	// The list of subdomains nested under the domain.
 	// Allows for wildcard subdomains.
 	// +kubebuilder:validation:MaxItems=50
 	Subdomains []string `json:"subdomains,omitempty"`
 
+	// The list of custom domain names to also route
+	// to the target, which may be under another domain.
+	// Routing may require additional verification steps.
+	// +optional
+	// +kubebuilder:validation:MaxItems=50
+	CustomDomains []string `json:"customDomains,omitempty"`
+
 	// Target of the domain.
 	// +kubebuilder:validation:Required
 	Target DomainTargetSpec `json:"target"`
 
-	// SSL configuration for the domain.
-	SSLSpec *DomainSSLSpec `json:"ssl,omitempty"`
+	// TLS configuration for the domain.
+	TLS *DomainTLSSpec `json:"tls,omitempty"`
 
 	// Used to specify routing non-HTTP/S forwarding rules.
 	// For example, forwarding tcp:10000-20000 to a specified port of a target
 	// (e.g. an EdgeFunction or a TunnelEndpoint).
 	// This is a Pro feature only.
 	ForwardingSpec *DomainForwardingSpec `json:"forwarding,omitempty"`
-}
-
-type DomainOwner struct {
-	// If zone is specified, the Domain is owned by the
-	// zone managed by Apoxy (either user zone or Apoxy built-in zone).
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:MaxLength=253
-	// +kubebuilder:validation:Pattern=`^[a-zA-Z0-9]([-a-zA-Z0-9]*[a-zA-Z0-9])?$`
-	Zone string `json:"zone,omitempty"`
-
-	// If external is true, the Domain is owned by an external entity.
-	// As Apoxy does not have control over the zone, the user is responsible
-	// for creating the necessary records to point to the Apoxy
-	// nameservers as well as any required validation records.
-	// +optional
-	External bool `json:"external,omitempty"`
 }
 
 type DomainTargetSpec struct {
@@ -188,8 +181,8 @@ type DomainTargetRef struct {
 	Name string `json:"name"`
 }
 
-type DomainSSLSpec struct {
-	// The Certificate Authority used to issue the SSL certificate.
+type DomainTLSSpec struct {
+	// The Certificate Authority used to issue the TLS certificate.
 	// Currently supports "letsencrypt".
 	// +optional
 	CertificateAuthority string `json:"certificateAuthority,omitempty"`
