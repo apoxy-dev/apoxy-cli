@@ -107,10 +107,15 @@ func (r *EdgeFunctionReconciler) Reconcile(ctx context.Context, request reconcil
 			log.Info("No revisions found")
 			return ctrl.Result{}, nil
 		}
-		ref := f.Status.Revisions[0].Ref
+		if f.Status.Live == "" {
+			log.Info("No live revision found")
+			return ctrl.Result{}, nil
+		}
+		ref := f.Status.Live
+		log = log.WithValues("ref", ref)
 
 		if f.Spec.Code.WasmSource != nil || f.Spec.Code.JsSource != nil {
-			log.Info("Wasm source detected", "ref", ref)
+			log.Info("Wasm source detected")
 			if r.wasmStore.Exists(ctx, ref) {
 				log.Info("Wasm module already exists for ref", "ref", ref)
 				return ctrl.Result{}, nil
@@ -125,12 +130,12 @@ func (r *EdgeFunctionReconciler) Reconcile(ctx context.Context, request reconcil
 				return ctrl.Result{}, fmt.Errorf("failed to set Wasm data: %w", err)
 			}
 
-			log.Info("Stored Wasm data", "ref", ref)
+			log.Info("Stored Wasm data")
 		} else if f.Spec.Code.GoPluginSource != nil {
-			log.Info("Go plugin source detected", "ref", ref)
+			log.Info("Go plugin source detected")
 
 			if _, err := os.Stat(filepath.Join(r.goStoreDir, ref, "func.so")); err == nil {
-				log.Info("Go plugin already exists for ref", "ref", ref)
+				log.Info("Go plugin already exists for ref")
 				return ctrl.Result{}, nil
 			}
 
@@ -151,7 +156,7 @@ func (r *EdgeFunctionReconciler) Reconcile(ctx context.Context, request reconcil
 				return ctrl.Result{}, fmt.Errorf("failed to create Go plugin symlink: %w", err)
 			}
 		} else {
-			log.Info("No source detected", "ref", ref)
+			log.Info("No source detected")
 			return ctrl.Result{}, nil
 		}
 	default:

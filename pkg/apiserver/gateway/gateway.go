@@ -39,12 +39,12 @@ func Install(scheme *runtime.Scheme) {
 }
 
 const (
-	classGatewayIndex      = "classGatewayIndex"
-	gatewayHTTPRouteIndex  = "gatewayHTTPRouteIndex"
-	backendHTTPRouteIndex  = "backendHTTPRouteIndex"
-	serviceHTTPRouteIndex  = "serviceHTTPRouteIndex"
-	gatewayInfraRefIndex   = "gatewayInfraRefIndex"
-	edgeFunctionReadyIndex = "edgeFunctionReadyIndex"
+	classGatewayIndex     = "classGatewayIndex"
+	gatewayHTTPRouteIndex = "gatewayHTTPRouteIndex"
+	backendHTTPRouteIndex = "backendHTTPRouteIndex"
+	serviceHTTPRouteIndex = "serviceHTTPRouteIndex"
+	gatewayInfraRefIndex  = "gatewayInfraRefIndex"
+	edgeFunctionLiveIndex = "edgeFunctionLiveIndex"
 )
 
 var (
@@ -155,7 +155,7 @@ func (r *GatewayReconciler) getExtensionRefs(
 	extRefs := make(map[extensionRefKey]*unstructured.Unstructured)
 
 	funls := extensionsv1alpha1.EdgeFunctionList{}
-	if err := r.List(ctx, &funls, client.MatchingFields{edgeFunctionReadyIndex: "true"}); err != nil {
+	if err := r.List(ctx, &funls, client.MatchingFields{edgeFunctionLiveIndex: "true"}); err != nil {
 		return nil, fmt.Errorf("failed to list EdgeFunctions: %w", err)
 	}
 	for _, fun := range funls.Items {
@@ -459,9 +459,9 @@ func (r *GatewayReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manag
 			return fmt.Errorf("failed to setup field indexer: %w", err)
 		}
 	}
-	// Index EdgeFunction objects that are in the "Ready" phase.
-	if err := mgr.GetFieldIndexer().IndexField(ctx, &extensionsv1alpha1.EdgeFunction{}, edgeFunctionReadyIndex, func(obj client.Object) []string {
-		if obj.(*extensionsv1alpha1.EdgeFunction).Status.Phase == extensionsv1alpha1.EdgeFunctionPhaseReady {
+	// Index EdgeFunction objects that  are live.
+	if err := mgr.GetFieldIndexer().IndexField(ctx, &extensionsv1alpha1.EdgeFunction{}, edgeFunctionLiveIndex, func(obj client.Object) []string {
+		if obj.(*extensionsv1alpha1.EdgeFunction).Status.Live != "" {
 			return []string{"true"}
 		}
 		return nil

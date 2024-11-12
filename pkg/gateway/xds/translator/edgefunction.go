@@ -104,8 +104,8 @@ func buildHCMEdgeFuncFilter(un *unstructured.Unstructured) (*hcmv3.HttpFilter, e
 	var edgeFuncAny *anypb.Any
 	if fun.Spec.Code.GoPluginSource != nil {
 		msg := &golangv3alpha.Config{
-			LibraryId:    fun.Status.Revisions[0].Ref,
-			LibraryPath:  fmt.Sprintf("go/%s/func.so", fun.Status.Revisions[0].Ref),
+			LibraryId:    fun.Status.Live,
+			LibraryPath:  fmt.Sprintf("go/%s/func.so", fun.Status.Live),
 			PluginName:   pluginName,
 			PluginConfig: pluginAny,
 			//MergePolicy: ...

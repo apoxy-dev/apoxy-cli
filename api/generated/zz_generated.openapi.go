@@ -2525,13 +2525,6 @@ func schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionRevision(ref common.Re
 							Format:      "",
 						},
 					},
-					"status": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Status is the status of the function revision.",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
 					"createdAt": {
 						SchemaProps: spec.SchemaProps{
 							Description: "CreatedAt is the time the function revision was created.",
@@ -2624,6 +2617,13 @@ func schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionStatus(ref common.Refe
 									},
 								},
 							},
+						},
+					},
+					"live": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Live is the reference to the live function revision.",
+							Type:        []string{"string"},
+							Format:      "",
 						},
 					},
 				},

@@ -221,10 +221,6 @@ type EdgeFunctionRevision struct {
 	// Ref is the reference to the function revision.
 	Ref string `json:"ref"`
 
-	// Status is the status of the function revision.
-	// +optional
-	Status string `json:"status,omitempty"`
-
 	// CreatedAt is the time the function revision was created.
 	CreatedAt metav1.Time `json:"createdAt"`
 }
@@ -256,6 +252,10 @@ type EdgeFunctionStatus struct {
 	// Latest revision is the first element in the list.
 	// +optional
 	Revisions []EdgeFunctionRevision `json:"revisions,omitempty"`
+
+	// Live is the reference to the live function revision.
+	// +optional
+	Live string `json:"live,omitempty"`
 }
 
 var _ resource.StatusSubResource = &EdgeFunctionStatus{}

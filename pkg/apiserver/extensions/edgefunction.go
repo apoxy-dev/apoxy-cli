@@ -7,9 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"go.temporal.io/api/enums/v1"
 	"go.temporal.io/api/serviceerror"
-	"go.temporal.io/api/workflow/v1"
 	tclient "go.temporal.io/sdk/client"
 	"k8s.io/apimachinery/pkg/api/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -65,32 +63,25 @@ func (r *EdgeFunctionReconciler) Reconcile(ctx context.Context, request reconcil
 
 	switch f.Status.Phase {
 	case v1alpha1.EdgeFunctionPhasePreparing, v1alpha1.EdgeFunctionPhaseUpdating:
-		if err := r.startIngestWorkflow(clog.IntoContext(ctx, log), f); err != nil {
+		if ref, started, err := r.startIngestWorkflow(clog.IntoContext(ctx, log), f); err != nil {
 			return ctrl.Result{}, fmt.Errorf("failed to start ingest workflow: %w", err)
-		}
-	case v1alpha1.EdgeFunctionPhaseReady:
-		log.Info("EdgeFunction is ready, detecting changes")
-		wid, err := ingest.WorkflowID(f)
-		if err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to get workflow ID: %w", err)
-		}
-		_, found, err := r.findIngestWorkflow(clog.IntoContext(ctx, log), wid)
-		if err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to find ingest workflow: %w", err)
-		} else if found {
-			// Push existing ref to the top of the list.
-			var revs []v1alpha1.EdgeFunctionRevision
-			for i, r := range f.Status.Revisions {
-				if r.Ref == wid {
-					revs = append([]v1alpha1.EdgeFunctionRevision{r},
-						append(f.Status.Revisions[0:i], f.Status.Revisions[i+1:]...)...)
-				}
-			}
-			f.Status.Revisions = revs
+		} else if started { // Still running, or just started - requeue to check on it later.
+			log.Info("Ingest workflow is running", "ref", ref)
+			return ctrl.Result{}, nil
+		} else if ref == "" {
+			// Workflow sets the status when completed, so if it's not running,
+			// and the state is still Preparing or Updating, it means the workflow failed.
+			log.Info("Ingest workflow is not running, switching to Unknown phase", "ref", ref)
+			f.Status.Phase = v1alpha1.EdgeFunctionPhaseUnknown
 			if err := r.Status().Update(ctx, f); err != nil {
 				return ctrl.Result{}, fmt.Errorf("failed to update EdgeFunction: %w", err)
 			}
-		} else {
+		}
+	case v1alpha1.EdgeFunctionPhaseReady:
+		log.Info("EdgeFunction is ready, detecting changes")
+		if ref, started, err := r.startIngestWorkflow(clog.IntoContext(ctx, log), f); err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to start ingest workflow: %w", err)
+		} else if started {
 			log.Info("Detected changes in EdgeFunction code, switching to Updating phase")
 			// Workflow with the given ID not found, means we haven't ingested this configuration yet.
 			// Switch the state to Updating to trigger a new ingest.
@@ -98,8 +89,15 @@ func (r *EdgeFunctionReconciler) Reconcile(ctx context.Context, request reconcil
 			if err := r.Status().Update(ctx, f); err != nil {
 				return ctrl.Result{}, fmt.Errorf("failed to update EdgeFunction: %w", err)
 			}
+		} else if ref != "" { // Found existing ref - bump it to the top.
+			log.Info("Found existing EdgeFunction revision, setting to live", "ref", ref)
+
+			f.Status.Live = ref
+
+			if err := r.Status().Update(ctx, f); err != nil {
+				return ctrl.Result{}, fmt.Errorf("failed to update EdgeFunction: %w", err)
+			}
 		}
-		// Workflow with the same ID found, means we have ingested this configuration - do nothing.
 	default:
 		log.Info("EdgeFunction is in an unknown phase", "phase", f.Status.Phase)
 		return ctrl.Result{}, nil
@@ -121,39 +119,35 @@ func (r *EdgeFunctionReconciler) SetupWithManager(ctx context.Context, mgr ctrl.
 	return nil
 }
 
-func (r *EdgeFunctionReconciler) findIngestWorkflow(ctx context.Context, wid string) (*workflow.WorkflowExecutionInfo, bool, error) {
-	log := clog.FromContext(ctx, "workflow_id", wid)
-	log.Info("Finding workflow")
-	res, err := r.tc.DescribeWorkflowExecution(ctx, wid, "" /* RunID */)
-	if err != nil {
-		var serviceErr *serviceerror.NotFound
-		if !goerrors.As(err, &serviceErr) {
-			return nil, false, fmt.Errorf("failed to describe workflow execution: %w", err)
+func (r *EdgeFunctionReconciler) findExistingRef(
+	ctx context.Context,
+	ref string,
+	obj *v1alpha1.EdgeFunction,
+) bool {
+	log := clog.FromContext(ctx, "ref", ref)
+
+	for _, rev := range obj.Status.Revisions {
+		if rev.Ref == ref {
+			log.Info("Workflow with the given ref already exists in status")
+			return true
 		}
-		return nil, false, nil // Workflow not found
 	}
-	log.Info("Found workflow", "status", res.WorkflowExecutionInfo.GetStatus())
-	return res.WorkflowExecutionInfo, true, nil
+
+	return false
 }
 
-func (r *EdgeFunctionReconciler) startIngestWorkflow(ctx context.Context, obj *v1alpha1.EdgeFunction) error {
+func (r *EdgeFunctionReconciler) startIngestWorkflow(
+	ctx context.Context,
+	obj *v1alpha1.EdgeFunction,
+) (ref string, srarted bool, err error) {
 	wid, err := ingest.WorkflowID(obj)
 	if err != nil {
-		return fmt.Errorf("failed to get workflow ID: %w", err)
+		return "", false, fmt.Errorf("failed to get workflow ID: %w", err)
 	}
 	log := clog.FromContext(ctx, "workflow_id", wid)
 
-	execInfo, found, err := r.findIngestWorkflow(ctx, wid)
-	if err != nil {
-		return err
-	} else if found {
-		if execInfo.GetStatus() == enums.WORKFLOW_EXECUTION_STATUS_RUNNING {
-			log.Info("Workflow is already running, returning")
-			return nil
-		}
-		log.Info("Workflow is not running, starting new workflow", "status", execInfo.GetStatus())
-	} else {
-		log.Info("Workflow not found, starting new workflow")
+	if exists := r.findExistingRef(clog.IntoContext(ctx, log), wid, obj); exists {
+		return wid, false, nil
 	}
 
 	log.Info("Starting ingest workflow")
@@ -164,10 +158,12 @@ func (r *EdgeFunctionReconciler) startIngestWorkflow(ctx context.Context, obj *v
 		WorkflowExecutionTimeout: 10 * time.Minute,
 	}
 	in := &ingest.EdgeFunctionIngestParams{
-		Obj: obj,
+		Obj: obj.DeepCopy(),
 	}
-	_, err = r.tc.ExecuteWorkflow(ctx, wOpts, ingest.EdgeFunctionIngestWorkflow, in)
-	return err
+	if _, err = r.tc.ExecuteWorkflow(ctx, wOpts, ingest.EdgeFunctionIngestWorkflow, in); err != nil {
+		return "", false, fmt.Errorf("failed to start ingest workflow: %w", err)
+	}
+	return wid, true, nil
 }
 
 func (r *EdgeFunctionReconciler) cancelIngestWorkflow(ctx context.Context, obj *v1alpha1.EdgeFunction) error {

@@ -49,7 +49,7 @@ type EdgeFunctionIngestParams struct {
 	Obj *v1alpha1.EdgeFunction
 }
 
-type EdgeFunctionIngestResult struct {
+type IngestResult struct {
 	AssetFilePath      string
 	AssetFileCreatedAt metav1.Time
 	Err                string
@@ -100,7 +100,7 @@ func EdgeFunctionIngestWorkflow(ctx workflow.Context, in *EdgeFunctionIngestPara
 	defer workflow.CompleteSession(sessCtx)
 
 	var w *worker
-	var res *EdgeFunctionIngestResult
+	var res IngestResult
 
 	// Reflect if more than one pointer set.
 	cv := reflect.ValueOf(in.Obj.Spec.Code)
@@ -121,28 +121,38 @@ func EdgeFunctionIngestWorkflow(ctx workflow.Context, in *EdgeFunctionIngestPara
 		switch fSet[0].Interface().(type) {
 		case *v1alpha1.WasmSource:
 			err = workflow.ExecuteActivity(sessCtx, w.DownloadWasmActivity, in).Get(sessCtx, &res)
-			if err == nil {
-				log.Info("Edge Function .wasm staged successfully", "WasmFilePath", res.AssetFilePath)
-			}
-			err = workflow.ExecuteActivity(sessCtx, w.StoreWasmActivity, in, res).Get(sessCtx, nil)
 			if err != nil {
-				log.Error("Store activity failed", "Error", err)
-				res.Err = err.Error()
-				goto Finalize
+				log.Error("Download activity failed", "Error", err)
+			} else {
+				log.Info("Edge Function .wasm staged successfully", "WasmFilePath", res.AssetFilePath)
+				err = workflow.ExecuteActivity(sessCtx, w.StoreWasmActivity, in, res).Get(sessCtx, nil)
+				if err != nil {
+					log.Error("Store activity failed", "Error", err)
+				}
 			}
+			var appErr *temporal.ApplicationError
+			if errors.As(err, &appErr) {
+				res.Err = appErr.Error()
+			}
+			goto Finalize
 		case *v1alpha1.JavaScriptSource:
 			err = errors.New("JS source not supported yet")
 		case *v1alpha1.GoPluginSource:
 			err = workflow.ExecuteActivity(sessCtx, w.DownloadGoPluginActivity, in).Get(sessCtx, &res)
-			if err == nil {
-				log.Info("Edge Function Go plugin staged successfully", "GoPluginFilePath", res.AssetFilePath)
-			}
-			err = workflow.ExecuteActivity(sessCtx, w.StoreGoPluginActivity, in, res).Get(sessCtx, nil)
 			if err != nil {
-				log.Error("Store activity failed", "Error", err)
-				res.Err = err.Error()
-				goto Finalize
+				log.Error("Download activity failed", "Error", err)
+			} else {
+				log.Info("Edge Function Go plugin staged successfully", "GoPluginFilePath", res.AssetFilePath)
+				err = workflow.ExecuteActivity(sessCtx, w.StoreGoPluginActivity, in, res).Get(sessCtx, nil)
+				if err != nil {
+					log.Error("Store activity failed", "Error", err)
+				}
 			}
+			var appErr *temporal.ApplicationError
+			if errors.As(err, &appErr) {
+				res.Err = appErr.Error()
+			}
+			goto Finalize
 		default:
 			err = fmt.Errorf("Edge Function has invalid source type: %v", reflect.TypeOf(fSet[0].Interface()))
 		}
@@ -153,14 +163,9 @@ func EdgeFunctionIngestWorkflow(ctx workflow.Context, in *EdgeFunctionIngestPara
 		}
 		err = fmt.Errorf("Edge Function must have either WASM or JS source, got %s", strings.Join(names, ", "))
 	}
-	if err != nil {
-		log.Error("Download activity failed", "Error", err)
-		res.Err = err.Error()
-		goto Finalize
-	}
 
 Finalize:
-	finErr := workflow.ExecuteActivity(sessCtx, w.FinalizeActivity, in, res).Get(ctx, nil)
+	finErr := workflow.ExecuteActivity(sessCtx, w.FinalizeActivity, in, &res).Get(ctx, nil)
 	if finErr != nil {
 		log.Error("Failed to finalize Edge Function ingest", "Error", finErr)
 		return finErr
@@ -264,7 +269,7 @@ func (w *worker) downloadFile(ctx context.Context, url, target string) (os.FileI
 func (w *worker) DownloadWasmActivity(
 	ctx context.Context,
 	in *EdgeFunctionIngestParams,
-) (*EdgeFunctionIngestResult, error) {
+) (*IngestResult, error) {
 	log := tlog.With(activity.GetLogger(ctx), "Name", in.Obj.Name, "ResourceVersion", in.Obj.ResourceVersion)
 
 	wid := activity.GetInfo(ctx).WorkflowExecution.ID
@@ -283,7 +288,7 @@ func (w *worker) DownloadWasmActivity(
 		return nil, err
 	}
 
-	return &EdgeFunctionIngestResult{
+	return &IngestResult{
 		AssetFilePath:      wasmFile,
 		AssetFileCreatedAt: metav1.NewTime(stat.ModTime()),
 	}, nil
@@ -293,7 +298,7 @@ func (w *worker) DownloadWasmActivity(
 func (w *worker) StoreWasmActivity(
 	ctx context.Context,
 	in *EdgeFunctionIngestParams,
-	inResult *EdgeFunctionIngestResult,
+	inResult *IngestResult,
 ) error {
 	log := tlog.With(activity.GetLogger(ctx), "Name", in.Obj.Name, "ResourceVersion", in.Obj.ResourceVersion)
 	log.Info("Storing Edge Function .wasm file in object store")
@@ -434,7 +439,7 @@ func (w *worker) pullOCIImage(
 func (w *worker) DownloadGoPluginActivity(
 	ctx context.Context,
 	in *EdgeFunctionIngestParams,
-) (*EdgeFunctionIngestResult, error) {
+) (*IngestResult, error) {
 	log := tlog.With(activity.GetLogger(ctx), "Name", in.Obj.Name, "ResourceVersion", in.Obj.ResourceVersion)
 
 	log.Info("Downloading Edge Function Go plugin .so file", "URL", in.Obj.Spec.Code.GoPluginSource.URL)
@@ -471,7 +476,7 @@ func (w *worker) DownloadGoPluginActivity(
 		return nil, fmt.Errorf("no source specified")
 	}
 
-	return &EdgeFunctionIngestResult{
+	return &IngestResult{
 		AssetFilePath:      soFile,
 		AssetFileCreatedAt: metav1.NewTime(stat.ModTime()),
 	}, nil
@@ -481,7 +486,7 @@ func (w *worker) DownloadGoPluginActivity(
 func (w *worker) StoreGoPluginActivity(
 	ctx context.Context,
 	in *EdgeFunctionIngestParams,
-	inResult *EdgeFunctionIngestResult,
+	inResult *IngestResult,
 ) error {
 	log := tlog.With(activity.GetLogger(ctx), "Name", in.Obj.Name, "ResourceVersion", in.Obj.ResourceVersion)
 	log.Info("Storing Edge Function .so file in object store")
@@ -510,7 +515,7 @@ func (w *worker) StoreGoPluginActivity(
 func (w *worker) FinalizeActivity(
 	ctx context.Context,
 	in *EdgeFunctionIngestParams,
-	inResult *EdgeFunctionIngestResult,
+	inResult *IngestResult,
 ) error {
 	log := tlog.With(activity.GetLogger(ctx), "Name", in.Obj.Name, "ResourceVersion", in.Obj.ResourceVersion)
 	log.Info("Finalizing Edge Function ingest", "Error", inResult.Err)
@@ -531,17 +536,21 @@ func (w *worker) FinalizeActivity(
 		} else {
 			f.Status.Phase = v1alpha1.EdgeFunctionPhaseReady
 			// Prepend the revision to the list of revisions.
+			ref := activity.GetInfo(ctx).WorkflowExecution.ID
 			rev := v1alpha1.EdgeFunctionRevision{
-				Ref:       activity.GetInfo(ctx).WorkflowExecution.ID,
+				Ref:       ref,
 				CreatedAt: inResult.AssetFileCreatedAt,
 			}
 			f.Status.Revisions = append([]v1alpha1.EdgeFunctionRevision{rev}, f.Status.Revisions...)
+			f.Status.Live = ref
 		}
 
 		if _, err := w.a3y.ExtensionsV1alpha1().EdgeFunctions().UpdateStatus(ctx, f, metav1.UpdateOptions{}); err != nil {
 			log.Error("Failed to update Edge Function status", "Error", err)
 			return err
 		}
+
+		log.Info("Edge Function status updated successfully", "Phase", f.Status.Phase)
 
 		return nil
 	})
