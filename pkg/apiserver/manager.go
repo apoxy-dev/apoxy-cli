@@ -211,14 +211,14 @@ func (c *certSource) GetCertificate(*tls.ClientHelloInfo) (*tls.Certificate, err
 type Option func(*options)
 
 type options struct {
-	clientConfig          	*rest.Config
-	enableSimpleAuth      	bool
-	enableInClusterAuth   	bool
-	sqlitePath            	string
-	sqliteConnArgs        	map[string]string
-	certPairName, certDir 	string
-	enableKubeAPI         	bool
-	additionalControllers 	[]CreateController     
+	clientConfig          *rest.Config
+	enableSimpleAuth      bool
+	enableInClusterAuth   bool
+	sqlitePath            string
+	sqliteConnArgs        map[string]string
+	certPairName, certDir string
+	enableKubeAPI         bool
+	additionalControllers []CreateController
 }
 
 // WithClientConfig sets the client configuration.
@@ -547,6 +547,7 @@ func start(
 			WithOpenAPIDefinitions("apoxy", "0.1.0", apoxyopenapi.GetOpenAPIDefinitions).
 			WithResourceAndStorage(&corev1alpha.TunnelNode{}, kineStore).
 			WithResourceAndStorage(&corev1alpha.Backend{}, kineStore).
+			WithResourceAndStorage(&corev1alpha.Domain{}, kineStore).
 			WithResourceAndStorage(&ctrlv1alpha1.Proxy{}, kineStore).
 			WithResourceAndStorage(&policyv1alpha1.RateLimit{}, kineStore).
 			WithResourceAndStorage(&extensionsv1alpha1.EdgeFunction{}, kineStore).
