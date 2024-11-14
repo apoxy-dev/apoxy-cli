@@ -1,74 +1,50 @@
+// A generated module for ApoxyCli functions
+//
+// This module has been generated via dagger init and serves as a reference to
+// basic module structure as you get started with Dagger.
+//
+// Two functions have been pre-created. You can modify, delete, or add to them,
+// as needed. They demonstrate usage of arguments and return types using simple
+// echo and grep commands. The functions can be called from the dagger CLI or
+// from one of the SDKs.
+//
+// The first line in this comment block is a short description line and the
+// rest is a long description with more detail on the module's purpose or usage,
+// if appropriate. All modules should have a short description.
+
 package main
 
 import (
 	"context"
 	"fmt"
-	"log"
-	"os"
 	"path/filepath"
 	"runtime"
-	"time"
 
-	"dagger.io/dagger"
 	"github.com/containerd/containerd/platforms"
+
+	"dagger/apoxy-cli/internal/dagger"
 )
 
-var apoxyConfigYAML = `api_key: %s
-project_id: 7b08d265-24ff-4dc5-bf9f-3f387d7d8f92
-api_base_url: https://api.apoxy.dev
-dashboard_url: https://dashboard.apoxy.dev
-`
+type ApoxyCli struct{}
 
-func main() {
-	if err := build(context.Background()); err != nil {
-		log.Fatalf("failed to build: %v", err)
-	}
-}
-
-func archOf(p dagger.Platform) string {
-	return platforms.MustParse(string(p)).Architecture
-}
-
-func build(ctx context.Context) error {
-	fmt.Println("Building with Dagger")
-
-	var imageTag string
-	if sha := os.Getenv("GITHUB_SHA"); sha != "" {
-		imageTag = sha[:10]
-		if os.Getenv("APOXY_DOCKERHUB_PASSWORD") == "" {
-			log.Fatal("APOXY_DOCKERHUB_PASSWORD not set")
-		}
-	}
-	// If this is a tag, publish the images with the tag name.
-	isTag := os.Getenv("GITHUB_REF_TYPE") == "tag"
-	if isTag {
-		imageTag = os.Getenv("GITHUB_REF_NAME")
-	}
-
-	client, err := dagger.Connect(ctx, dagger.WithLogOutput(os.Stderr))
-	if err != nil {
-		return err
-	}
-	defer client.Close()
-
-	// 0. Prepare build environment.
-	outPath := "build/"
+// BuilderContainer builds a CLI binary.
+func (m *ApoxyCli) BuilderContainer(ctx context.Context, src *dagger.Directory) *dagger.Container {
 	hostArch := runtime.GOARCH
 	if hostArch == "arm64" {
 		hostArch = "aarch64"
 	} else if hostArch == "amd64" {
 		hostArch = "x86_64"
 	}
-	builder, err := client.Container().
+	return dag.Container().
 		From("golang:latest").
-		WithDirectory("/src", client.Host().Directory("."),
+		WithDirectory("/src", src,
 			dagger.ContainerWithDirectoryOpts{
 				Exclude: []string{"secrets/**"}, // exclude secrets from build context
 			}).
 		WithWorkdir("/src").
-		WithMountedCache("/go/pkg/mod", client.CacheVolume("go-mod")).
+		WithMountedCache("/go/pkg/mod", dag.CacheVolume("go-mod")).
 		WithEnvVariable("GOMODCACHE", "/go/pkg/mod").
-		WithMountedCache("/go/build-cache", client.CacheVolume("go-build")).
+		WithMountedCache("/go/build-cache", dag.CacheVolume("go-build")).
 		WithEnvVariable("GOCACHE", "/go/build-cache").
 		// Install Zig toolchain.
 		WithExec([]string{"apt-get", "update", "-yq"}).
@@ -86,160 +62,144 @@ func build(ctx context.Context) error {
 		}).
 		WithExec([]string{
 			"zig", "version",
-		}).
-		Sync(ctx)
-	if err != nil {
-		return err
-	}
+		})
+}
 
-	// 1. Build apoxy-cli.
-	cli := builder.
+// BuildCLI builds a CLI binary.
+func (m *ApoxyCli) BuildCLI(
+	ctx context.Context,
+	src *dagger.Directory,
+) *dagger.Container {
+	builder := m.BuilderContainer(ctx, src)
+	return builder.
 		WithEnvVariable("CGO_ENABLED", "1").
-		WithExec([]string{"go", "build", "-o", outPath})
+		WithExec([]string{"go", "build", "-o", "build/"})
+}
 
-	// 2. Run smoke test.
-	if apiKey := os.Getenv("APOXY_PROJECT_API_KEY"); apiKey != "" {
-		apoxyConfigSecret := client.SetSecret(
-			"apoxy-config-yaml",
-			fmt.Sprintf(apoxyConfigYAML, apiKey),
-		)
-		out, err := client.Container().
-			From("ubuntu:22.04").
-			WithExec([]string{"apt-get", "update", "-yq"}).
-			WithExec([]string{
-				"apt-get", "install", "-yq", "ca-certificates",
-			}).
-			WithFile("/usr/local/bin/apoxy", cli.File(filepath.Join(outPath, "apoxy-cli"))).
-			WithExec([]string{
-				"mkdir", "-p", "/root/.apoxy",
-			}).
-			WithMountedSecret("/root/.apoxy/config.yaml", apoxyConfigSecret).
-			WithEnvVariable("CACHEBUSTER", time.Now().String()). // Force re-execution of smoke test.
-			WithExec([]string{
-				"apoxy", "auth", "--check",
-			}).
-			WithExec([]string{
-				"apoxy", "proxy",
-			}).
-			Stdout(ctx)
-		if err != nil {
-			return err
-		}
-		fmt.Println(out)
-	}
-
-	// 3. Build and publish multi-arch Backplane/APIServer images.
-
-	var bpContainers []*dagger.Container
-	var asContainers []*dagger.Container
-	for _, platform := range []dagger.Platform{"linux/amd64", "linux/arm64"} {
-		goarch := archOf(platform)
-		bpOut := filepath.Join("build", "backplane-"+goarch)
-		dsOut := filepath.Join("build", "dial-stdio-"+goarch)
-
-		bp := builder.
-			WithEnvVariable("GOARCH", goarch).
-			WithMountedCache("/go/pkg/mod", client.CacheVolume("go-mod-"+goarch)).
-			WithEnvVariable("GOMODCACHE", "/go/pkg/mod").
-			WithMountedCache("/go/build-cache", client.CacheVolume("go-build-"+goarch)).
-			WithEnvVariable("GOCACHE", "/go/build-cache").
-			WithExec([]string{"go", "build", "-o", bpOut, "./cmd/backplane"}).
-			WithExec([]string{"go", "build", "-o", dsOut, "./cmd/dial-stdio"})
-
-		v, err := client.Container(dagger.ContainerOpts{Platform: platform}).
-			From("cgr.dev/chainguard/wolfi-base:latest").
-			WithFile("/bin/backplane", bp.File(bpOut)).
-			WithFile("/bin/dial-stdio", bp.File(dsOut)).
-			WithEntrypoint([]string{"/bin/backplane"}).
-			Sync(ctx)
-		if err != nil {
-			return err
-		}
-		bpContainers = append(bpContainers, v)
-	}
-
-	// TODO(dilyevsky): Fix arm64 build.
+// BuildAPIServer builds an API server binary.
+func (m *ApoxyCli) BuildAPIServer(
+	ctx context.Context,
+	src *dagger.Directory,
+) *dagger.Container {
 	platform := dagger.Platform("linux/amd64")
 	goarch := "amd64"
-	target := "x86_64"
-	asOut := filepath.Join("build", "apiserver-"+goarch)
-	asrv := builder.
+	targetArch := "x86_64"
+	builder := m.BuilderContainer(ctx, src).
 		WithEnvVariable("GOARCH", goarch).
 		WithEnvVariable("GOOS", "linux").
 		WithEnvVariable("CGO_ENABLED", "1").
-		WithEnvVariable("CC", fmt.Sprintf("zig cc --target=%s-linux-musl", target)).
-		WithExec([]string{"go", "build", "-o", asOut, "./cmd/apiserver"})
-
-	v, err := client.Container(dagger.ContainerOpts{Platform: platform}).
+		WithEnvVariable("CC", fmt.Sprintf("zig cc --target=%s-linux-musl", targetArch)).
+		WithExec([]string{"go", "build", "-o", "apiserver", "./cmd/apiserver"})
+	return dag.Container(dagger.ContainerOpts{Platform: platform}).
 		From("cgr.dev/chainguard/wolfi-base:latest").
-		WithFile("/bin/apiserver", asrv.File(asOut)).
-		WithEntrypoint([]string{"/bin/apiserver"}).
-		Sync(ctx)
+		WithFile("/bin/apiserver", builder.File("/src/apiserver")).
+		WithEntrypoint([]string{"/bin/apiserver"})
+}
+
+func archOf(p dagger.Platform) string {
+	return platforms.MustParse(string(p)).Architecture
+}
+
+// BuildBackplane builds a backplane binary.
+func (m *ApoxyCli) BuildBackplane(
+	ctx context.Context,
+	src *dagger.Directory,
+	platform string,
+) *dagger.Container {
+	p := dagger.Platform(platform)
+	goarch := archOf(p)
+
+	bpOut := filepath.Join("build", "backplane-"+goarch)
+	dsOut := filepath.Join("build", "dial-stdio-"+goarch)
+
+	builder := m.BuilderContainer(ctx, src).
+		WithEnvVariable("GOARCH", goarch).
+		WithEnvVariable("GOOS", "linux").
+		WithMountedCache("/go/pkg/mod", dag.CacheVolume("go-mod-"+goarch)).
+		WithEnvVariable("GOMODCACHE", "/go/pkg/mod").
+		WithMountedCache("/go/build-cache", dag.CacheVolume("go-build-"+goarch)).
+		WithEnvVariable("GOCACHE", "/go/build-cache").
+		WithExec([]string{"go", "build", "-o", bpOut, "./cmd/backplane"}).
+		WithExec([]string{"go", "build", "-o", dsOut, "./cmd/dial-stdio"})
+
+	return dag.Container(dagger.ContainerOpts{Platform: p}).
+		From("cgr.dev/chainguard/wolfi-base:latest").
+		WithFile("/bin/backplane", builder.File(bpOut)).
+		WithFile("/bin/dial-stdio", builder.File(dsOut)).
+		WithEntrypoint([]string{"/bin/backplane"})
+}
+
+// PublishImages publishes images to the registry.
+func (m *ApoxyCli) PublishImages(
+	ctx context.Context,
+	src *dagger.Directory,
+	registryPassword *dagger.Secret,
+	tag string,
+) error {
+	aCtr := m.BuildAPIServer(ctx, src)
+	addr, err := aCtr.
+		WithRegistryAuth(
+			"registry-1.docker.io",
+			"apoxy",
+			registryPassword,
+		).
+		Publish(ctx, "docker.io/apoxy/apiserver:"+tag)
 	if err != nil {
 		return err
 	}
-	asContainers = append(asContainers, v)
 
-	// 4. Publish images.
+	fmt.Println("API server image published to", addr)
 
-	bpOpts := dagger.ContainerPublishOpts{
-		PlatformVariants: bpContainers,
-	}
-	asOpts := dagger.ContainerPublishOpts{
-		PlatformVariants: asContainers,
-	}
-	for _, tag := range []string{"latest", imageTag} {
-		_, err = client.Container().
-			WithRegistryAuth(
-				"docker.io",
-				"apoxy",
-				client.SetSecret("dockerhub-apoxy", os.Getenv("APOXY_DOCKERHUB_PASSWORD")),
-			).
-			Publish(ctx, "docker.io/apoxy/backplane:"+tag, bpOpts)
-		if err != nil {
-			return err
-		}
-
-		_, err = client.Container().
-			WithRegistryAuth(
-				"docker.io",
-				"apoxy",
-				client.SetSecret("dockerhub-apoxy", os.Getenv("APOXY_DOCKERHUB_PASSWORD")),
-			).
-			Publish(ctx, "docker.io/apoxy/apiserver:"+tag, asOpts)
-		if err != nil {
-			return err
-		}
+	var bCtrs []*dagger.Container
+	for _, platform := range []string{"linux/amd64", "linux/arm64"} {
+		bCtr := m.BuildBackplane(ctx, src, platform)
+		bCtrs = append(bCtrs, bCtr)
 	}
 
-	if !isTag {
-		return nil // Skip publishing Helm chart for non-tagged builds.
+	addr, err = dag.Container().
+		WithRegistryAuth(
+			"registry-1.docker.io",
+			"apoxy",
+			registryPassword,
+		).
+		Publish(ctx, "docker.io/apoxy/backplane:"+tag, dagger.ContainerPublishOpts{
+			PlatformVariants: bCtrs,
+		})
+	if err != nil {
+		return err
 	}
 
-	// 5. Publish Helm chart.
-	// See more: https://docs.docker.com/docker-hub/oci-artifacts/#push-a-helm-chart
-	out, err := client.Container().
-		From("cgr.dev/chainguard/helm:latest").
-		WithDirectory("/src", client.Host().Directory("./deploy/helm")).
+	fmt.Println("Backplane images published to", addr)
+
+	return nil
+}
+
+// PublishRelease publishes a Helm release.
+func (m *ApoxyCli) PublishRelease(
+	ctx context.Context,
+	src *dagger.Directory,
+	registryPassword *dagger.Secret,
+	tag string,
+) (string, error) {
+	return dag.Container().
+		From("cgr.dev/chainguard/helm:latest-dev").
+		WithDirectory("/src", src).
 		WithWorkdir("/src").
+		WithSecretVariable("REGISTRY_PASSWORD", registryPassword).
 		WithExec([]string{
-			"package",
-			"--version", imageTag,
-			"--app-version", imageTag,
+			"sh", "-c", `echo $REGISTRY_PASSWORD | helm registry login registry-1.docker.io -u apoxy --password-stdin`,
+		}).
+		WithExec([]string{
+			"helm", "package",
+			"--version", tag,
+			"--app-version", tag,
 			"--destination", "/tmp",
 			"apoxy-gateway",
 		}).
 		WithExec([]string{
-			"registry", "login", "registry-1.docker.io", "-u", "apoxy", "-p", os.Getenv("APOXY_DOCKERHUB_PASSWORD"),
-		}).
-		WithExec([]string{
-			"push", fmt.Sprintf("/tmp/apoxy-gateway-%s.tgz", imageTag), "oci://registry-1.docker.io/apoxy",
+			"helm", "push",
+			fmt.Sprintf("/tmp/apoxy-gateway-%s.tgz", tag),
+			"oci://registry-1.docker.io/apoxy",
 		}).
 		Stdout(ctx)
-	if err != nil {
-		return err
-	}
-	fmt.Println(out)
-
-	return nil
 }
