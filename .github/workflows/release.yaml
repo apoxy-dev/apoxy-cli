@@ -5,7 +5,7 @@ on:
     tags:
       - v**
 jobs:
-  build-all:
+  release-all:
     runs-on: depot-ubuntu-22.04-16
     steps:
       - uses: actions/checkout@v3
