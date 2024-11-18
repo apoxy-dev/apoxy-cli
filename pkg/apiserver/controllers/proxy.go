@@ -167,15 +167,9 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 
 // SetupWithManager sets up the controller with the Controller Manager.
 func (r *ProxyReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
-	if err := ctrl.NewControllerManagedBy(mgr).
+	return ctrl.NewControllerManagedBy(mgr).
 		For(&ctrlv1alpha1.Proxy{}).
-		Complete(r); err != nil {
-		return err
-	}
-	if err := (&ctrlv1alpha1.Proxy{}).SetupWebhookWithManager(mgr); err != nil {
-		return fmt.Errorf("failed to set up Proxy webhook: %v", err)
-	}
-	return nil
+		Complete(r)
 }
 
 func (r *ProxyReconciler) syncProxy(_ context.Context, p *ctrlv1alpha1.Proxy, delete bool) (bool, error) {

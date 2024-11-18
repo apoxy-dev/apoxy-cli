@@ -108,15 +108,9 @@ func (r *EdgeFunctionReconciler) Reconcile(ctx context.Context, request reconcil
 
 // SetupWithManager sets up the controller with the Controller Manager.
 func (r *EdgeFunctionReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
-	if err := ctrl.NewControllerManagedBy(mgr).
+	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.EdgeFunction{}).
-		Complete(r); err != nil {
-		return err
-	}
-	if err := (&v1alpha1.EdgeFunction{}).SetupWebhookWithManager(mgr); err != nil {
-		return fmt.Errorf("failed to set up EdgeFunction webhook: %v", err)
-	}
-	return nil
+		Complete(r)
 }
 
 func (r *EdgeFunctionReconciler) findExistingRef(

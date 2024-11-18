@@ -376,12 +376,15 @@ func (m *Manager) Start(
 	if err := waitForAPIService(ctx, m.manager.GetConfig(), ctrlv1alpha1.GroupVersion, 2*time.Minute); err != nil {
 		return fmt.Errorf("failed to wait for APIService %s: %v", ctrlv1alpha1.GroupVersion.Group, err)
 	}
+
+	log.Infof("Registering Proxy controller")
 	if err := controllers.NewProxyReconciler(
 		m.manager.GetClient(),
 	).SetupWithManager(ctx, m.manager); err != nil {
 		return fmt.Errorf("failed to set up Project controller: %v", err)
 	}
 
+	log.Infof("Registering Gateway controller")
 	gwOpts := []gateway.Option{}
 	if dOpts.enableKubeAPI {
 		gwOpts = append(gwOpts, gateway.WithKubeAPI())
@@ -394,6 +397,7 @@ func (m *Manager) Start(
 		return fmt.Errorf("failed to set up Project controller: %v", err)
 	}
 
+	log.Infof("Registering EdgeFunction controller")
 	if err := extensions.NewEdgeFuncReconciler(
 		m.manager.GetClient(),
 		tc,
