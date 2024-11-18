@@ -24,4 +24,4 @@ jobs:
         timeout-minutes: 15
         run: |
           dagger call -v publish-images --src=. --tag=$GITHUB_REF_NAME --registry-password=env:APOXY_DOCKERHUB_PASSWORD
-          dagger call -v publish-release --src=. --tag=$GITHUB_REF_NAME --registry-password=env:APOXY_DOCKERHUB_PASSWORD
+          dagger call -v publish-release --src=./deploy/helm --tag=$GITHUB_REF_NAME --registry-password=env:APOXY_DOCKERHUB_PASSWORD
