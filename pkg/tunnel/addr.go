@@ -1,4 +1,4 @@
-package wg
+package tunnel
 
 import (
 	"hash/fnv"

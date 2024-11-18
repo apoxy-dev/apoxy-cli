@@ -29,6 +29,12 @@ type DeviceConfig struct {
 	PreDown []string `ini:"PreDown"`
 	// Commands executed after the interface is down. Can be specified multiple times.
 	PostDown []string `ini:"PostDown"`
+
+	// Apoxy specific fields.
+	// STUN servers to use for endpoint resolution.
+	STUNServers []string
+	// Verbose logging.
+	Verbose *bool
 }
 
 // PeerConfig represents the configuration of a WireGuard peer.

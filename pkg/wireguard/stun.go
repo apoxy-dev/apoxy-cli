@@ -17,12 +17,6 @@ import (
 
 const defaultSTUNTimeout = 5 * time.Second
 
-var defaultSTUNServers = []string{
-	"stun.l.google.com:19302",
-	"stun1.l.google.com:19302",
-	"stun2.l.google.com:19302",
-}
-
 // TrySTUN tries to resolve the external IP address and port of the host by
 // sending a STUN request to the specified STUN servers.
 func TryStun(ctx context.Context, bind conn.Bind, srcPort uint16, stunServers ...string) (netip.AddrPort, error) {

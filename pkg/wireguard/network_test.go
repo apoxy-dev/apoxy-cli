@@ -53,7 +53,7 @@ func TestWireGuardNetwork(t *testing.T) {
 		PrivateKey: ptr.To(base64.StdEncoding.EncodeToString(serverPrivateKey[:])),
 		ListenPort: ptr.To(serverPort),
 		Address:    []string{"10.0.0.1/32"},
-	}, false)
+	})
 	require.NoError(t, err)
 	t.Cleanup(serverWGNet.Close)
 
@@ -70,7 +70,7 @@ func TestWireGuardNetwork(t *testing.T) {
 		PrivateKey: ptr.To(base64.StdEncoding.EncodeToString(clientPrivateKey[:])),
 		ListenPort: ptr.To(clientPort),
 		Address:    []string{"10.0.0.2/32"},
-	}, false)
+	})
 	require.NoError(t, err)
 	t.Cleanup(clientWGNet.Close)
 

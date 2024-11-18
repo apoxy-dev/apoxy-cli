@@ -2,12 +2,10 @@ package alpha
 
 import (
 	"context"
-	"encoding/hex"
 	"fmt"
 	"html/template"
 	"log/slog"
 	"maps"
-	"net"
 	"net/netip"
 	"os"
 	"strings"
@@ -21,13 +19,15 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/retry"
+	"k8s.io/utils/ptr"
 
 	ctrlv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
 	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
 	"github.com/apoxy-dev/apoxy-cli/client/informers"
 	"github.com/apoxy-dev/apoxy-cli/client/versioned"
 	"github.com/apoxy-dev/apoxy-cli/config"
-	"github.com/apoxy-dev/apoxy-cli/wg"
+	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel"
+	"github.com/apoxy-dev/apoxy-cli/pkg/wireguard"
 )
 
 const (
@@ -99,13 +99,6 @@ static_resources:
               socket_address:
                 address: "{{ .Addr }}"
                 port_value: {{ .Port }}`))
-
-type tunnelPeer struct {
-	PubKeyHex                   string
-	Endpoint                    netip.AddrPort
-	AllowedIPs                  []net.IPNet
-	PersistentKeepaliveInterval time.Duration
-}
 
 var (
 	printDemoProxyStatusOnce sync.Once
@@ -192,14 +185,14 @@ func createTunnelObj(
 	ctx context.Context,
 	c versioned.Interface,
 	name string,
-	wgTun *wg.Tunnel,
+	wgTun *tunnel.Tunnel,
 ) error {
 	tunn := &corev1alpha.TunnelNode{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
 		Spec: corev1alpha.TunnelNodeSpec{
-			PubKey:          wgTun.PubKey().String(),
+			PublicKey:       wgTun.PublicKey(),
 			ExternalAddress: wgTun.ExternalAddress().String(),
 			InternalAddress: wgTun.InternalAddress().String(),
 		},
@@ -279,7 +272,7 @@ var tunnelCmd = &cobra.Command{
 			return fmt.Errorf("unable to get hostname: %w", err)
 		}
 
-		t, err := wg.CreateTunnel(cmd.Context(), c.ProjectID, host, cfg.Verbose)
+		t, err := tunnel.CreateTunnel(cmd.Context(), c.ProjectID, host, cfg.Verbose)
 		if err != nil {
 			return fmt.Errorf("unable to create tunnel: %w", err)
 		}
@@ -301,7 +294,7 @@ var tunnelCmd = &cobra.Command{
 			}),
 		)
 		tunnelInformer := factory.Core().V1alpha().TunnelNodes().Informer()
-		proxyPeers := make(map[string]*tunnelPeer)
+		proxyPeers := make(map[string]*wireguard.PeerConfig)
 		doneCh := make(chan struct{})
 		tunnelInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 			UpdateFunc: func(oldObj, newObj interface{}) {
@@ -312,11 +305,10 @@ var tunnelCmd = &cobra.Command{
 				slog.Debug("Tunnel updated", "tunnel", newTunnel.Name)
 
 				// Create a new peer for the tunnel.
-				newPeers := make(map[string]*tunnelPeer)
+				newPeers := make(map[string]*wireguard.PeerConfig)
 				for _, p := range newTunnel.Status.PeerStatuses {
-					if _, ok := proxyPeers[p.PubKey]; !ok {
-						pubKey, err := wgtypes.ParseKey(p.PubKey)
-						if err != nil {
+					if _, ok := proxyPeers[p.PublicKey]; !ok {
+						if _, err := wgtypes.ParseKey(p.PublicKey); err != nil {
 							slog.Error("Failed to parse peer public key", "err", err)
 							continue
 						}
@@ -334,37 +326,28 @@ var tunnelCmd = &cobra.Command{
 							slog.Error("Internal address must be an IPv6 address")
 							continue
 						}
-						peer := &tunnelPeer{
-							PubKeyHex: hex.EncodeToString(pubKey[:]),
-							Endpoint:  extAddrPort,
-							AllowedIPs: []net.IPNet{
-								{
-									IP:   intAddr.AsSlice(),
-									Mask: net.CIDRMask(128, 128),
-								},
-							},
-							PersistentKeepaliveInterval: 15 * time.Second,
+
+						peer := &wireguard.PeerConfig{
+							PublicKey:                      &p.PublicKey,
+							Endpoint:                       ptr.To(extAddrPort.String()),
+							AllowedIPs:                     []string{intAddr.String() + "/128"},
+							PersistentKeepaliveIntervalSec: ptr.To(uint16(15)),
 						}
 
 						slog.Debug("Adding peer", "peer", peer)
 
-						if err := t.AddPeer(
-							peer.PubKeyHex,
-							peer.Endpoint,
-							peer.AllowedIPs,
-							peer.PersistentKeepaliveInterval,
-						); err != nil {
+						if err := t.AddPeer(peer); err != nil {
 							slog.Error("Failed to add peer", "err", err)
 							continue
 						}
-						newPeers[p.PubKey] = peer
+						newPeers[p.PublicKey] = peer
 					} else {
-						delete(proxyPeers, p.PubKey)
+						delete(proxyPeers, p.PublicKey)
 					}
 				}
 				// Remove any peers that are no longer present.
 				for _, p := range proxyPeers {
-					if err := t.RemovePeer(p.PubKeyHex); err != nil {
+					if err := t.RemovePeer(*p.PublicKey); err != nil {
 						slog.Error("Failed to remove peer", "err", err)
 					}
 				}

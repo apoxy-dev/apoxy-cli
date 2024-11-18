@@ -30,7 +30,7 @@ type WireGuardNetwork struct {
 // Network returns a new WireGuardNetwork.
 // The performSTUN parameter controls whether the we should attempt to
 // resolve the public endpoint of this WireGuard network using STUN.
-func Network(conf *DeviceConfig, performSTUN bool) (*WireGuardNetwork, error) {
+func Network(conf *DeviceConfig) (*WireGuardNetwork, error) {
 	if conf.PrivateKey == nil {
 		return nil, errors.New("private key is required")
 	}
@@ -58,11 +58,11 @@ func Network(conf *DeviceConfig, performSTUN bool) (*WireGuardNetwork, error) {
 	bind := conn.NewDefaultBind()
 
 	var endpoint netip.AddrPort
-	if performSTUN {
+	if len(conf.STUNServers) > 0 {
 		ctx, cancel := context.WithTimeout(context.Background(), defaultSTUNTimeout)
 		defer cancel()
 
-		endpoint, err = TryStun(ctx, bind, *conf.ListenPort, defaultSTUNServers...)
+		endpoint, err = TryStun(ctx, bind, *conf.ListenPort, conf.STUNServers...)
 		if err != nil {
 			return nil, err
 		}
@@ -70,7 +70,10 @@ func Network(conf *DeviceConfig, performSTUN bool) (*WireGuardNetwork, error) {
 
 	dev := device.NewDevice(tun, bind, &device.Logger{
 		Verbosef: func(format string, args ...any) {
-			slog.Debug(fmt.Sprintf(format, args...))
+			// wireguard-go logs a ton of stuff at the verbose level.
+			if conf.Verbose != nil && *conf.Verbose {
+				slog.Debug(fmt.Sprintf(format, args...))
+			}
 		},
 		Errorf: func(format string, args ...any) {
 			slog.Error(fmt.Sprintf(format, args...))
@@ -105,6 +108,11 @@ func (n *WireGuardNetwork) Close() {
 // PublicKey returns the public key for this peer on the WireGuard network.
 func (n *WireGuardNetwork) PublicKey() string {
 	return n.privateKey.PublicKey().String()
+}
+
+// LocalAddresses returns the list of local addresses assigned to the WireGuard network.
+func (n *WireGuardNetwork) LocalAddresses() []netip.Prefix {
+	return n.tnet.LocalAddresses()
 }
 
 // Endpoint returns the external endpoint of the WireGuard network.
