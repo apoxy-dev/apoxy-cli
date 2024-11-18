@@ -36,10 +36,9 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.Domain":                               schema_apoxy_cli_api_core_v1alpha_Domain(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainForwardingSpec":                 schema_apoxy_cli_api_core_v1alpha_DomainForwardingSpec(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainList":                           schema_apoxy_cli_api_core_v1alpha_DomainList(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainOwner":                          schema_apoxy_cli_api_core_v1alpha_DomainOwner(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainSSLSpec":                        schema_apoxy_cli_api_core_v1alpha_DomainSSLSpec(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainSpec":                           schema_apoxy_cli_api_core_v1alpha_DomainSpec(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainStatus":                         schema_apoxy_cli_api_core_v1alpha_DomainStatus(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainTLSSpec":                        schema_apoxy_cli_api_core_v1alpha_DomainTLSSpec(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainTargetDNS":                      schema_apoxy_cli_api_core_v1alpha_DomainTargetDNS(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainTargetRef":                      schema_apoxy_cli_api_core_v1alpha_DomainTargetRef(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainTargetSpec":                     schema_apoxy_cli_api_core_v1alpha_DomainTargetSpec(ref),
@@ -1244,7 +1243,7 @@ func schema_apoxy_cli_api_core_v1alpha_DomainList(ref common.ReferenceCallback) 
 	}
 }
 
-func schema_apoxy_cli_api_core_v1alpha_DomainOwner(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_apoxy_cli_api_core_v1alpha_DomainSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -1252,59 +1251,29 @@ func schema_apoxy_cli_api_core_v1alpha_DomainOwner(ref common.ReferenceCallback)
 				Properties: map[string]spec.Schema{
 					"zone": {
 						SchemaProps: spec.SchemaProps{
-							Description: "If zone is specified, the Domain is owned by the zone managed by Apoxy (either user zone or Apoxy built-in zone).",
+							Description: "The zone this domain is managed under.",
 							Type:        []string{"string"},
 							Format:      "",
-						},
-					},
-					"external": {
-						SchemaProps: spec.SchemaProps{
-							Description: "If external is true, the Domain is owned by an external entity. As Apoxy does not have control over the zone, the user is responsible for creating the necessary records to point to the Apoxy nameservers as well as any required validation records.",
-							Type:        []string{"boolean"},
-							Format:      "",
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
-func schema_apoxy_cli_api_core_v1alpha_DomainSSLSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
-				Properties: map[string]spec.Schema{
-					"certificateAuthority": {
-						SchemaProps: spec.SchemaProps{
-							Description: "The Certificate Authority used to issue the SSL certificate. Currently supports \"letsencrypt\".",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
-func schema_apoxy_cli_api_core_v1alpha_DomainSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
-				Properties: map[string]spec.Schema{
-					"owner": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Owner is the owner of the domain.",
-							Default:     map[string]interface{}{},
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainOwner"),
 						},
 					},
 					"subdomains": {
 						SchemaProps: spec.SchemaProps{
 							Description: "The list of subdomains nested under the domain. Allows for wildcard subdomains.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
+					"customDomains": {
+						SchemaProps: spec.SchemaProps{
+							Description: "The list of custom domain names to also route to the target, which may be under another domain. Routing may require additional verification steps.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -1324,10 +1293,10 @@ func schema_apoxy_cli_api_core_v1alpha_DomainSpec(ref common.ReferenceCallback) 
 							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainTargetSpec"),
 						},
 					},
-					"ssl": {
+					"tls": {
 						SchemaProps: spec.SchemaProps{
-							Description: "SSL configuration for the domain.",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainSSLSpec"),
+							Description: "TLS configuration for the domain.",
+							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainTLSSpec"),
 						},
 					},
 					"forwarding": {
@@ -1337,11 +1306,11 @@ func schema_apoxy_cli_api_core_v1alpha_DomainSpec(ref common.ReferenceCallback) 
 						},
 					},
 				},
-				Required: []string{"owner", "target"},
+				Required: []string{"target"},
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainForwardingSpec", "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainOwner", "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainSSLSpec", "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainTargetSpec"},
+			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainForwardingSpec", "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainTLSSpec", "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainTargetSpec"},
 	}
 }
 
@@ -1377,6 +1346,25 @@ func schema_apoxy_cli_api_core_v1alpha_DomainStatus(ref common.ReferenceCallback
 		},
 		Dependencies: []string{
 			"k8s.io/apimachinery/pkg/apis/meta/v1.Condition"},
+	}
+}
+
+func schema_apoxy_cli_api_core_v1alpha_DomainTLSSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"certificateAuthority": {
+						SchemaProps: spec.SchemaProps{
+							Description: "The Certificate Authority used to issue the TLS certificate. Currently supports \"letsencrypt\".",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+			},
+		},
 	}
 }
 
