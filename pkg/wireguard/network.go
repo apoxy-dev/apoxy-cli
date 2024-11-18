@@ -28,8 +28,6 @@ type WireGuardNetwork struct {
 }
 
 // Network returns a new WireGuardNetwork.
-// The performSTUN parameter controls whether the we should attempt to
-// resolve the public endpoint of this WireGuard network using STUN.
 func Network(conf *DeviceConfig) (*WireGuardNetwork, error) {
 	if conf.PrivateKey == nil {
 		return nil, errors.New("private key is required")

@@ -5,9 +5,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/netip"
 
+	"github.com/apoxy-dev/apoxy-cli/pkg/socksproxy"
+	"github.com/apoxy-dev/apoxy-cli/pkg/utils"
 	"github.com/apoxy-dev/apoxy-cli/pkg/wireguard"
 	"github.com/google/uuid"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
@@ -15,7 +18,8 @@ import (
 )
 
 type Tunnel struct {
-	wgNet *wireguard.WireGuardNetwork
+	wgNet    *wireguard.WireGuardNetwork
+	proxySrv *socksproxy.ProxyServer
 }
 
 // CreateTunnel creates a new WireGuard device (userspace).
@@ -27,12 +31,12 @@ func CreateTunnel(
 ) (*Tunnel, error) {
 	privateKey, err := wgtypes.GeneratePrivateKey()
 	if err != nil {
-		return nil, fmt.Errorf("could not generate private key: %v", err)
+		return nil, fmt.Errorf("could not generate private key: %w", err)
 	}
 
-	listenPort, err := pickUnusedUDP4Port()
+	listenPort, err := utils.UnusedUDP4Port()
 	if err != nil {
-		return nil, fmt.Errorf("could not pick unused UDP port: %v", err)
+		return nil, fmt.Errorf("could not pick unused UDP port: %w", err)
 	}
 
 	ip6to4 := NewApoxy4To6Prefix(projectID, endpoint)
@@ -49,17 +53,33 @@ func CreateTunnel(
 		},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("could not create WireGuard network: %v", err)
+		return nil, fmt.Errorf("could not create WireGuard network: %w", err)
 	}
 
 	// Direct all inbound traffic to the loopback interface.
 	// TODO (dpeckett): Add support for arbitrary routing.
 	if err := wgNet.FowardToLoopback(ctx); err != nil {
-		return nil, fmt.Errorf("could not forward traffic to loopback interface: %v", err)
+		return nil, fmt.Errorf("could not forward traffic to loopback interface: %w", err)
 	}
 
+	proxyPort, err := utils.UnusedTCP4Port()
+	if err != nil {
+		return nil, fmt.Errorf("could not find port for proxy: %w", err)
+	}
+
+	// Create a SOCKS5 proxySrv server for outbound traffic.
+	proxySrv := socksproxy.NewServer(net.JoinHostPort("localhost", fmt.Sprint(proxyPort)), wgNet)
+
+	// Start the proxy server (will be closed when the wireguard network is torn down).
+	go func() {
+		if err := proxySrv.ListenAndServe(ctx); err != nil && !(errors.Is(err, net.ErrClosed) || errors.Is(err, context.Canceled)) {
+			slog.Error("failed to start SOCKS5 proxy server", slog.Any("error", err))
+		}
+	}()
+
 	return &Tunnel{
-		wgNet: wgNet,
+		wgNet:    wgNet,
+		proxySrv: proxySrv,
 	}, nil
 }
 
@@ -83,22 +103,10 @@ func (t *Tunnel) InternalAddress() netip.Prefix {
 	return t.wgNet.LocalAddresses()[0]
 }
 
-func (t *Tunnel) Close() {
-	t.wgNet.Close()
+func (t *Tunnel) ProxyAddress() string {
+	return t.proxySrv.Addr
 }
 
-func pickUnusedUDP4Port() (uint16, error) {
-	for i := 0; i < 10; i++ {
-		addr, err := net.ResolveUDPAddr("udp4", "localhost:0")
-		if err != nil {
-			return 0, err
-		}
-		l, err := net.ListenUDP("udp4", addr)
-		if err != nil {
-			return 0, err
-		}
-		defer l.Close()
-		return uint16(l.LocalAddr().(*net.UDPAddr).Port), nil
-	}
-	return 0, errors.New("could not find unused UDP port")
+func (t *Tunnel) Close() {
+	t.wgNet.Close()
 }

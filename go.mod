@@ -43,11 +43,13 @@ require (
 	github.com/telepresenceio/watchable v0.0.0-20220726211108-9bb86f92afa7
 	github.com/temporalio/cli v0.12.0
 	github.com/tetratelabs/wazero v1.7.3
+	github.com/things-go/go-socks5 v0.0.5
 	github.com/vmihailenco/msgpack v4.0.4+incompatible
 	go.opentelemetry.io/proto/otlp v1.2.0
 	go.temporal.io/api v1.29.2
 	go.temporal.io/sdk v1.26.0
 	golang.org/x/exp v0.0.0-20240604190554-fc45aab8b7f8
+	golang.org/x/net v0.30.0
 	golang.org/x/sync v0.9.0
 	golang.org/x/sys v0.26.0
 	golang.org/x/tools v0.26.0
@@ -307,7 +309,6 @@ require (
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/crypto v0.28.0 // indirect
 	golang.org/x/mod v0.21.0 // indirect
-	golang.org/x/net v0.30.0 // indirect
 	golang.org/x/oauth2 v0.23.0 // indirect
 	golang.org/x/term v0.25.0 // indirect
 	golang.org/x/text v0.19.0 // indirect
