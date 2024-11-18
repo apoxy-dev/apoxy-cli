@@ -53,10 +53,10 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           env:
-          - name: POD_NAMESPACE
-            valueFrom:
-              fieldRef:
-                fieldPath: metadata.namespace
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
           {{- with .Values.backplane.extraEnv }}
             {{- toYaml . | nindent 12 }}
           {{- end }}
