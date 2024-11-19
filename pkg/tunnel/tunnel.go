@@ -23,11 +23,12 @@ type Tunnel struct {
 	proxySrv *socksproxy.ProxyServer
 }
 
-// CreateTunnel creates a new WireGuard device (userspace).
+// CreateTunnel creates a new user-space WireGuard tunnel.
 func CreateTunnel(
 	ctx context.Context,
 	projectID uuid.UUID,
 	endpoint string,
+	socksPort uint16,
 	verbose bool,
 ) (*Tunnel, error) {
 	privateKey, err := wgtypes.GeneratePrivateKey()
@@ -63,13 +64,8 @@ func CreateTunnel(
 		return nil, fmt.Errorf("could not forward traffic to loopback interface: %w", err)
 	}
 
-	proxyPort, err := utils.UnusedTCP4Port()
-	if err != nil {
-		return nil, fmt.Errorf("could not find port for proxy: %w", err)
-	}
-
-	// Create a SOCKS5 proxySrv server for outbound traffic.
-	proxySrv := socksproxy.NewServer(net.JoinHostPort("localhost", fmt.Sprint(proxyPort)), wgNet)
+	// Create a SOCKS5 proxy server for outbound traffic.
+	proxySrv := socksproxy.NewServer(net.JoinHostPort("localhost", fmt.Sprint(socksPort)), wgNet)
 
 	// Start the proxy server (will be closed when the wireguard network is torn down).
 	go func() {

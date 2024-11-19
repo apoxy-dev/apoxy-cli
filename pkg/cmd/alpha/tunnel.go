@@ -118,16 +118,9 @@ func createDemoProxy(
 		}),
 	)
 
-	// 127.0.0.1 ipv4 in ipv6.
-	addr := intAddr.As16()
-	addr[12] = 127
-	addr[13] = 0
-	addr[14] = 0
-	addr[15] = 1
-
 	proxyCfg := &strings.Builder{}
 	if err := demoProxyConfigTmpl.Execute(proxyCfg, map[string]interface{}{
-		"Addr": netip.AddrFrom16(addr).String(),
+		"Addr": intAddr.String(),
 		"Port": port,
 	}); err != nil {
 		return fmt.Errorf("unable to execute proxy config template: %w", err), nil
@@ -272,7 +265,12 @@ var tunnelCmd = &cobra.Command{
 			return fmt.Errorf("unable to get hostname: %w", err)
 		}
 
-		t, err := tunnel.CreateTunnel(cmd.Context(), c.ProjectID, host, cfg.Verbose)
+		socksPort, err := cmd.Flags().GetUint16("socks-port")
+		if err != nil {
+			return fmt.Errorf("unable to get socks proxy port flag: %w", err)
+		}
+
+		t, err := tunnel.CreateTunnel(cmd.Context(), c.ProjectID, host, socksPort, cfg.Verbose)
 		if err != nil {
 			return fmt.Errorf("unable to create tunnel: %w", err)
 		}
@@ -385,6 +383,7 @@ var tunnelCmd = &cobra.Command{
 }
 
 func init() {
+	tunnelCmd.Flags().Uint16("socks-port", 9050, "The port to use for the local SOCKS5 proxy (outbound traffic).")
 	tunnelCmd.Flags().Bool("demo", false, "Creates a demo Proxy with a single upstream for this tunnel. Requires --port flag.")
 	tunnelCmd.Flags().Int("port", 0, "The port to use for the demo Proxy.")
 
