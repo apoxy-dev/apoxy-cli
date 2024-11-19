@@ -36,12 +36,8 @@ func (m *ApoxyCli) BuilderContainer(ctx context.Context, src *dagger.Directory) 
 		hostArch = "x86_64"
 	}
 	return dag.Container().
-		From("golang:latest").
-		WithDirectory("/src", src,
-			dagger.ContainerWithDirectoryOpts{
-				Exclude: []string{"secrets/**"}, // exclude secrets from build context
-			}).
-		WithWorkdir("/src").
+		From("golang:1.23-bookworm").
+		WithWorkdir("/").
 		WithMountedCache("/go/pkg/mod", dag.CacheVolume("go-mod")).
 		WithEnvVariable("GOMODCACHE", "/go/pkg/mod").
 		WithMountedCache("/go/build-cache", dag.CacheVolume("go-build")).
@@ -58,11 +54,13 @@ func (m *ApoxyCli) BuilderContainer(ctx context.Context, src *dagger.Directory) 
 			"tar", "-xf", fmt.Sprintf("zig-linux-%s-0.13.0.tar.xz", hostArch),
 		}).
 		WithExec([]string{
-			"ln", "-s", fmt.Sprintf("/src/zig-linux-%s-0.13.0/zig", hostArch), "/bin/zig",
+			"ln", "-s", fmt.Sprintf("/zig-linux-%s-0.13.0/zig", hostArch), "/bin/zig",
 		}).
-		WithExec([]string{
-			"zig", "version",
-		})
+		WithDirectory("/src", src,
+			dagger.ContainerWithDirectoryOpts{
+				Exclude: []string{"secrets/**"}, // exclude secrets from build context
+			}).
+		WithWorkdir("/src")
 }
 
 // BuildCLI builds a CLI binary.
