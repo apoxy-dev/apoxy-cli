@@ -26,8 +26,8 @@ type TunnelNode struct {
 }
 
 type TunnelNodeSpec struct {
-	// Public key of the node.
-	PubKey string `json:"pubKey,omitempty"`
+	// Public key of the node (base64 encoded).
+	PublicKey string `json:"publicKey,omitempty"`
 
 	// External address of the node or address of the NAT hole punched.
 	ExternalAddress string `json:"externalAddress,omitempty"`
@@ -68,8 +68,8 @@ const (
 )
 
 type PeerStatus struct {
-	// Public key of the peer.
-	PubKey string `json:"pubKey,omitempty"`
+	// Public key of the peer (base64 encoded).
+	PublicKey string `json:"publicKey,omitempty"`
 
 	// ExternalAddress of the peer.
 	// This is the address of the peer that is directly accessible
