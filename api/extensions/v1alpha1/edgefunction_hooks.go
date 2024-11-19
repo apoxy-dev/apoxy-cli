@@ -3,7 +3,6 @@ package v1alpha1
 import (
 	"context"
 	"encoding/base64"
-	"fmt"
 	"strings"
 
 	runtime "k8s.io/apimachinery/pkg/runtime"
@@ -15,7 +14,6 @@ var _ resourcestrategy.Defaulter = &EdgeFunction{}
 
 // Default sets the default values for an EdgeFunction.
 func (r *EdgeFunction) Default() {
-	fmt.Println("EdgeFunction.Default")
 	if r.Status.Phase == "" {
 		r.Status.Phase = EdgeFunctionPhasePreparing
 	}
@@ -28,8 +26,6 @@ func (r *EdgeFunction) Default() {
 		r.Spec.Code.GoPluginSource.OCI.Credentials.PasswordData = []byte(enc)
 		r.Spec.Code.GoPluginSource.OCI.Credentials.Password = ""
 	}
-
-	r.Status.Message = "test"
 }
 
 var _ resourcestrategy.Validater = &EdgeFunction{}
