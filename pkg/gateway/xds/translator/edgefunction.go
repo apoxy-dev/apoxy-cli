@@ -77,6 +77,10 @@ func buildHCMEdgeFuncFilter(un *unstructured.Unstructured) (*hcmv3.HttpFilter, e
 		return nil, err
 	}
 
+	if fun.Spec.Code.GoPluginSource == nil {
+		return nil, errors.New("edge function source is not a Go plugin")
+	}
+
 	pluginConfig := structpb.Struct{}
 	// Parse JSON string into Struct
 	if fun.Spec.Code.GoPluginSource.PluginConfig != "" {

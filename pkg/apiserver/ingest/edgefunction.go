@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"runtime"
@@ -120,39 +121,52 @@ func EdgeFunctionIngestWorkflow(ctx workflow.Context, in *EdgeFunctionIngestPara
 	case 1:
 		switch fSet[0].Interface().(type) {
 		case *v1alpha1.WasmSource:
+			log.Info("EdgeFunction ingest started", "Source", "WASM")
 			err = workflow.ExecuteActivity(sessCtx, w.DownloadWasmActivity, in).Get(sessCtx, &res)
 			if err != nil {
 				log.Error("Download activity failed", "Error", err)
-			} else {
-				log.Info("Edge Function .wasm staged successfully", "WasmFilePath", res.AssetFilePath)
-				err = workflow.ExecuteActivity(sessCtx, w.StoreWasmActivity, in, res).Get(sessCtx, nil)
-				if err != nil {
-					log.Error("Store activity failed", "Error", err)
-				}
+				goto Finalize
 			}
-			var appErr *temporal.ApplicationError
-			if errors.As(err, &appErr) {
-				res.Err = appErr.Error()
+
+			log.Info("EdgeFunction .wasm staged successfully", "WasmFilePath", res.AssetFilePath)
+
+			err = workflow.ExecuteActivity(sessCtx, w.StoreWasmActivity, in, res).Get(sessCtx, nil)
+			if err != nil {
+				log.Error("Store activity failed", "Error", err)
+				goto Finalize
 			}
-			goto Finalize
 		case *v1alpha1.JavaScriptSource:
-			err = errors.New("JS source not supported yet")
+			log.Info("EdgeFunction ingest started", "Source", "JS")
+			if err = workflow.ExecuteActivity(sessCtx, w.DownloadJsActivity, in).Get(sessCtx, &res); err != nil {
+				log.Error("Failed to download JS source", "Error", err)
+				goto Finalize
+			}
+
+			log.Info("EdgeFunction .eszip staged successfully", "EsZipPath", res.AssetFilePath)
+
+			if err = workflow.ExecuteActivity(sessCtx, w.BundleJsActivity, in, res).Get(sessCtx, &res); err != nil {
+				log.Error("Failed to bundle JS source", "Error", err)
+				goto Finalize
+			}
+
+			if err = workflow.ExecuteActivity(sessCtx, w.StoreEsZipActivity, in, res).Get(sessCtx, nil); err != nil {
+				log.Error("Store activity failed", "Error", err)
+				goto Finalize
+			}
 		case *v1alpha1.GoPluginSource:
+			log.Info("EdgeFunction ingest started", "Source", "GoPlugin")
 			err = workflow.ExecuteActivity(sessCtx, w.DownloadGoPluginActivity, in).Get(sessCtx, &res)
 			if err != nil {
 				log.Error("Download activity failed", "Error", err)
-			} else {
-				log.Info("Edge Function Go plugin staged successfully", "GoPluginFilePath", res.AssetFilePath)
-				err = workflow.ExecuteActivity(sessCtx, w.StoreGoPluginActivity, in, res).Get(sessCtx, nil)
-				if err != nil {
-					log.Error("Store activity failed", "Error", err)
-				}
+				goto Finalize
 			}
-			var appErr *temporal.ApplicationError
-			if errors.As(err, &appErr) {
-				res.Err = appErr.Error()
+
+			log.Info("EdgeFunction Go plugin staged successfully", "GoPluginFilePath", res.AssetFilePath)
+			err = workflow.ExecuteActivity(sessCtx, w.StoreGoPluginActivity, in, res).Get(sessCtx, nil)
+			if err != nil {
+				log.Error("Store activity failed", "Error", err)
+				goto Finalize
 			}
-			goto Finalize
 		default:
 			err = fmt.Errorf("Edge Function has invalid source type: %v", reflect.TypeOf(fSet[0].Interface()))
 		}
@@ -161,10 +175,14 @@ func EdgeFunctionIngestWorkflow(ctx workflow.Context, in *EdgeFunctionIngestPara
 		for _, f := range fSet {
 			names = append(names, f.Type().Name())
 		}
-		err = fmt.Errorf("Edge Function must have either WASM or JS source, got %s", strings.Join(names, ", "))
+		err = fmt.Errorf("EdgeFunction must have either WASM or JS source, got %s", strings.Join(names, ", "))
 	}
 
 Finalize:
+	var appErr *temporal.ApplicationError
+	if errors.As(err, &appErr) {
+		res.Err = appErr.Error()
+	}
 	finErr := workflow.ExecuteActivity(sessCtx, w.FinalizeActivity, in, &res).Get(ctx, nil)
 	if finErr != nil {
 		log.Error("Failed to finalize Edge Function ingest", "Error", finErr)
@@ -194,6 +212,9 @@ func NewWorker(c versioned.Interface, baseDir string) *worker {
 func (w *worker) RegisterActivities(tw tworker.Worker) {
 	tw.RegisterActivity(w.DownloadWasmActivity)
 	tw.RegisterActivity(w.StoreWasmActivity)
+	tw.RegisterActivity(w.DownloadJsActivity)
+	tw.RegisterActivity(w.BundleJsActivity)
+	tw.RegisterActivity(w.StoreEsZipActivity)
 	tw.RegisterActivity(w.DownloadGoPluginActivity)
 	tw.RegisterActivity(w.StoreGoPluginActivity)
 	tw.RegisterActivity(w.FinalizeActivity)
@@ -274,14 +295,14 @@ func (w *worker) DownloadWasmActivity(
 
 	wid := activity.GetInfo(ctx).WorkflowExecution.ID
 	rid := activity.GetInfo(ctx).WorkflowExecution.RunID
-	targetDir := w.stagingDir(wid, rid)
+	d := w.stagingDir(wid, rid)
 
-	if err := os.MkdirAll(targetDir, 0755); err != nil {
+	if err := os.MkdirAll(d, 0755); err != nil {
 		log.Error("Failed to create target directory", "Error", err)
 		return nil, err
 	}
 
-	wasmFile := filepath.Join(targetDir, "func.wasm")
+	wasmFile := filepath.Join(d, "func.wasm")
 	stat, err := w.downloadFile(ctx, in.Obj.Spec.Code.WasmSource.URL, wasmFile)
 	if err != nil {
 		log.Error("Failed to download WASM file", "Error", err)
@@ -298,7 +319,7 @@ func (w *worker) DownloadWasmActivity(
 func (w *worker) StoreWasmActivity(
 	ctx context.Context,
 	in *EdgeFunctionIngestParams,
-	inResult *IngestResult,
+	res *IngestResult,
 ) error {
 	log := tlog.With(activity.GetLogger(ctx), "Name", in.Obj.Name, "ResourceVersion", in.Obj.ResourceVersion)
 	log.Info("Storing Edge Function .wasm file in object store")
@@ -314,7 +335,7 @@ func (w *worker) StoreWasmActivity(
 	targetFile := filepath.Join(targetDir, "func.wasm")
 	// TODO(dilyevsky): Use object store API to store the file.
 	// For now, just link the file to the target directory.
-	if err := os.Rename(inResult.AssetFilePath, targetFile); err != nil {
+	if err := os.Rename(res.AssetFilePath, targetFile); err != nil {
 		log.Error("Failed to link WASM file", "Error", err)
 		return err
 	}
@@ -486,7 +507,7 @@ func (w *worker) DownloadGoPluginActivity(
 func (w *worker) StoreGoPluginActivity(
 	ctx context.Context,
 	in *EdgeFunctionIngestParams,
-	inResult *IngestResult,
+	out *IngestResult,
 ) error {
 	log := tlog.With(activity.GetLogger(ctx), "Name", in.Obj.Name, "ResourceVersion", in.Obj.ResourceVersion)
 	log.Info("Storing Edge Function .so file in object store")
@@ -502,7 +523,7 @@ func (w *worker) StoreGoPluginActivity(
 	targetFile := filepath.Join(targetDir, "func.so")
 	// TODO(dilyevsky): Use object store API to store the file.
 	// For now, just link the file to the target directory.
-	if err := os.Rename(inResult.AssetFilePath, targetFile); err != nil {
+	if err := os.Rename(out.AssetFilePath, targetFile); err != nil {
 		log.Error("Failed to link WASM file", "Error", err)
 		return err
 	}
@@ -510,15 +531,149 @@ func (w *worker) StoreGoPluginActivity(
 	return nil
 }
 
-// FinalizeActivity finalizes the Edge Function ingest workflow.
+func (w *worker) DownloadJsActivity(
+	ctx context.Context,
+	in *EdgeFunctionIngestParams,
+) (*IngestResult, error) {
+	log := tlog.With(activity.GetLogger(ctx), "Name", in.Obj.Name, "ResourceVersion", in.Obj.ResourceVersion)
+
+	wid := activity.GetInfo(ctx).WorkflowExecution.ID
+	rid := activity.GetInfo(ctx).WorkflowExecution.RunID
+
+	jsDir := filepath.Join(w.stagingDir(wid, rid), "js")
+	if err := os.MkdirAll(jsDir, 0755); err != nil {
+		log.Error("Failed to create target directory", "Error", err)
+		return nil, err
+	}
+	stat, err := os.Stat(jsDir)
+	if err != nil {
+		log.Error("Failed to stat target directory", "Error", err)
+		return nil, err
+	}
+
+	if in.Obj.Spec.Code.JsSource.Assets != nil {
+		for _, f := range in.Obj.Spec.Code.JsSource.Assets.Files {
+			targetFile := filepath.Join(jsDir, filepath.Clean(f.Path))
+			if err := os.MkdirAll(filepath.Dir(targetFile), 0755); err != nil {
+				log.Error("Failed to create target directory for asset", "Error", err)
+				return nil, err
+			}
+			dstFile, err := os.Create(targetFile)
+			if err != nil {
+				log.Error("Failed to create js file", "Error", err)
+				return nil, err
+			}
+			defer dstFile.Close()
+
+			r := strings.NewReader(f.Content)
+			if _, err := io.Copy(dstFile, r); err != nil {
+				log.Error("Failed to copy file content", "Error", err)
+				return nil, err
+			}
+		}
+	} else if in.Obj.Spec.Code.JsSource.Git != nil {
+		return nil, fmt.Errorf("Git source not supported yet")
+	} else {
+		return nil, fmt.Errorf("No source specified")
+	}
+	if err != nil {
+		log.Error("Failed to download JS file", "Error", err)
+		return nil, err
+	}
+
+	return &IngestResult{
+		AssetFilePath:      jsDir,
+		AssetFileCreatedAt: metav1.NewTime(stat.ModTime()),
+	}, nil
+}
+
+func (w *worker) BundleJsActivity(
+	ctx context.Context,
+	in *EdgeFunctionIngestParams,
+	res *IngestResult,
+) (*IngestResult, error) {
+	log := tlog.With(activity.GetLogger(ctx), "Name", in.Obj.Name, "ResourceVersion", in.Obj.ResourceVersion)
+
+	wid := activity.GetInfo(ctx).WorkflowExecution.ID
+	rid := activity.GetInfo(ctx).WorkflowExecution.RunID
+
+	d := w.stagingDir(wid, rid)
+	binDir := filepath.Join(d, "bin")
+	if err := os.MkdirAll(binDir, 0755); err != nil {
+		log.Error("Failed to create bin directory", "Error", err)
+		return nil, err
+	}
+	esZip := filepath.Join(binDir, "bin.eszip")
+
+	log.Info("Bundling JS files", "Directory", d)
+
+	entry := filepath.Join(res.AssetFilePath, in.Obj.Spec.Code.JsSource.Entrypoint)
+	log.Debug("Checking entrypoint exists", "Entry", entry)
+	if _, err := os.Stat(entry); err != nil {
+		log.Error("Entrypoint not found", "Error", err)
+		return nil, err
+	}
+	cmd := exec.CommandContext(
+		ctx,
+		"edge-runtime", "bundle",
+		"--entrypoint", entry,
+		"--output", esZip,
+	)
+
+	log.Info("Running edge-runtime bundle", "Command", cmd.String())
+
+	if out, err := cmd.CombinedOutput(); err != nil {
+		log.Error("Failed to bundle JS files", "Error", err, "Output", string(out))
+		return nil, temporal.NewNonRetryableApplicationError("Failed to bundle JS files", "", err)
+	}
+
+	stat, err := os.Stat(esZip)
+	if err != nil {
+		log.Error("Failed to find bundled eszip", "Error", err)
+		return nil, err
+	}
+
+	return &IngestResult{
+		AssetFilePath:      esZip,
+		AssetFileCreatedAt: metav1.NewTime(stat.ModTime()),
+	}, nil
+}
+
+func (w *worker) StoreEsZipActivity(
+	ctx context.Context,
+	in *EdgeFunctionIngestParams,
+	res *IngestResult,
+) error {
+	log := tlog.With(activity.GetLogger(ctx), "Name", in.Obj.Name, "ResourceVersion", in.Obj.ResourceVersion)
+
+	wid := activity.GetInfo(ctx).WorkflowExecution.ID
+	storeDir := w.storeDir(wid)
+	if err := os.MkdirAll(storeDir, 0755); err != nil {
+		log.Error("Failed to create target directory", "Error", err)
+		return err
+	}
+
+	log.Info("Storing JS bundle", "Directory", storeDir)
+
+	targetFile := filepath.Join(storeDir, "bin.eszip")
+	// TODO(dilyevsky): Use object store API to store the file.
+	// For now, just link the file to the target directory.
+	if err := os.Rename(res.AssetFilePath, targetFile); err != nil {
+		log.Error("Failed to link WASM file", "Error", err)
+		return err
+	}
+
+	return nil
+}
+
 // This activity is responsible for updating the Edge Function status.
 func (w *worker) FinalizeActivity(
 	ctx context.Context,
 	in *EdgeFunctionIngestParams,
-	inResult *IngestResult,
+	res *IngestResult,
 ) error {
 	log := tlog.With(activity.GetLogger(ctx), "Name", in.Obj.Name, "ResourceVersion", in.Obj.ResourceVersion)
-	log.Info("Finalizing Edge Function ingest", "Error", inResult.Err)
+	log.Info("Finalizing Edge Function ingest", "Error", res.Err)
 
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		log.Info("Updating Edge Function status")
@@ -529,17 +684,17 @@ func (w *worker) FinalizeActivity(
 			return err
 		}
 
-		if inResult.Err != "" {
+		if res.Err != "" {
 			// TODO(dilyevsky): Check history and rollback to previous version if needed.
 			f.Status.Phase = v1alpha1.EdgeFunctionPhaseFailed
-			f.Status.Message = inResult.Err
+			f.Status.Message = res.Err
 		} else {
 			f.Status.Phase = v1alpha1.EdgeFunctionPhaseReady
 			// Prepend the revision to the list of revisions.
 			ref := activity.GetInfo(ctx).WorkflowExecution.ID
 			rev := v1alpha1.EdgeFunctionRevision{
 				Ref:       ref,
-				CreatedAt: inResult.AssetFileCreatedAt,
+				CreatedAt: res.AssetFileCreatedAt,
 			}
 			f.Status.Revisions = append([]v1alpha1.EdgeFunctionRevision{rev}, f.Status.Revisions...)
 			f.Status.Live = ref
@@ -587,6 +742,8 @@ func (w *worker) ServeHTTP(wr http.ResponseWriter, req *http.Request) {
 		p = w.storeDir(name) + "/func.wasm"
 	case "go":
 		p = w.storeDir(name) + "/func.so"
+	case "js":
+		p = w.storeDir(name) + "/bin.eszip"
 	default:
 		log.Errorf("Invalid type %s", t)
 		http.Error(wr, "Invalid type", http.StatusBadRequest)
