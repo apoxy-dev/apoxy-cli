@@ -14,6 +14,7 @@ const (
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:webhook:path=/validate-core-v1alpha-domain,mutating=false,failurePolicy=fail,sideEffects=None,groups=core.apoxy.dev,resources=domains,verbs=create;update,versions=v1alpha,name=validate.domain.apoxy.dev
 
 // +genclient
 // +genclient:nonNamespaced
