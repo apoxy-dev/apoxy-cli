@@ -6,10 +6,11 @@ import (
 	"os"
 	"testing"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/network"
-	"github.com/apoxy-dev/apoxy-cli/pkg/socksproxy"
 	"github.com/stretchr/testify/require"
 	proxyclient "golang.org/x/net/proxy"
+
+	"github.com/apoxy-dev/apoxy-cli/pkg/network"
+	"github.com/apoxy-dev/apoxy-cli/pkg/socksproxy"
 )
 
 func TestProxyServer(t *testing.T) {

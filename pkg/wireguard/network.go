@@ -8,13 +8,14 @@ import (
 	"net"
 	"net/netip"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/network"
-	"github.com/apoxy-dev/apoxy-cli/pkg/wireguard/netstack"
-	"github.com/apoxy-dev/apoxy-cli/pkg/wireguard/uapi"
 	"golang.zx2c4.com/wireguard/conn"
 	"golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	"k8s.io/utils/ptr"
+
+	"github.com/apoxy-dev/apoxy-cli/pkg/network"
+	"github.com/apoxy-dev/apoxy-cli/pkg/wireguard/netstack"
+	"github.com/apoxy-dev/apoxy-cli/pkg/wireguard/uapi"
 )
 
 var _ network.Network = (*WireGuardNetwork)(nil)

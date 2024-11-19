@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"net/netip"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/network"
 	"github.com/dpeckett/contextio"
 	"github.com/dpeckett/triemap"
 	"gvisor.dev/gvisor/pkg/tcpip"
@@ -14,6 +13,8 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 	"gvisor.dev/gvisor/pkg/tcpip/transport/tcp"
 	"gvisor.dev/gvisor/pkg/waiter"
+
+	"github.com/apoxy-dev/apoxy-cli/pkg/network"
 )
 
 type TCPForwarderConfig struct {

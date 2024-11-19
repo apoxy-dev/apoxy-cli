@@ -6,9 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/wireguard"
 	"github.com/stretchr/testify/require"
 	"golang.zx2c4.com/wireguard/conn"
+
+	"github.com/apoxy-dev/apoxy-cli/pkg/wireguard"
 )
 
 func TestTrySTUN(t *testing.T) {

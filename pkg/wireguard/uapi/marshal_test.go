@@ -3,10 +3,11 @@ package uapi_test
 import (
 	"testing"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/wireguard"
-	"github.com/apoxy-dev/apoxy-cli/pkg/wireguard/uapi"
 	"github.com/stretchr/testify/require"
 	"k8s.io/utils/ptr"
+
+	"github.com/apoxy-dev/apoxy-cli/pkg/wireguard"
+	"github.com/apoxy-dev/apoxy-cli/pkg/wireguard/uapi"
 )
 
 func TestMarshal(t *testing.T) {

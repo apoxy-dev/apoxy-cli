@@ -7,9 +7,10 @@ import (
 	"log/slog"
 	"net"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/network"
 	"github.com/things-go/go-socks5"
 	"github.com/things-go/go-socks5/bufferpool"
+
+	"github.com/apoxy-dev/apoxy-cli/pkg/network"
 )
 
 // ProxyServer is a SOCKS5 proxy server.

@@ -9,12 +9,13 @@ import (
 	"net"
 	"net/netip"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/socksproxy"
-	"github.com/apoxy-dev/apoxy-cli/pkg/utils"
-	"github.com/apoxy-dev/apoxy-cli/pkg/wireguard"
 	"github.com/google/uuid"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	"k8s.io/utils/ptr"
+
+	"github.com/apoxy-dev/apoxy-cli/pkg/socksproxy"
+	"github.com/apoxy-dev/apoxy-cli/pkg/utils"
+	"github.com/apoxy-dev/apoxy-cli/pkg/wireguard"
 )
 
 type Tunnel struct {
