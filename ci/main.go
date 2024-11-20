@@ -100,6 +100,16 @@ func (m *ApoxyCli) BuildEdgeRuntime(
 		WithExec([]string{"cargo", "build", "--release"})
 }
 
+// PullEdgeRuntime pulls the edge runtime image from dockerhub.
+func (m *ApoxyCli) PullEdgeRuntime(
+	ctx context.Context,
+	platform string,
+) *dagger.Container {
+	p := dagger.Platform(platform)
+	return dag.Container(dagger.ContainerOpts{Platform: p}).
+		From("docker.io/supabase/edge-runtime:v1.62.2")
+}
+
 // BuildAPIServer builds an API server binary.
 func (m *ApoxyCli) BuildAPIServer(
 	ctx context.Context,
@@ -115,12 +125,12 @@ func (m *ApoxyCli) BuildAPIServer(
 		WithEnvVariable("CC", fmt.Sprintf("zig cc --target=%s-linux-musl", targetArch)).
 		WithExec([]string{"go", "build", "-o", "apiserver", "./cmd/apiserver"})
 
-	runtimeCtr := m.BuildEdgeRuntime(ctx, string(platform), nil)
+	runtimeCtr := m.PullEdgeRuntime(ctx, string(platform))
 
 	return dag.Container(dagger.ContainerOpts{Platform: platform}).
 		From("cgr.dev/chainguard/wolfi-base:latest").
 		WithFile("/bin/apiserver", builder.File("/src/apiserver")).
-		WithFile("/bin/edge-runtime", runtimeCtr.File("/src/target/release/edge-runtime")).
+		WithFile("/bin/edge-runtime", runtimeCtr.File("/usr/local/bin/edge-runtime")).
 		WithEntrypoint([]string{"/bin/apiserver"})
 }
 
@@ -150,13 +160,13 @@ func (m *ApoxyCli) BuildBackplane(
 		WithExec([]string{"go", "build", "-o", bpOut, "./cmd/backplane"}).
 		WithExec([]string{"go", "build", "-o", dsOut, "./cmd/dial-stdio"})
 
-	runtimeCtr := m.BuildEdgeRuntime(ctx, platform, nil)
+	runtimeCtr := m.PullEdgeRuntime(ctx, platform)
 
 	return dag.Container(dagger.ContainerOpts{Platform: p}).
 		From("cgr.dev/chainguard/wolfi-base:latest").
 		WithFile("/bin/backplane", builder.File(bpOut)).
 		WithFile("/bin/dial-stdio", builder.File(dsOut)).
-		WithFile("/bin/edge-runtime", runtimeCtr.File("/src/target/release/edge-runtime")).
+		WithFile("/bin/edge-runtime", runtimeCtr.File("/usr/local/bin/edge-runtime")).
 		WithEntrypoint([]string{"/bin/backplane"})
 }
 
