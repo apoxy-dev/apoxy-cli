@@ -27,14 +27,19 @@ import (
 
 type ApoxyCli struct{}
 
+func hostArch() string {
+	switch runtime.GOARCH {
+	case "amd64":
+		return "x86_64"
+	case "arm64":
+		return "aarch64"
+	default:
+		return runtime.GOARCH
+	}
+}
+
 // BuilderContainer builds a CLI binary.
 func (m *ApoxyCli) BuilderContainer(ctx context.Context, src *dagger.Directory) *dagger.Container {
-	hostArch := runtime.GOARCH
-	if hostArch == "arm64" {
-		hostArch = "aarch64"
-	} else if hostArch == "amd64" {
-		hostArch = "x86_64"
-	}
 	return dag.Container().
 		From("golang:1.23-bookworm").
 		WithWorkdir("/").
@@ -48,13 +53,13 @@ func (m *ApoxyCli) BuilderContainer(ctx context.Context, src *dagger.Directory) 
 			"apt-get", "install", "-yq", "xz-utils", "clang",
 		}).
 		WithExec([]string{
-			"wget", fmt.Sprintf("https://ziglang.org/download/0.13.0/zig-linux-%s-0.13.0.tar.xz", hostArch),
+			"wget", fmt.Sprintf("https://ziglang.org/download/0.13.0/zig-linux-%s-0.13.0.tar.xz", hostArch()),
 		}).
 		WithExec([]string{
-			"tar", "-xf", fmt.Sprintf("zig-linux-%s-0.13.0.tar.xz", hostArch),
+			"tar", "-xf", fmt.Sprintf("zig-linux-%s-0.13.0.tar.xz", hostArch()),
 		}).
 		WithExec([]string{
-			"ln", "-s", fmt.Sprintf("/zig-linux-%s-0.13.0/zig", hostArch), "/bin/zig",
+			"ln", "-s", fmt.Sprintf("/zig-linux-%s-0.13.0/zig", hostArch()), "/bin/zig",
 		}).
 		WithDirectory("/src", src,
 			dagger.ContainerWithDirectoryOpts{
@@ -74,6 +79,26 @@ func (m *ApoxyCli) BuildCLI(
 		WithExec([]string{"go", "build", "-o", "build/"})
 }
 
+func (m *ApoxyCli) BuildEdgeRuntime(
+	ctx context.Context,
+	src *dagger.Directory,
+	platform string,
+) *dagger.Container {
+	if src == nil {
+		src = dag.Git("https://github.com/supabase/edge-runtime").
+			Tag("v1.62.2").
+			Tree()
+	}
+	p := dagger.Platform(platform)
+	return dag.Container(dagger.ContainerOpts{Platform: p}).
+		From("rust:1.82.0-bookworm").
+		WithExec([]string{"apt-get", "update"}).
+		WithExec([]string{"apt-get", "install", "-y", "llvm-dev", "libclang-dev", "gcc", "cmake", "binutils"}).
+		WithWorkdir("/src").
+		WithDirectory("/src", src).
+		WithExec([]string{"cargo", "build", "--release"})
+}
+
 // BuildAPIServer builds an API server binary.
 func (m *ApoxyCli) BuildAPIServer(
 	ctx context.Context,
@@ -88,9 +113,13 @@ func (m *ApoxyCli) BuildAPIServer(
 		WithEnvVariable("CGO_ENABLED", "1").
 		WithEnvVariable("CC", fmt.Sprintf("zig cc --target=%s-linux-musl", targetArch)).
 		WithExec([]string{"go", "build", "-o", "apiserver", "./cmd/apiserver"})
+
+	runtimeCtr := m.BuildEdgeRuntime(ctx, nil, string(platform))
+
 	return dag.Container(dagger.ContainerOpts{Platform: platform}).
 		From("cgr.dev/chainguard/wolfi-base:latest").
 		WithFile("/bin/apiserver", builder.File("/src/apiserver")).
+		WithFile("/bin/edge-runtime", runtimeCtr.File("/src/target/release/edge-runtime")).
 		WithEntrypoint([]string{"/bin/apiserver"})
 }
 
@@ -120,10 +149,13 @@ func (m *ApoxyCli) BuildBackplane(
 		WithExec([]string{"go", "build", "-o", bpOut, "./cmd/backplane"}).
 		WithExec([]string{"go", "build", "-o", dsOut, "./cmd/dial-stdio"})
 
+	runtimeCtr := m.BuildEdgeRuntime(ctx, nil, platform)
+
 	return dag.Container(dagger.ContainerOpts{Platform: p}).
 		From("cgr.dev/chainguard/wolfi-base:latest").
 		WithFile("/bin/backplane", builder.File(bpOut)).
 		WithFile("/bin/dial-stdio", builder.File(dsOut)).
+		WithFile("/bin/edge-runtime", runtimeCtr.File("/src/target/release/edge-runtime")).
 		WithEntrypoint([]string{"/bin/backplane"})
 }
 
