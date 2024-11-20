@@ -3,7 +3,6 @@ package wireguard_test
 import (
 	"context"
 	"encoding/base64"
-	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -16,12 +15,11 @@ import (
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	"k8s.io/utils/ptr"
 
+	"github.com/apoxy-dev/apoxy-cli/pkg/utils"
 	"github.com/apoxy-dev/apoxy-cli/pkg/wireguard"
 )
 
 func TestWireGuardNetwork(t *testing.T) {
-	// slog.SetLogLoggerLevel(slog.LevelDebug)
-
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, err := w.Write([]byte("Hello, World!"))
@@ -39,7 +37,7 @@ func TestWireGuardNetwork(t *testing.T) {
 
 	serverPublicKey := serverPrivateKey.PublicKey()
 
-	serverPort, err := pickUnusedUDP4Port()
+	serverPort, err := utils.UnusedUDP4Port()
 	require.NoError(t, err)
 
 	clientPrivateKey, err := wgtypes.GeneratePrivateKey()
@@ -47,7 +45,7 @@ func TestWireGuardNetwork(t *testing.T) {
 
 	clientPublicKey := clientPrivateKey.PublicKey()
 
-	clientPort, err := pickUnusedUDP4Port()
+	clientPort, err := utils.UnusedUDP4Port()
 	require.NoError(t, err)
 
 	serverWGNet, err := wireguard.Network(&wireguard.DeviceConfig{
@@ -117,21 +115,4 @@ func TestWireGuardNetwork(t *testing.T) {
 			strconv.Itoa(httpServer.Listener.Addr().(*net.TCPAddr).Port)))
 		require.ErrorIs(t, err, context.DeadlineExceeded)
 	})
-}
-
-func pickUnusedUDP4Port() (uint16, error) {
-	for i := 0; i < 10; i++ {
-		addr, err := net.ResolveUDPAddr("udp4", "localhost:0")
-		if err != nil {
-			return 0, err
-		}
-		l, err := net.ListenUDP("udp4", addr)
-		if err != nil {
-			return 0, err
-		}
-		defer l.Close()
-		return uint16(l.LocalAddr().(*net.UDPAddr).Port), nil
-	}
-
-	return 0, errors.New("could not find unused UDP port")
 }
