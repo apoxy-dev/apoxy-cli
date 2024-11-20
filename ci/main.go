@@ -81,8 +81,9 @@ func (m *ApoxyCli) BuildCLI(
 
 func (m *ApoxyCli) BuildEdgeRuntime(
 	ctx context.Context,
-	src *dagger.Directory,
 	platform string,
+	// +optional
+	src *dagger.Directory,
 ) *dagger.Container {
 	if src == nil {
 		src = dag.Git("https://github.com/supabase/edge-runtime").
@@ -114,7 +115,7 @@ func (m *ApoxyCli) BuildAPIServer(
 		WithEnvVariable("CC", fmt.Sprintf("zig cc --target=%s-linux-musl", targetArch)).
 		WithExec([]string{"go", "build", "-o", "apiserver", "./cmd/apiserver"})
 
-	runtimeCtr := m.BuildEdgeRuntime(ctx, nil, string(platform))
+	runtimeCtr := m.BuildEdgeRuntime(ctx, string(platform), nil)
 
 	return dag.Container(dagger.ContainerOpts{Platform: platform}).
 		From("cgr.dev/chainguard/wolfi-base:latest").
@@ -149,7 +150,7 @@ func (m *ApoxyCli) BuildBackplane(
 		WithExec([]string{"go", "build", "-o", bpOut, "./cmd/backplane"}).
 		WithExec([]string{"go", "build", "-o", dsOut, "./cmd/dial-stdio"})
 
-	runtimeCtr := m.BuildEdgeRuntime(ctx, nil, platform)
+	runtimeCtr := m.BuildEdgeRuntime(ctx, platform, nil)
 
 	return dag.Container(dagger.ContainerOpts{Platform: p}).
 		From("cgr.dev/chainguard/wolfi-base:latest").
