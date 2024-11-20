@@ -24,4 +24,4 @@ jobs:
           dagger call -v build-cli --src=.
           dagger call -v build-apiserver --src=.
           dagger call -v build-backplane --src=. --platform=linux/amd64
-          dagger call -v build-edge-runtime --src=. --platform=linux/amd64
+          dagger call -v build-edge-runtime --platform=linux/amd64
