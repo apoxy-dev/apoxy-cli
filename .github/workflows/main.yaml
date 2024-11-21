@@ -16,7 +16,7 @@ jobs:
         uses: docker/login-action@v3
         with:
           username: apoxy
-          password: ${{ ecrets.APOXY_DOCKERHUB_PASSWORD }}
+          password: ${{ secrets.APOXY_DOCKERHUB_PASSWORD }}
       - name: Run Dagger pipeline
         env:
           #DAGGER_CLOUD_TOKEN: ${{ secrets.DAGGER_CLOUD_TOKEN }}
