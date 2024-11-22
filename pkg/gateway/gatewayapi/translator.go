@@ -29,10 +29,12 @@ const (
 	KindService             = "Service"
 	KindServiceImport       = "ServiceImport"
 	KindBackend             = "Backend"
+	KindEdgeFunction        = "EdgeFunction"
 	KindSecret              = "Secret"
 	KindSecurityPolicy      = "SecurityPolicy"
 
 	GroupApoxyCore           = "core.apoxy.dev"
+	GroupApoxyExtensions     = "extensions.apoxy.dev"
 	GroupMultiClusterService = "multicluster.x-k8s.io"
 
 	// OwningGatewayNamespaceLabel is the owner reference label used for managed infra.

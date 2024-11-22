@@ -63,32 +63,32 @@ func (t *Translator) validateBackendRef(backendRefContext BackendRefContext, par
 }
 
 func (t *Translator) validateBackendRefGroup(backendRef *gwapiv1a2.BackendRef, parentRef *RouteParentContext, route RouteContext) bool {
+	accepted := []string{GroupApoxyCore, GroupApoxyExtensions, GroupMultiClusterService}
 	if backendRef.Group != nil &&
 		*backendRef.Group != "" &&
-		*backendRef.Group != GroupApoxyCore &&
-		*backendRef.Group != GroupMultiClusterService {
+		!sets.NewString(accepted...).Has(string(*backendRef.Group)) {
 		parentRef.SetCondition(route,
 			gwapiv1.RouteConditionResolvedRefs,
 			metav1.ConditionFalse,
 			gwapiv1.RouteReasonInvalidKind,
-			fmt.Sprintf("Group is invalid, only the core API group (specified by omitting the group field or setting it to an empty string) and %s are supported", GroupMultiClusterService),
+			fmt.Sprintf("Group is invalid, supported groups (in addition to empty): %v", accepted),
 		)
+		log.Debugf("Invalid group %s", *backendRef.Group)
 		return false
 	}
 	return true
 }
 
 func (t *Translator) validateBackendRefKind(backendRef *gwapiv1a2.BackendRef, parentRef *RouteParentContext, route RouteContext) bool {
-	if backendRef.Kind != nil &&
-		*backendRef.Kind != KindService &&
-		*backendRef.Kind != KindServiceImport &&
-		*backendRef.Kind != KindBackend {
+	accepted := []string{KindService, KindServiceImport, KindBackend, KindEdgeFunction}
+	if backendRef.Kind != nil && !sets.NewString(accepted...).Has(string(*backendRef.Kind)) {
 		parentRef.SetCondition(route,
 			gwapiv1.RouteConditionResolvedRefs,
 			metav1.ConditionFalse,
 			gwapiv1.RouteReasonInvalidKind,
-			fmt.Sprintf("Kind is invalid, accepting: %v", []string{KindService, KindServiceImport, KindBackend}),
+			fmt.Sprintf("Kind is invalid, accepting: %v", accepted),
 		)
+		log.Debugf("Invalid kind %s", *backendRef.Kind)
 		return false
 	}
 	return true

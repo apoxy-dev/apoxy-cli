@@ -299,6 +299,9 @@ func (r *GatewayReconciler) reconcileHTTPRoutes(
 		for _, rule := range hr.Spec.Rules {
 			for _, filter := range rule.Filters {
 				if filter.ExtensionRef != nil {
+					if filter.ExtensionRef.Group == "" {
+						filter.ExtensionRef.Group = "extensions.apoxy.dev"
+					}
 					key := extensionRefKey{
 						Name: string(filter.ExtensionRef.Name),
 						GroupKind: schema.GroupKind{
@@ -310,6 +313,30 @@ func (r *GatewayReconciler) reconcileHTTPRoutes(
 						log.Info("Found extension reference",
 							"name", ref.GetName(), "gvk", ref.GroupVersionKind())
 						res.ExtensionRefFilters = append(res.ExtensionRefFilters, *ref)
+					} else {
+						log.Info("Unable to find extension reference", "name", key.Name, "group", key.GroupKind.Group, "kind", key.GroupKind.Kind)
+					}
+				}
+			}
+			for _, backend := range rule.BackendRefs {
+				if backend.Group != nil && backend.Kind != nil {
+					key := extensionRefKey{
+						Name: string(backend.Name),
+						GroupKind: schema.GroupKind{
+							Group: string(*backend.Group),
+							Kind:  string(*backend.Kind),
+						},
+					}
+					if ref, ok := extRefs[key]; ok {
+						log.Info("Found extension backend reference",
+							"name", ref.GetName(), "gvk", ref.GroupVersionKind())
+						var fun extensionsv1alpha1.EdgeFunction
+						if err := conv.FromUnstructured(ref.UnstructuredContent(), &fun); err != nil {
+							log.Error(err, "Failed to convert extension reference to EdgeFunction", "name", ref.GetName())
+						}
+						res.EdgeFunctionBackends = append(res.EdgeFunctionBackends, &fun)
+					} else {
+						log.Info("Unable to find extension backend reference", "name", key.Name, "group", key.GroupKind.Group, "kind", key.GroupKind.Kind)
 					}
 				}
 			}

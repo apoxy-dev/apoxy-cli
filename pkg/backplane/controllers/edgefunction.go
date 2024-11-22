@@ -114,7 +114,7 @@ func (r *EdgeFunctionReconciler) Reconcile(ctx context.Context, request reconcil
 		ref := f.Status.Live
 		log = log.WithValues("ref", ref)
 
-		if f.Spec.Code.WasmSource != nil || f.Spec.Code.JsSource != nil {
+		if f.Spec.Code.WasmSource != nil {
 			log.Info("Wasm source detected")
 			if r.wasmStore.Exists(ctx, ref) {
 				log.Info("Wasm module already exists for ref", "ref", ref)

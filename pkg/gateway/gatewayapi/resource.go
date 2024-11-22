@@ -22,6 +22,7 @@ import (
 
 	ctrlv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
 	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
+	extensionsv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1"
 )
 
 type XdsIRMap map[string]*ir.Xds
@@ -32,23 +33,24 @@ type XdsIRMap map[string]*ir.Xds
 type Resources struct {
 	// This field is only used for marshalling/unmarshalling purposes and is not used by
 	// the translator
-	GatewayClass        *gwapiv1.GatewayClass        `json:"gatewayClass,omitempty" yaml:"gatewayClass,omitempty"`
-	Gateways            []*gwapiv1.Gateway           `json:"gateways,omitempty" yaml:"gateways,omitempty"`
-	HTTPRoutes          []*gwapiv1.HTTPRoute         `json:"httpRoutes,omitempty" yaml:"httpRoutes,omitempty"`
-	GRPCRoutes          []*gwapiv1a2.GRPCRoute       `json:"grpcRoutes,omitempty" yaml:"grpcRoutes,omitempty"`
-	TLSRoutes           []*gwapiv1a2.TLSRoute        `json:"tlsRoutes,omitempty" yaml:"tlsRoutes,omitempty"`
-	TCPRoutes           []*gwapiv1a2.TCPRoute        `json:"tcpRoutes,omitempty" yaml:"tcpRoutes,omitempty"`
-	UDPRoutes           []*gwapiv1a2.UDPRoute        `json:"udpRoutes,omitempty" yaml:"udpRoutes,omitempty"`
-	ReferenceGrants     []*gwapiv1b1.ReferenceGrant  `json:"referenceGrants,omitempty" yaml:"referenceGrants,omitempty"`
-	Namespaces          []*v1.Namespace              `json:"namespaces,omitempty" yaml:"namespaces,omitempty"`
-	Services            []*v1.Service                `json:"services,omitempty" yaml:"services,omitempty"`
-	ServiceImports      []*mcsapi.ServiceImport      `json:"serviceImports,omitempty" yaml:"serviceImports,omitempty"`
-	EndpointSlices      []*discoveryv1.EndpointSlice `json:"endpointSlices,omitempty" yaml:"endpointSlices,omitempty"`
-	Secrets             []*v1.Secret                 `json:"secrets,omitempty" yaml:"secrets,omitempty"`
-	ConfigMaps          []*v1.ConfigMap              `json:"configMaps,omitempty" yaml:"configMaps,omitempty"`
-	ExtensionRefFilters []unstructured.Unstructured  `json:"extensionRefFilters,omitempty" yaml:"extensionRefFilters,omitempty"`
-	Backends            []*corev1alpha.Backend       `json:"backends,omitempty" yaml:"backends,omitempty"`
-	Proxies             []*ctrlv1alpha1.Proxy        `json:"proxies,omitempty" yaml:"proxies,omitempty"`
+	GatewayClass         *gwapiv1.GatewayClass              `json:"gatewayClass,omitempty" yaml:"gatewayClass,omitempty"`
+	Gateways             []*gwapiv1.Gateway                 `json:"gateways,omitempty" yaml:"gateways,omitempty"`
+	HTTPRoutes           []*gwapiv1.HTTPRoute               `json:"httpRoutes,omitempty" yaml:"httpRoutes,omitempty"`
+	GRPCRoutes           []*gwapiv1a2.GRPCRoute             `json:"grpcRoutes,omitempty" yaml:"grpcRoutes,omitempty"`
+	TLSRoutes            []*gwapiv1a2.TLSRoute              `json:"tlsRoutes,omitempty" yaml:"tlsRoutes,omitempty"`
+	TCPRoutes            []*gwapiv1a2.TCPRoute              `json:"tcpRoutes,omitempty" yaml:"tcpRoutes,omitempty"`
+	UDPRoutes            []*gwapiv1a2.UDPRoute              `json:"udpRoutes,omitempty" yaml:"udpRoutes,omitempty"`
+	ReferenceGrants      []*gwapiv1b1.ReferenceGrant        `json:"referenceGrants,omitempty" yaml:"referenceGrants,omitempty"`
+	Namespaces           []*v1.Namespace                    `json:"namespaces,omitempty" yaml:"namespaces,omitempty"`
+	Services             []*v1.Service                      `json:"services,omitempty" yaml:"services,omitempty"`
+	ServiceImports       []*mcsapi.ServiceImport            `json:"serviceImports,omitempty" yaml:"serviceImports,omitempty"`
+	EndpointSlices       []*discoveryv1.EndpointSlice       `json:"endpointSlices,omitempty" yaml:"endpointSlices,omitempty"`
+	Secrets              []*v1.Secret                       `json:"secrets,omitempty" yaml:"secrets,omitempty"`
+	ConfigMaps           []*v1.ConfigMap                    `json:"configMaps,omitempty" yaml:"configMaps,omitempty"`
+	ExtensionRefFilters  []unstructured.Unstructured        `json:"extensionRefFilters,omitempty" yaml:"extensionRefFilters,omitempty"`
+	EdgeFunctionBackends []*extensionsv1alpha1.EdgeFunction `json:"edgeFunctionBackends,omitempty" yaml:"edgeFunctionBackends,omitempty"`
+	Backends             []*corev1alpha.Backend             `json:"backends,omitempty" yaml:"backends,omitempty"`
+	Proxies              []*ctrlv1alpha1.Proxy              `json:"proxies,omitempty" yaml:"proxies,omitempty"`
 }
 
 func NewResources() *Resources {
@@ -133,6 +135,16 @@ func (r *Resources) GetEndpointSlicesForBackend(svcNamespace, svcName string, ba
 		}
 	}
 	return endpointSlices
+}
+
+func (r *Resources) GetEdgeFunctionBackend(name string) *extensionsv1alpha1.EdgeFunction {
+	for _, edgeFunc := range r.EdgeFunctionBackends {
+		if edgeFunc.Name == name {
+			return edgeFunc
+		}
+	}
+
+	return nil
 }
 
 func (r *Resources) GetBackend(name string) *corev1alpha.Backend {

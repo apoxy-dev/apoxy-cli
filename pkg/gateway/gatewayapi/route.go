@@ -1123,7 +1123,7 @@ func (t *Translator) processDestination(
 
 	backendNamespace := NamespaceDerefOr(backendRef.Namespace, route.GetNamespace())
 	if !t.validateBackendRef(backendRefContext, parentRef, route, resources, backendNamespace, routeType) {
-		log.Infof("Skipping invalid backend %s/%s", backendNamespace, backendRef.Name)
+		log.Errorf("Skipping invalid backend %s/%s", backendNamespace, backendRef.Name)
 		// return with empty endpoint means the backend is invalid
 		return &ir.DestinationSetting{Weight: &weight}
 	}
@@ -1172,10 +1172,12 @@ func (t *Translator) processDestination(
 		ds = t.processServiceDestinationSetting(backendRef.BackendObjectReference, backendNamespace, protocol, resources)
 		ds.Filters = t.processDestinationFilters(routeType, backendRefContext, parentRef, route, resources)
 	case KindBackend:
+		log.Infof("Processing backend %s/%s", backendNamespace, backendRef.Name)
+
 		var err error
 		ds, err = t.processBackendDestinationSetting(backendRef.BackendObjectReference, resources)
 		if err != nil {
-			log.Errorf("failed to process backend %s/%s: %v", backendNamespace, backendRef.Name, err)
+			log.Errorf("failed to process backend ref %s: %v", backendRef.Name, err)
 			parentRef.SetCondition(route,
 				gwapiv1.RouteConditionResolvedRefs,
 				metav1.ConditionFalse,
@@ -1183,7 +1185,7 @@ func (t *Translator) processDestination(
 				err.Error())
 			return nil
 		} else if ds == nil {
-			log.Errorf("Backend %s/%s not found", backendNamespace, backendRef.Name)
+			log.Errorf("Backend ref %s not found", backendRef.Name)
 			parentRef.SetCondition(route,
 				gwapiv1.RouteConditionResolvedRefs,
 				metav1.ConditionFalse,
@@ -1191,6 +1193,30 @@ func (t *Translator) processDestination(
 				"Backend not found")
 			return nil
 		}
+		ds.Filters = t.processDestinationFilters(routeType, backendRefContext, parentRef, route, resources)
+	case KindEdgeFunction:
+		log.Infof("Processing edge function backend ref %s", backendRef.Name)
+
+		var err error
+		if ds, err = t.processEdgeFunctionDestinationSetting(backendRef.BackendObjectReference, protocol, resources); err != nil {
+			log.Errorf("failed to process edge function backend ref %s: %v", backendRef.Name, err)
+			parentRef.SetCondition(route,
+				gwapiv1.RouteConditionResolvedRefs,
+				metav1.ConditionFalse,
+				gwapiv1a2.RouteReasonResolvedRefs,
+				err.Error())
+			return nil
+		}
+		if ds == nil {
+			log.Errorf("Edge function ref %s not found", backendRef.Name)
+			parentRef.SetCondition(route,
+				gwapiv1.RouteConditionResolvedRefs,
+				metav1.ConditionFalse,
+				gwapiv1a2.RouteReasonResolvedRefs,
+				"Edge function not found")
+			return nil
+		}
+
 		ds.Filters = t.processDestinationFilters(routeType, backendRefContext, parentRef, route, resources)
 	}
 
@@ -1501,6 +1527,33 @@ func (t *Translator) processBackendDestinationSetting(backendRef gwapiv1.Backend
 	}
 
 	return &ds, nil
+}
+
+func (t *Translator) processEdgeFunctionDestinationSetting(
+	backendRef gwapiv1.BackendObjectReference,
+	protocol ir.AppProtocol,
+	resources *Resources,
+) (*ir.DestinationSetting, error) {
+	fun := resources.GetEdgeFunctionBackend(string(backendRef.Name))
+	if fun == nil {
+		return nil, nil
+	}
+	port := int(*backendRef.Port)
+	if port < 1 || port > 65535 {
+		return nil, fmt.Errorf("invalid port %d", port)
+	}
+	ds := &ir.DestinationSetting{
+		Protocol: protocol,
+		Endpoints: []*ir.DestinationEndpoint{
+			{
+				Host: fmt.Sprintf("%s.apoxy.local", fun.Name),
+				Port: uint32(port),
+			},
+		},
+		AddressType: ptr.To(ir.FQDN),
+	}
+
+	return ds, nil
 }
 
 func getIREndpointsFromEndpointSlices(endpointSlices []*discoveryv1.EndpointSlice, portName string, portProtocol corev1.Protocol) ([]*ir.DestinationEndpoint, *ir.DestinationAddressType) {
