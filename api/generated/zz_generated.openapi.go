@@ -64,6 +64,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionCodeSource":        schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionCodeSource(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionList":              schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionList(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRevision":          schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionRevision(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRuntime":           schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionRuntime(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionSpec":              schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionSpec(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionStatus":            schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionStatus(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionTargetReference":   schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionTargetReference(ref),
@@ -76,7 +77,6 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.OCICredentials":                schema_apoxy_cli_api_extensions_v1alpha1_OCICredentials(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.OCICredentialsObjectReference": schema_apoxy_cli_api_extensions_v1alpha1_OCICredentialsObjectReference(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.OCIImageRef":                   schema_apoxy_cli_api_extensions_v1alpha1_OCIImageRef(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.Runtime":                       schema_apoxy_cli_api_extensions_v1alpha1_Runtime(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.RuntimeCapabilities":           schema_apoxy_cli_api_extensions_v1alpha1_RuntimeCapabilities(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.SourceFile":                    schema_apoxy_cli_api_extensions_v1alpha1_SourceFile(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.WasmSource":                    schema_apoxy_cli_api_extensions_v1alpha1_WasmSource(ref),
@@ -1910,9 +1910,9 @@ func schema_apoxy_cli_api_core_v1alpha_PeerStatus(ref common.ReferenceCallback) 
 			SchemaProps: spec.SchemaProps{
 				Type: []string{"object"},
 				Properties: map[string]spec.Schema{
-					"pubKey": {
+					"publicKey": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Public key of the peer.",
+							Description: "Public key of the peer (base64 encoded).",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -2289,9 +2289,9 @@ func schema_apoxy_cli_api_core_v1alpha_TunnelNodeSpec(ref common.ReferenceCallba
 			SchemaProps: spec.SchemaProps{
 				Type: []string{"object"},
 				Properties: map[string]spec.Schema{
-					"pubKey": {
+					"publicKey": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Public key of the node.",
+							Description: "Public key of the node (base64 encoded).",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -2529,12 +2529,53 @@ func schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionRevision(ref common.Re
 	}
 }
 
+func schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionRuntime(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"timeout": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Timeout is the maximum time the function is allowed to run. Defaults to 30 seconds but can be increased depending on your plan.",
+							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Duration"),
+						},
+					},
+					"capabilities": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Capabilities is the list of capabilities granted to the function.",
+							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.RuntimeCapabilities"),
+						},
+					},
+					"port": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Port is the port the function listens on. Defaults to 8080.",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.RuntimeCapabilities", "k8s.io/apimachinery/pkg/apis/meta/v1.Duration"},
+	}
+}
+
 func schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
 				Type: []string{"object"},
 				Properties: map[string]spec.Schema{
+					"mode": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Mode is runtime mode of the function.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 					"code": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Code is the source of the function code/binary.",
@@ -2559,16 +2600,15 @@ func schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionSpec(ref common.Refere
 					"runtime": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Configuration for the function runtime.",
-							Default:     map[string]interface{}{},
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.Runtime"),
+							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRuntime"),
 						},
 					},
 				},
-				Required: []string{"code"},
+				Required: []string{"mode", "code"},
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionCodeSource", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EnvVar", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.Runtime"},
+			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionCodeSource", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRuntime", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EnvVar"},
 	}
 }
 
@@ -2966,32 +3006,6 @@ func schema_apoxy_cli_api_extensions_v1alpha1_OCIImageRef(ref common.ReferenceCa
 		},
 		Dependencies: []string{
 			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.OCICredentials", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.OCICredentialsObjectReference"},
-	}
-}
-
-func schema_apoxy_cli_api_extensions_v1alpha1_Runtime(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
-				Properties: map[string]spec.Schema{
-					"timeout": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Timeout is the maximum time the function is allowed to run. Defaults to 30 seconds but can be increased depending on your plan.",
-							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Duration"),
-						},
-					},
-					"capabilities": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Capabilities is the list of capabilities granted to the function.",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.RuntimeCapabilities"),
-						},
-					},
-				},
-			},
-		},
-		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.RuntimeCapabilities", "k8s.io/apimachinery/pkg/apis/meta/v1.Duration"},
 	}
 }
 

@@ -178,7 +178,7 @@ type RuntimeCapabilities struct {
 	KV *bool `json:"kv,omitempty"`
 }
 
-type Runtime struct {
+type EdgeFunctionRuntime struct {
 	// Timeout is the maximum time the function is allowed to run.
 	// Defaults to 30 seconds but can be increased depending on your plan.
 	// +optional
@@ -186,7 +186,15 @@ type Runtime struct {
 
 	// Capabilities is the list of capabilities granted to the function.
 	// +optional
-	Capabilities *RuntimeCapabilities `json:"capabilities"`
+	Capabilities *RuntimeCapabilities `json:"capabilities,omitempty"`
+
+	// Port is the port the function listens on.
+	// Defaults to 8080.
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=65535
+	// +kubebuilder:default=8080
+	// +optional
+	Port *int32 `json:"port,omitempty"`
 }
 
 type EdgeFunctionTargetReference struct {
@@ -202,7 +210,22 @@ type EdgeFunctionTargetReference struct {
 	Name gwapiv1.ObjectName `json:"name"`
 }
 
+type EdgeFunctionMode string
+
+const (
+	// BackendEdgeFunctionMode means the function is used as a backend.
+	BackendEdgeFunctionMode EdgeFunctionMode = "backend"
+
+	// FilterEdgeFunctionMode means the function is used as a filter - a function
+	// will be executed before the request is sent to the backend. This improves
+	// performance by reducing the number of requests sent to the backend.
+	FilterEdgeFunctionMode EdgeFunctionMode = "filter"
+)
+
 type EdgeFunctionSpec struct {
+	// Mode is runtime mode of the function.
+	Mode EdgeFunctionMode `json:"mode"`
+
 	// Code is the source of the function code/binary.
 	Code EdgeFunctionCodeSource `json:"code"`
 
@@ -214,7 +237,7 @@ type EdgeFunctionSpec struct {
 
 	// Configuration for the function runtime.
 	// +optional
-	Runtime Runtime `json:"runtime"`
+	Runtime *EdgeFunctionRuntime `json:"runtime,omitempty"`
 }
 
 type EdgeFunctionRevision struct {

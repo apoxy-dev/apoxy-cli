@@ -167,6 +167,9 @@ func (t *Translator) validateBackendNamespace(backendRef *gwapiv1a2.BackendRef, 
 }
 
 func (t *Translator) validateBackendPort(backendRef *gwapiv1a2.BackendRef, parentRef *RouteParentContext, route RouteContext) bool {
+	if backendRef != nil && backendRef.Kind != nil && string(*backendRef.Kind) == KindEdgeFunction {
+		return true
+	}
 	if backendRef.Port == nil {
 		parentRef.SetCondition(route,
 			gwapiv1.RouteConditionResolvedRefs,
@@ -178,6 +181,7 @@ func (t *Translator) validateBackendPort(backendRef *gwapiv1a2.BackendRef, paren
 	}
 	return true
 }
+
 func (t *Translator) validateBackendService(backendRef *gwapiv1a2.BackendRef, parentRef *RouteParentContext, resources *Resources,
 	serviceNamespace string, route RouteContext, protocol v1.Protocol) bool {
 	service := resources.GetService(serviceNamespace, string(backendRef.Name))

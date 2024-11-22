@@ -1538,10 +1538,15 @@ func (t *Translator) processEdgeFunctionDestinationSetting(
 	if fun == nil {
 		return nil, nil
 	}
-	port := int(*backendRef.Port)
+
+	if fun.Spec.Runtime == nil || fun.Spec.Runtime.Port == nil {
+		return nil, fmt.Errorf("invalid runtime configuration for backend function %q", fun.Name)
+	}
+	port := *fun.Spec.Runtime.Port
 	if port < 1 || port > 65535 {
 		return nil, fmt.Errorf("invalid port %d", port)
 	}
+
 	ds := &ir.DestinationSetting{
 		Protocol: protocol,
 		Endpoints: []*ir.DestinationEndpoint{
