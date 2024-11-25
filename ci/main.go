@@ -76,7 +76,43 @@ func (m *ApoxyCli) BuildCLI(
 	builder := m.BuilderContainer(ctx, src)
 	return builder.
 		WithEnvVariable("CGO_ENABLED", "1").
-		WithExec([]string{"go", "build", "-o", "build/"})
+		WithExec([]string{"go", "build", "-o", "/apoxy", "-ldflags", "-s -w", "."})
+}
+
+// PublishGithubRelease publishes a CLI binary to GitHub releases.
+func (m *ApoxyCli) PublishGithubRelease(
+	ctx context.Context,
+	src *dagger.Directory,
+	githubToken *dagger.Secret,
+	tag string,
+) *dagger.Container {
+	cliCtr := m.BuildCLI(ctx, src)
+
+	return dag.Container().
+		From("ubuntu:22.04").
+		WithEnvVariable("DEBIAN_FRONTEND", "noninteractive").
+		WithExec([]string{"apt-get", "update"}).
+		WithExec([]string{"apt-get", "install", "-y", "curl", "wget", "tar"}).
+		WithExec([]string{"wget", "https://github.com/cli/cli/releases/download/v2.62.0/gh_2.62.0_linux_amd64.tar.gz"}).
+		WithExec([]string{"tar", "xzf", "gh_2.62.0_linux_amd64.tar.gz"}).
+		WithExec([]string{"mv", "gh_2.62.0_linux_amd64/bin/gh", "/usr/local/bin/gh"}).
+		WithExec([]string{"rm", "-rf", "gh_2.62.0_linux_amd64", "gh_2.62.0_linux_amd64.tar.gz"}).
+		WithSecretVariable("GITHUB_TOKEN", githubToken).
+		WithFile("/apoxy", cliCtr.File("/apoxy")).
+		WithExec([]string{
+			"gh", "release", "create",
+			tag,
+			"--generate-notes",
+			"--title", tag,
+			"--repo", "github.com/apoxy-dev/apoxy-cli",
+		}).
+		WithExec([]string{
+			"gh", "release", "upload",
+			tag,
+			"/apoxy",
+			"--clobber",
+			"--repo", "github.com/apoxy-dev/apoxy-cli",
+		})
 }
 
 func (m *ApoxyCli) BuildEdgeRuntime(
@@ -215,8 +251,8 @@ func (m *ApoxyCli) PublishImages(
 	return nil
 }
 
-// PublishRelease publishes a Helm release.
-func (m *ApoxyCli) PublishRelease(
+// PublishHelmRelease publishes a Helm release.
+func (m *ApoxyCli) PublishHelmRelease(
 	ctx context.Context,
 	src *dagger.Directory,
 	registryPassword *dagger.Secret,
