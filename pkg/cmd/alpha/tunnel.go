@@ -178,7 +178,7 @@ func createTunnelObj(
 	ctx context.Context,
 	c versioned.Interface,
 	name string,
-	wgTun *tunnel.Tunnel,
+	wgTun tunnel.Tunnel,
 ) error {
 	tunn := &corev1alpha.TunnelNode{
 		ObjectMeta: metav1.ObjectMeta{
@@ -265,12 +265,22 @@ var tunnelCmd = &cobra.Command{
 			return fmt.Errorf("unable to get hostname: %w", err)
 		}
 
-		socksPort, err := cmd.Flags().GetUint16("socks-port")
+		userspaceMode, err := cmd.Flags().GetBool("userspace")
 		if err != nil {
-			return fmt.Errorf("unable to get socks proxy port flag: %w", err)
+			return fmt.Errorf("unable to get userspace flag: %w", err)
 		}
 
-		t, err := tunnel.CreateTunnel(cmd.Context(), c.ProjectID, host, socksPort, cfg.Verbose)
+		var t tunnel.Tunnel
+		if userspaceMode {
+			socksPort, err := cmd.Flags().GetUint16("userspace-socks-port")
+			if err != nil {
+				return fmt.Errorf("unable to get socks proxy port flag: %w", err)
+			}
+
+			t, err = tunnel.CreateUserspaceTunnel(cmd.Context(), c.ProjectID, host, socksPort, cfg.Verbose)
+		} else {
+			t, err = tunnel.CreateKernelTunnel(cmd.Context(), c.ProjectID, host)
+		}
 		if err != nil {
 			return fmt.Errorf("unable to create tunnel: %w", err)
 		}
@@ -383,7 +393,8 @@ var tunnelCmd = &cobra.Command{
 }
 
 func init() {
-	tunnelCmd.Flags().Uint16("socks-port", 9050, "The port to use for the local SOCKS5 proxy (outbound traffic).")
+	tunnelCmd.Flags().Bool("userspace", false, "Use an unprivileged userspace tunnel implementation.")
+	tunnelCmd.Flags().Uint16("userspace-socks-port", 9050, "The port to use for the local SOCKS5 proxy (outbound traffic).")
 	tunnelCmd.Flags().Bool("demo", false, "Creates a demo Proxy with a single upstream for this tunnel. Requires --port flag.")
 	tunnelCmd.Flags().Int("port", 0, "The port to use for the demo Proxy.")
 

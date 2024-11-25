@@ -58,10 +58,7 @@ func Network(conf *DeviceConfig) (*WireGuardNetwork, error) {
 
 	var endpoint netip.AddrPort
 	if len(conf.STUNServers) > 0 {
-		ctx, cancel := context.WithTimeout(context.Background(), defaultSTUNTimeout)
-		defer cancel()
-
-		endpoint, err = TryStun(ctx, bind, *conf.ListenPort, conf.STUNServers...)
+		endpoint, err = TryStun(context.Background(), bind, *conf.ListenPort, conf.STUNServers...)
 		if err != nil {
 			return nil, err
 		}
