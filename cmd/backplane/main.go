@@ -73,6 +73,7 @@ var (
 	wasmStorePort   = flag.Int("wasm_store_port", 8081, "Port for the remote WASM store.")
 
 	goPluginDir = flag.String("go_plugin_dir", "/var/lib/apoxy/go", "Directory for Go plugins.")
+	esZipDir    = flag.String("eszip_dir", "/var/lib/apoxy/js", "Directory for JavaScript bundles.")
 
 	useEnvoyContrib = flag.Bool("use_envoy_contrib", false, "Use Envoy contrib filters.")
 
@@ -292,6 +293,7 @@ func main() {
 		fmt.Sprintf("%s:%d", *apiserverHost, *wasmStorePort),
 		ms,
 		*goPluginDir,
+		*esZipDir,
 	).SetupWithManager(ctx, mgr, *proxyName); err != nil {
 		log.Errorf("failed to set up EdgeFunction controller: %v", err)
 		return
