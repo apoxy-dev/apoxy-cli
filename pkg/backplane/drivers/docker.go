@@ -84,9 +84,12 @@ func (d *dockerDriver) Start(
 		return cname, nil
 	}
 
-	// Pull the image.
-	if err := exec.CommandContext(ctx, "docker", "pull", imageRef).Run(); err != nil {
-		return "", fmt.Errorf("failed to pull image %s: %w", imageRef, err)
+	// Check if we have the image.
+	if err := exec.CommandContext(ctx, "docker", "image", "inspect", imageRef).Run(); err != nil {
+		// If not, pull it.
+		if err := exec.CommandContext(ctx, "docker", "pull", imageRef).Run(); err != nil {
+			return "", fmt.Errorf("failed to pull image %s: %w", imageRef, err)
+		}
 	}
 
 	// Check for network and create if not exists.
