@@ -684,20 +684,37 @@ func (w *worker) FinalizeActivity(
 			return err
 		}
 
+		rev := v1alpha1.EdgeFunctionRevision{
+			Ref:       activity.GetInfo(ctx).WorkflowExecution.ID,
+			CreatedAt: res.AssetFileCreatedAt,
+		}
 		if res.Err != "" {
-			// TODO(dilyevsky): Check history and rollback to previous version if needed.
-			f.Status.Phase = v1alpha1.EdgeFunctionPhaseFailed
-			f.Status.Message = res.Err
+			rev.Conditions = append(f.Status.Conditions, metav1.Condition{
+				Type:               "Ready",
+				Status:             metav1.ConditionFalse,
+				Reason:             "Failed",
+				Message:            res.Err,
+				LastTransitionTime: metav1.NewTime(time.Now()),
+			})
+
+			// If there is no live revision to use, the function is not ready.
+			if f.Status.Live == "" {
+				f.Status.Phase = v1alpha1.EdgeFunctionPhaseNotReady
+				f.Status.Message = "No Ready revisions"
+			}
 		} else {
+			rev.Conditions = append(f.Status.Conditions, metav1.Condition{
+				Type:               "Ready",
+				Status:             metav1.ConditionTrue,
+				Reason:             "Ready",
+				Message:            "Ready",
+				LastTransitionTime: metav1.NewTime(time.Now()),
+			})
+
 			f.Status.Phase = v1alpha1.EdgeFunctionPhaseReady
 			// Prepend the revision to the list of revisions.
-			ref := activity.GetInfo(ctx).WorkflowExecution.ID
-			rev := v1alpha1.EdgeFunctionRevision{
-				Ref:       ref,
-				CreatedAt: res.AssetFileCreatedAt,
-			}
 			f.Status.Revisions = append([]v1alpha1.EdgeFunctionRevision{rev}, f.Status.Revisions...)
-			f.Status.Live = ref
+			f.Status.Live = rev.Ref
 		}
 
 		if _, err := w.a3y.ExtensionsV1alpha1().EdgeFunctions().UpdateStatus(ctx, f, metav1.UpdateOptions{}); err != nil {

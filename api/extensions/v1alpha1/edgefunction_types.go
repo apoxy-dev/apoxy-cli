@@ -246,6 +246,10 @@ type EdgeFunctionRevision struct {
 
 	// CreatedAt is the time the function revision was created.
 	CreatedAt metav1.Time `json:"createdAt"`
+
+	// Conditions describe the current conditions of the revision.
+	// +optional
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
 type EdgeFunctionPhase string
@@ -257,8 +261,8 @@ const (
 	EdgeFunctionPhaseReady EdgeFunctionPhase = "Ready"
 	// EdgeFunctionPhaseUpdating means the function is being updated.
 	EdgeFunctionPhaseUpdating EdgeFunctionPhase = "Updating"
-	// EdgeFunctionPhaseFailed means the function has failed.
-	EdgeFunctionPhaseFailed EdgeFunctionPhase = "Failed"
+	// EdgeFunctionPhaseNotReady means the function has no revisions ready to be used.
+	EdgeFunctionPhaseNotReady EdgeFunctionPhase = "NotReady"
 	// EdgeFunctionPhaseUnknown means the function is in an unknown state.
 	EdgeFunctionPhaseUnknown EdgeFunctionPhase = "Unknown"
 )
@@ -279,6 +283,10 @@ type EdgeFunctionStatus struct {
 	// Live is the reference to the live function revision.
 	// +optional
 	Live string `json:"live,omitempty"`
+
+	// Conditions describe the current conditions of the EdgeFunction.
+	// +optional
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
 var _ resource.StatusSubResource = &EdgeFunctionStatus{}
