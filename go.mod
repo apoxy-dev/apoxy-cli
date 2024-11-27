@@ -31,9 +31,11 @@ require (
 	github.com/hashicorp/go-discover v0.0.0-20240726212017-342faf50e5d4
 	github.com/jedib0t/go-pretty/v6 v6.4.9
 	github.com/k3s-io/kine v0.10.3
+	github.com/metal-stack/go-ipam v1.14.7
 	github.com/miekg/dns v1.1.61
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/opencontainers/image-spec v1.1.0
+	github.com/opencontainers/runc v1.2.2
 	github.com/pion/stun v0.6.1
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
 	github.com/shirou/gopsutil v3.21.11+incompatible
@@ -44,6 +46,8 @@ require (
 	github.com/temporalio/cli v0.12.0
 	github.com/tetratelabs/wazero v1.7.3
 	github.com/things-go/go-socks5 v0.0.5
+	github.com/vishvananda/netlink v1.3.0
+	github.com/vishvananda/netns v0.0.4
 	github.com/vmihailenco/msgpack v4.0.4+incompatible
 	go.opentelemetry.io/proto/otlp v1.2.0
 	go.temporal.io/api v1.29.2
@@ -220,7 +224,6 @@ require (
 	github.com/mdlayher/genetlink v1.3.2 // indirect
 	github.com/mdlayher/netlink v1.7.2 // indirect
 	github.com/mdlayher/socket v0.4.1 // indirect
-	github.com/metal-stack/go-ipam v1.14.7 // indirect
 	github.com/minio/highwayhash v1.0.2 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/moby/sys/mountinfo v0.7.1 // indirect
@@ -242,7 +245,6 @@ require (
 	github.com/nicolai86/scaleway-sdk v1.10.2-0.20180628010248-798f60e20bb2 // indirect
 	github.com/olivere/elastic/v7 v7.0.32 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
-	github.com/opencontainers/runc v1.2.2 // indirect
 	github.com/opencontainers/runtime-spec v1.2.0 // indirect
 	github.com/opencontainers/selinux v1.11.0 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
@@ -297,8 +299,6 @@ require (
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
 	github.com/vbatts/tar-split v0.11.3 // indirect
-	github.com/vishvananda/netlink v1.3.0 // indirect
-	github.com/vishvananda/netns v0.0.4 // indirect
 	github.com/vmihailenco/msgpack/v5 v5.3.5 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	github.com/vmware/govmomi v0.18.0 // indirect
