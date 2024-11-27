@@ -221,7 +221,7 @@ allowing you to test and develop your proxy infrastructure.`,
 			return err
 		}
 		projID := uuid.New()
-		if cfg.ProjectID.String() != "" {
+		if cfg.ProjectID != uuid.Nil {
 			projID = cfg.ProjectID
 		}
 
@@ -326,6 +326,7 @@ allowing you to test and develop your proxy infrastructure.`,
 		if err != nil {
 			return err
 		}
+
 		if err := chDriver.Start(ctx, projID); err != nil {
 			return err
 		}

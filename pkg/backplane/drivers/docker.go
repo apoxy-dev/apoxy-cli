@@ -4,12 +4,16 @@ package drivers
 import (
 	"context"
 	"fmt"
+	"net"
 	"os/exec"
+	"runtime"
 
 	"github.com/google/uuid"
+	"github.com/vishvananda/netlink"
 
 	"github.com/apoxy-dev/apoxy-cli/build"
 	"github.com/apoxy-dev/apoxy-cli/pkg/log"
+	"github.com/apoxy-dev/apoxy-cli/pkg/utils"
 	dockerutils "github.com/apoxy-dev/apoxy-cli/pkg/utils/docker"
 )
 
@@ -111,14 +115,23 @@ func (d *dockerDriver) Start(
 		"--network", dockerutils.NetworkName,
 	)
 
+	apiServerHost := "host.docker.internal"
+	if runtime.GOOS == "linux" {
+		// Docker on linux doesn't support host.docker.internal.
+		apiServerHost, err = getDockerBridgeIP()
+		if err != nil {
+			return "", fmt.Errorf("failed to get docker bridge IP: %w", err)
+		}
+	}
+
 	cmd.Args = append(cmd.Args, imageRef)
 	cmd.Args = append(cmd.Args, []string{
 		"--project_id=" + orgID.String(),
 		// Use the same name for both proxy and replica - we only have one replica.
 		"--proxy=" + proxyName,
 		"--replica=" + proxyName,
-		"--apiserver_host=host.docker.internal",
-		"--envoy_release_url=https://apoxy-envoy-releases.s3.us-west-2.amazonaws.com/envoy-contrib-dev-cfedcdbc0bf1e687d0fc2ad243e7277ed004673d-aarch64",
+		"--apiserver_addr=" + net.JoinHostPort(apiServerHost, "8443"),
+		"--envoy_release_url=https://apoxy-envoy-releases.s3.us-west-2.amazonaws.com/envoy-contrib-dev-cfedcdbc0bf1e687d0fc2ad243e7277ed004673d-" + utils.HostArch(),
 		"--use_envoy_contrib=true",
 	}...)
 	cmd.Args = append(cmd.Args, setOpts.Args...)
@@ -137,4 +150,22 @@ func (d *dockerDriver) Start(
 	}
 
 	return cname, nil
+}
+
+func getDockerBridgeIP() (string, error) {
+	link, err := netlink.LinkByName("docker0")
+	if err != nil {
+		return "", fmt.Errorf("failed to get docker0 interface: %w", err)
+	}
+
+	addrs, err := netlink.AddrList(link, netlink.FAMILY_V4)
+	if err != nil {
+		return "", fmt.Errorf("failed to list addresses for docker0: %w", err)
+	}
+
+	if len(addrs) == 0 {
+		return "", fmt.Errorf("no addresses found for docker0")
+	}
+
+	return addrs[0].IP.String(), nil
 }

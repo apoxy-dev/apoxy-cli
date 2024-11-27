@@ -43,7 +43,7 @@ spec:
             - --in-cluster=true
           ports:
             - name: https
-              containerPort: {{ .Values.apiserver.service.port }}
+              containerPort: 8443
               protocol: TCP
             - name: xds
               containerPort: 18000

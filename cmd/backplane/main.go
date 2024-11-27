@@ -61,7 +61,7 @@ var (
 
 	devMode = flag.Bool("dev", false, "Enable development mode.")
 
-	apiserverHost   = flag.String("apiserver_host", "host.docker.internal", "APIServer address.")
+	apiserverAddr   = flag.String("apiserver_addr", "host.docker.internal:8443", "APIServer address.")
 	healthProbePort = flag.Int("health_probe_port", 8080, "Port for the health probe.")
 	readyProbePort  = flag.Int("ready_probe_port", 8083, "Port for the ready probe.")
 
@@ -135,10 +135,10 @@ func main() {
 	log.Init(lOpts...)
 	ctx := context.Background()
 
-	if *apiserverHost == "" {
-		log.Fatalf("--apiserver_host must be set")
+	if *apiserverAddr == "" {
+		log.Fatalf("--apiserver_addr must be set")
 	}
-	rC := apiserver.NewClientConfig(apiserver.WithClientHost(*apiserverHost))
+	rC := apiserver.NewClientConfig(apiserver.WithClientHost(*apiserverAddr))
 
 	if *proxyPath == "" && *proxyName == "" {
 		log.Fatalf("either --proxy_path or --proxy must be set")
@@ -281,7 +281,7 @@ func main() {
 		mgr.GetClient(),
 		*proxyName,
 		*replicaName,
-		*apiserverHost,
+		*apiserverAddr,
 		proxyOpts...,
 	)
 	if err := pctrl.SetupWithManager(ctx, mgr); err != nil {
@@ -290,7 +290,7 @@ func main() {
 	}
 	if err := bpctrl.NewEdgeFuncReconciler(
 		mgr.GetClient(),
-		fmt.Sprintf("%s:%d", *apiserverHost, *wasmStorePort),
+		fmt.Sprintf("%s:%d", *apiserverAddr, *wasmStorePort),
 		ms,
 		*goPluginDir,
 		*esZipDir,

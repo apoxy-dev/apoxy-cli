@@ -572,7 +572,7 @@ func start(
 				o.RecommendedOptions.SecureServing = &apiserveropts.SecureServingOptionsWithLoopback{
 					SecureServingOptions: &apiserveropts.SecureServingOptions{
 						BindAddress: netutils.ParseIPSloppy("0.0.0.0"),
-						BindPort:    443,
+						BindPort:    8443,
 						ServerCert: apiserveropts.GeneratableKeyCert{
 							GeneratedCert: genCert,
 						},
@@ -629,7 +629,7 @@ func start(
 		}
 	}()
 	go func() {
-		if err := waitForReadyz("https://127.0.0.1:443", 30*time.Second); err != nil {
+		if err := waitForReadyz("https://localhost:8443", 30*time.Second); err != nil {
 			log.Fatalf("Failed to wait for APIServer: %v", err)
 		}
 		log.Infof("APIServer is ready")

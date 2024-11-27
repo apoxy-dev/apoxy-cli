@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	goerrors "errors"
 	"fmt"
+	"net"
 	"strconv"
 	"sync"
 	"time"
@@ -52,7 +53,7 @@ type ProxyReconciler struct {
 
 	proxyName     string
 	replicaName   string
-	apiServerAddr string
+	apiServerHost string
 
 	options *options
 }
@@ -129,11 +130,18 @@ func NewProxyReconciler(
 	for _, opt := range opts {
 		opt(sOpts)
 	}
+
+	// Is there a port specified in the API server address?
+	apiServerHost, _, err := net.SplitHostPort(apiServerAddr)
+	if err != nil {
+		apiServerHost = apiServerAddr
+	}
+
 	return &ProxyReconciler{
 		Client:        c,
 		proxyName:     proxyName,
 		replicaName:   replicaName,
-		apiServerAddr: apiServerAddr,
+		apiServerHost: apiServerHost,
 		options:       sOpts,
 	}
 }
@@ -299,7 +307,7 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 			cfg, err = validateBootstrapConfig(nodeID(p), p.Spec.Config)
 		} else {
 			cfg, err = bootstrap.GetRenderedBootstrapConfig(
-				bootstrap.WithXdsServerHost(r.apiServerAddr),
+				bootstrap.WithXdsServerHost(r.apiServerHost),
 				// TODO(dilyevsky): Add TLS config from r.options.apiServerTLSConfig.
 			)
 		}
