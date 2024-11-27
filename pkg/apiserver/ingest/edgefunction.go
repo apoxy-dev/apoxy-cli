@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"slices"
 	"strings"
 	"time"
 
@@ -81,9 +82,9 @@ func EdgeFunctionIngestWorkflow(ctx workflow.Context, in *EdgeFunctionIngestPara
 		// HeartbeatTimeout:    2 * time.Second,
 		RetryPolicy: &temporal.RetryPolicy{
 			InitialInterval:        time.Second,
-			BackoffCoefficient:     2.0,
+			BackoffCoefficient:     5.0,
 			MaximumInterval:        60 * time.Second,
-			MaximumAttempts:        10,
+			MaximumAttempts:        3,
 			NonRetryableErrorTypes: []string{"FatalError"},
 		},
 	}
@@ -701,20 +702,62 @@ func (w *worker) FinalizeActivity(
 			if f.Status.Live == "" {
 				f.Status.Phase = v1alpha1.EdgeFunctionPhaseNotReady
 				f.Status.Message = "No Ready revisions"
+				if !hasCondition(f.Status.Conditions, "Ready", metav1.ConditionFalse) {
+					f.Status.Conditions = append(f.Status.Conditions, metav1.Condition{
+						Type:               "Ready",
+						Status:             metav1.ConditionFalse,
+						Reason:             "Failed",
+						Message:            res.Err,
+						LastTransitionTime: metav1.NewTime(time.Now()),
+					})
+				}
+			} else {
+				f.Status.Phase = v1alpha1.EdgeFunctionPhaseReady // Was Updating.
+				if !hasCondition(f.Status.Conditions, "Ready", metav1.ConditionTrue) {
+					f.Status.Conditions = append(f.Status.Conditions, metav1.Condition{
+						Type:               "Ready",
+						Status:             metav1.ConditionTrue,
+						Reason:             "Ready",
+						Message:            "Ready",
+						LastTransitionTime: metav1.NewTime(time.Now()),
+					})
+				}
 			}
 		} else {
-			rev.Conditions = append(f.Status.Conditions, metav1.Condition{
-				Type:               "Ready",
-				Status:             metav1.ConditionTrue,
-				Reason:             "Ready",
-				Message:            "Ready",
-				LastTransitionTime: metav1.NewTime(time.Now()),
-			})
-
 			f.Status.Phase = v1alpha1.EdgeFunctionPhaseReady
+			if !hasCondition(f.Status.Conditions, "Ready", metav1.ConditionTrue) {
+				f.Status.Conditions = append(f.Status.Conditions, metav1.Condition{
+					Type:               "Ready",
+					Status:             metav1.ConditionTrue,
+					Reason:             "Ready",
+					Message:            "Ready",
+					LastTransitionTime: metav1.NewTime(time.Now()),
+				})
+			}
+
+			if !hasCondition(rev.Conditions, "Ready", metav1.ConditionTrue) {
+				rev.Conditions = append(rev.Conditions, metav1.Condition{
+					Type:               "Ready",
+					Status:             metav1.ConditionTrue,
+					Reason:             "Ready",
+					Message:            "Ready",
+					LastTransitionTime: metav1.NewTime(time.Now()),
+				})
+			}
+			if !hasCondition(rev.Conditions, "Live", metav1.ConditionTrue) {
+				rev.Conditions = append(rev.Conditions, metav1.Condition{
+					Type:               "Live",
+					Status:             metav1.ConditionTrue,
+					Reason:             "Live",
+					Message:            "Revision is live",
+					LastTransitionTime: metav1.NewTime(time.Now()),
+				})
+			}
+
+			resetLiveRevision(f, rev.Ref)
+
 			// Prepend the revision to the list of revisions.
 			f.Status.Revisions = append([]v1alpha1.EdgeFunctionRevision{rev}, f.Status.Revisions...)
-			f.Status.Live = rev.Ref
 		}
 
 		if _, err := w.a3y.ExtensionsV1alpha1().EdgeFunctions().UpdateStatus(ctx, f, metav1.UpdateOptions{}); err != nil {
@@ -726,6 +769,51 @@ func (w *worker) FinalizeActivity(
 
 		return nil
 	})
+}
+
+func resetLiveRevision(f *v1alpha1.EdgeFunction, liveRef string) {
+	if f.Status.Live == liveRef {
+		return
+	}
+
+	// Find the previous Live revision.
+	prevIdx := slices.IndexFunc(f.Status.Revisions, func(r v1alpha1.EdgeFunctionRevision) bool {
+		return r.Ref == f.Status.Live
+	})
+	if prevIdx == -1 {
+		return
+	}
+
+	f.Status.Live = liveRef
+
+	// Find existing Live condition and update it.
+	liveIdx := slices.IndexFunc(f.Status.Revisions[prevIdx].Conditions, func(c metav1.Condition) bool {
+		return c.Type == "Live"
+	})
+	if liveIdx != -1 {
+		f.Status.Revisions[prevIdx].Conditions[liveIdx].Status = metav1.ConditionFalse
+		f.Status.Revisions[prevIdx].Conditions[liveIdx].Message = "Revision is not live"
+		f.Status.Revisions[prevIdx].Conditions[liveIdx].LastTransitionTime = metav1.NewTime(time.Now())
+	} else {
+		f.Status.Revisions[prevIdx].Conditions = append(f.Status.Revisions[prevIdx].Conditions,
+			metav1.Condition{
+				Type:               "Live",
+				Status:             metav1.ConditionFalse,
+				Reason:             "Live",
+				Message:            "Revision is not live",
+				LastTransitionTime: metav1.NewTime(time.Now()),
+			},
+		)
+	}
+}
+
+func hasCondition(conditions []metav1.Condition, condType string, status metav1.ConditionStatus) bool {
+	for _, c := range conditions {
+		if c.Type == condType && c.Status == status {
+			return true
+		}
+	}
+	return false
 }
 
 // ListenAndServeEdgeFuncs starts an HTTP server to serve the Edge Function .wasm file.
