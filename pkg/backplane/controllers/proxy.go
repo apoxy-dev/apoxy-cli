@@ -6,7 +6,6 @@ import (
 	"crypto/tls"
 	goerrors "errors"
 	"fmt"
-	"net"
 	"strconv"
 	"sync"
 	"time"
@@ -123,18 +122,12 @@ func NewProxyReconciler(
 	c client.Client,
 	proxyName string,
 	replicaName string,
-	apiServerAddr string,
+	apiServerHost string,
 	opts ...Option,
 ) *ProxyReconciler {
 	sOpts := defaultOptions()
 	for _, opt := range opts {
 		opt(sOpts)
-	}
-
-	// Is there a port specified in the API server address?
-	apiServerHost, _, err := net.SplitHostPort(apiServerAddr)
-	if err != nil {
-		apiServerHost = apiServerAddr
 	}
 
 	return &ProxyReconciler{

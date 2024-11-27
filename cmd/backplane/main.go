@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -61,7 +62,7 @@ var (
 
 	devMode = flag.Bool("dev", false, "Enable development mode.")
 
-	apiserverAddr   = flag.String("apiserver_addr", "host.docker.internal:8443", "APIServer address.")
+	apiServerAddr   = flag.String("apiserver_addr", "host.docker.internal:8443", "APIServer address.")
 	healthProbePort = flag.Int("health_probe_port", 8080, "Port for the health probe.")
 	readyProbePort  = flag.Int("ready_probe_port", 8083, "Port for the ready probe.")
 
@@ -135,10 +136,10 @@ func main() {
 	log.Init(lOpts...)
 	ctx := context.Background()
 
-	if *apiserverAddr == "" {
+	if *apiServerAddr == "" {
 		log.Fatalf("--apiserver_addr must be set")
 	}
-	rC := apiserver.NewClientConfig(apiserver.WithClientHost(*apiserverAddr))
+	rC := apiserver.NewClientConfig(apiserver.WithClientHost(*apiServerAddr))
 
 	if *proxyPath == "" && *proxyName == "" {
 		log.Fatalf("either --proxy_path or --proxy must be set")
@@ -277,20 +278,28 @@ func main() {
 		go hc.Start(ctx, *readyProbePort)
 		proxyOpts = append(proxyOpts, bpctrl.WithAggregatedHealthChecker(hc))
 	}
+
+	// Is there a port specified in the API server address?
+	apiServerHost, _, err := net.SplitHostPort(*apiServerAddr)
+	if err != nil {
+		apiServerHost = *apiServerAddr
+	}
+
 	pctrl := bpctrl.NewProxyReconciler(
 		mgr.GetClient(),
 		*proxyName,
 		*replicaName,
-		*apiserverAddr,
+		apiServerHost,
 		proxyOpts...,
 	)
 	if err := pctrl.SetupWithManager(ctx, mgr); err != nil {
 		log.Errorf("failed to set up Backplane controller: %v", err)
 		return
 	}
+
 	if err := bpctrl.NewEdgeFuncReconciler(
 		mgr.GetClient(),
-		fmt.Sprintf("%s:%d", *apiserverAddr, *wasmStorePort),
+		net.JoinHostPort(apiServerHost, strconv.Itoa(*wasmStorePort)),
 		ms,
 		*goPluginDir,
 		*esZipDir,
