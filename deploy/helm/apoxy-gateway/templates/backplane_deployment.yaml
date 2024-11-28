@@ -47,7 +47,7 @@ spec:
           imagePullPolicy: {{ .Values.backplane.image.pullPolicy }}
           args:
             - --proxy={{ .Values.backplane.proxy.name }}
-            - --apiserver_host={{ include "apoxy-gateway.fullname" . }}-apiserver
+            - --apiserver_addr={{ include "apoxy-gateway.fullname" . }}-apiserver
             - --dev
           {{- with .Values.backplane.extraArgs }}
             {{- toYaml . | nindent 12 }}

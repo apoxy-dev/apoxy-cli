@@ -18,7 +18,7 @@ type clientOptions struct {
 }
 
 // WithClientHost sets the host for the client.
-// The default host is "localhost:443".
+// The default host is "localhost:8443".
 func WithClientHost(host string) ClientOption {
 	return func(o *clientOptions) {
 		o.host = host
@@ -49,7 +49,7 @@ func WithTransportWrapper(fn transport.WrapperFunc) ClientOption {
 
 func defaultClientOptions() *clientOptions {
 	return &clientOptions{
-		host: "localhost:443",
+		host: "localhost:8443",
 		tlsConfig: rest.TLSClientConfig{
 			Insecure: true,
 		},
