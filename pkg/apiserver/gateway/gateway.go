@@ -525,11 +525,17 @@ func (r *GatewayReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manag
 		)
 
 	if r.watchK8s {
-		b = b.Watches(
-			&corev1.Service{},
-			handler.EnqueueRequestsFromMapFunc(r.enqueueClass),
-			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
-		)
+		b = b.
+			Watches(
+				&corev1.Service{},
+				handler.EnqueueRequestsFromMapFunc(r.enqueueClass),
+				builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
+			).
+			Watches(
+				&corev1.Secret{},
+				handler.EnqueueRequestsFromMapFunc(r.enqueueClass),
+				builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
+			)
 	}
 
 	return b.Complete(r)
