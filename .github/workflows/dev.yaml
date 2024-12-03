@@ -1,0 +1,23 @@
+name: build
+on:
+  push:
+    branches:
+      - '**'
+      - '!main'
+jobs:
+  build-all:
+    runs-on: depot-ubuntu-22.04-16,dagger=0.14.0
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ">=1.21.5"
+      - name: Run Dagger pipeline
+        env:
+          SHUTUP: 1
+        timeout-minutes: 15
+        run: |
+          dagger call -v build-cli --src=.
+          dagger call -v build-api-server --src=.
+          dagger call -v build-backplane --src=.
