@@ -876,10 +876,10 @@ github.com/docker/go-units v0.5.0 h1:69rxXcBk27SvSaaxTtLh/8llcHD8vYHT7WSdRZ/jvr4
 github.com/docker/go-units v0.5.0/go.mod h1:fgPhTUdO+D/Jk86RDLlptpiXQzgHJF7gydDDbaIK4Dk=
 github.com/docker/spdystream v0.0.0-20160310174837-449fdfce4d96/go.mod h1:Qh8CwZgvJUkLughtfhJv5dyTYa91l1fOUCrgjqmcifM=
 github.com/docopt/docopt-go v0.0.0-20180111231733-ee0de3bc6815/go.mod h1:WwZ+bS3ebgob9U8Nd0kOddGdZWjyMGR8Wziv+TBNwSE=
-github.com/dpeckett/contextio v0.5.0 h1:ElwjDU/jlMdffgRXovmwEKb12l+P7yo2N2edmzRSbCU=
-github.com/dpeckett/contextio v0.5.0/go.mod h1:7nbH59pdMFniofDCzIwLIPG0nqqjQKIgXgZZ1sU0eZI=
-github.com/dpeckett/triemap v0.2.0 h1:10CQ+UzxmJ0+Dn16vpQDQjrHLFxl/D54DlGLPmjxikk=
-github.com/dpeckett/triemap v0.2.0/go.mod h1:yHlUte6yMVCo/MXiT4gEbUt+9Z0vPQ8vI80wBLr+RbE=
+github.com/dpeckett/contextio v0.5.1 h1:w19s6EThbZuRpa2z/Lu06v6+o3rrZhbBzmkol6en/hA=
+github.com/dpeckett/contextio v0.5.1/go.mod h1:IY/CQ1ee6y4C5j/mU0X0M/D84s2FxNisggbNClTPndc=
+github.com/dpeckett/triemap v0.2.1 h1:qn4azAsnYMXBPYIdqtA7m8eYbmBssVN0Bo3ygSfeorE=
+github.com/dpeckett/triemap v0.2.1/go.mod h1:pBxNH+K6m5I4lVo+W7u6JEanxP13adD4t2XYVMxfmTo=
 github.com/dustin/go-humanize v0.0.0-20171111073723-bb3d318650d4/go.mod h1:HtrtbFcZ19U5GC7JDqmcUSB87Iq5E25KnS6fMYU6eOk=
 github.com/dustin/go-humanize v1.0.0/go.mod h1:HtrtbFcZ19U5GC7JDqmcUSB87Iq5E25KnS6fMYU6eOk=
 github.com/dustin/go-humanize v1.0.1 h1:GzkhY7T5VNhEkwH0PVJgjz+fX1rhBrR7pRT3mDkpeCY=

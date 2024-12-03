@@ -99,6 +99,7 @@ func (a *DomainZone) GetStatus() resource.StatusSubResource {
 }
 
 //+kubebuilder:object:root=true
+//+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // DomainZoneList is a list of Domain resources.
 type DomainZoneList struct {
