@@ -66,6 +66,7 @@ kind: EdgeFunction
 metadata:
   name: websocket
 spec:
+  mode: filter
   code:
     goPluginSource:
       url: http://localhost:8000/websocket.so

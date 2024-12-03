@@ -67,6 +67,7 @@ kind: EdgeFunction
 metadata:
   name: websocket
 spec:
+  mode: filter
   code:
     goPluginSource:
       oci:
