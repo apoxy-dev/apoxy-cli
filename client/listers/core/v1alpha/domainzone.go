@@ -24,44 +24,44 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-// ProxyLister helps list Proxies.
+// DomainZoneLister helps list DomainZones.
 // All objects returned here must be treated as read-only.
-type ProxyLister interface {
-	// List lists all Proxies in the indexer.
+type DomainZoneLister interface {
+	// List lists all DomainZones in the indexer.
 	// Objects returned here must be treated as read-only.
-	List(selector labels.Selector) (ret []*v1alpha.Proxy, err error)
-	// Get retrieves the Proxy from the index for a given name.
+	List(selector labels.Selector) (ret []*v1alpha.DomainZone, err error)
+	// Get retrieves the DomainZone from the index for a given name.
 	// Objects returned here must be treated as read-only.
-	Get(name string) (*v1alpha.Proxy, error)
-	ProxyListerExpansion
+	Get(name string) (*v1alpha.DomainZone, error)
+	DomainZoneListerExpansion
 }
 
-// proxyLister implements the ProxyLister interface.
-type proxyLister struct {
+// domainZoneLister implements the DomainZoneLister interface.
+type domainZoneLister struct {
 	indexer cache.Indexer
 }
 
-// NewProxyLister returns a new ProxyLister.
-func NewProxyLister(indexer cache.Indexer) ProxyLister {
-	return &proxyLister{indexer: indexer}
+// NewDomainZoneLister returns a new DomainZoneLister.
+func NewDomainZoneLister(indexer cache.Indexer) DomainZoneLister {
+	return &domainZoneLister{indexer: indexer}
 }
 
-// List lists all Proxies in the indexer.
-func (s *proxyLister) List(selector labels.Selector) (ret []*v1alpha.Proxy, err error) {
+// List lists all DomainZones in the indexer.
+func (s *domainZoneLister) List(selector labels.Selector) (ret []*v1alpha.DomainZone, err error) {
 	err = cache.ListAll(s.indexer, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1alpha.Proxy))
+		ret = append(ret, m.(*v1alpha.DomainZone))
 	})
 	return ret, err
 }
 
-// Get retrieves the Proxy from the index for a given name.
-func (s *proxyLister) Get(name string) (*v1alpha.Proxy, error) {
+// Get retrieves the DomainZone from the index for a given name.
+func (s *domainZoneLister) Get(name string) (*v1alpha.DomainZone, error) {
 	obj, exists, err := s.indexer.GetByKey(name)
 	if err != nil {
 		return nil, err
 	}
 	if !exists {
-		return nil, errors.NewNotFound(v1alpha.Resource("proxy"), name)
+		return nil, errors.NewNotFound(v1alpha.Resource("domainzone"), name)
 	}
-	return obj.(*v1alpha.Proxy), nil
+	return obj.(*v1alpha.DomainZone), nil
 }

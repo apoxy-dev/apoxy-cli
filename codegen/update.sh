@@ -61,3 +61,42 @@ go run "k8s.io/kube-openapi/cmd/openapi-gen@master" \
   ./api/extensions/v1alpha1 \
   ./api/gateway/v1 \
   ./api/policy/v1alpha1
+
+echo "Generating client code..."
+
+go run "k8s.io/code-generator/cmd/client-gen@${CODEGEN_VERSION}" \
+  --go-header-file "${BOILERPLATE_FILE}" \
+  --output-dir "client/" \
+  --output-pkg "github.com/apoxy-dev/apoxy-cli/client" \
+  --input-base "github.com/apoxy-dev/apoxy-cli/api" \
+  --clientset-name "versioned" \
+  --input "controllers/v1alpha1" \
+  --input "core/v1alpha" \
+  --input "extensions/v1alpha1" \
+  --input "gateway/v1" \
+  --input "policy/v1alpha1"
+
+echo "Generating listers and informers..."
+
+go run "k8s.io/code-generator/cmd/lister-gen@${CODEGEN_VERSION}" \
+  --go-header-file "${BOILERPLATE_FILE}" \
+  --output-dir "client/listers" \
+  --output-pkg "github.com/apoxy-dev/apoxy-cli/client" \
+  ./api/controllers/v1alpha1 \
+  ./api/core/v1alpha \
+  ./api/extensions/v1alpha1 \
+  ./api/gateway/v1 \
+  ./api/policy/v1alpha1
+
+go run "k8s.io/code-generator/cmd/informer-gen@${CODEGEN_VERSION}" \
+  --go-header-file "${BOILERPLATE_FILE}" \
+  --output-dir "client/informers" \
+  --output-pkg "github.com/apoxy-dev/apoxy-cli/client/informers" \
+  --versioned-clientset-package "github.com/apoxy-dev/apoxy-cli/client/versioned" \
+  --listers-package=github.com/apoxy-dev/apoxy-cli/client/listers \
+  --single-directory \
+  ./api/controllers/v1alpha1 \
+  ./api/core/v1alpha \
+  ./api/extensions/v1alpha1 \
+  ./api/gateway/v1 \
+  ./api/policy/v1alpha1

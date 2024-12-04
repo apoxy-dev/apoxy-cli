@@ -31,58 +31,58 @@ import (
 	cache "k8s.io/client-go/tools/cache"
 )
 
-// DomainInformer provides access to a shared informer and lister for
-// Domains.
-type DomainInformer interface {
+// DomainZoneInformer provides access to a shared informer and lister for
+// DomainZones.
+type DomainZoneInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1alpha.DomainLister
+	Lister() v1alpha.DomainZoneLister
 }
 
-type domainInformer struct {
+type domainZoneInformer struct {
 	factory          internalinterfaces.SharedInformerFactory
 	tweakListOptions internalinterfaces.TweakListOptionsFunc
 }
 
-// NewDomainInformer constructs a new informer for Domain type.
+// NewDomainZoneInformer constructs a new informer for DomainZone type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewDomainInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
-	return NewFilteredDomainInformer(client, resyncPeriod, indexers, nil)
+func NewDomainZoneInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
+	return NewFilteredDomainZoneInformer(client, resyncPeriod, indexers, nil)
 }
 
-// NewFilteredDomainInformer constructs a new informer for Domain type.
+// NewFilteredDomainZoneInformer constructs a new informer for DomainZone type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewFilteredDomainInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
+func NewFilteredDomainZoneInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
 	return cache.NewSharedIndexInformer(
 		&cache.ListWatch{
 			ListFunc: func(options v1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.CoreV1alpha().Domains().List(context.TODO(), options)
+				return client.CoreV1alpha().DomainZones().List(context.TODO(), options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.CoreV1alpha().Domains().Watch(context.TODO(), options)
+				return client.CoreV1alpha().DomainZones().Watch(context.TODO(), options)
 			},
 		},
-		&corev1alpha.Domain{},
+		&corev1alpha.DomainZone{},
 		resyncPeriod,
 		indexers,
 	)
 }
 
-func (f *domainInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
-	return NewFilteredDomainInformer(client, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
+func (f *domainZoneInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
+	return NewFilteredDomainZoneInformer(client, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
 }
 
-func (f *domainInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&corev1alpha.Domain{}, f.defaultInformer)
+func (f *domainZoneInformer) Informer() cache.SharedIndexInformer {
+	return f.factory.InformerFor(&corev1alpha.DomainZone{}, f.defaultInformer)
 }
 
-func (f *domainInformer) Lister() v1alpha.DomainLister {
-	return v1alpha.NewDomainLister(f.Informer().GetIndexer())
+func (f *domainZoneInformer) Lister() v1alpha.DomainZoneLister {
+	return v1alpha.NewDomainZoneLister(f.Informer().GetIndexer())
 }
