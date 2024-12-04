@@ -19,5 +19,3 @@ jobs:
         timeout-minutes: 15
         run: |
           dagger call -v build-cli --src=.
-          dagger call -v build-api-server --src=.
-          dagger call -v build-backplane --src=.
