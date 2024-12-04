@@ -143,6 +143,7 @@ func (a *Address) GetStatus() resource.StatusSubResource {
 }
 
 //+kubebuilder:object:root=true
+//+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // AddressList is a list of Address resources.
 type AddressList struct {

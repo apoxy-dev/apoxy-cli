@@ -10,8 +10,8 @@ require (
 	github.com/cncf/xds/go v0.0.0-20240423153145-555b57ec207b
 	github.com/coder/websocket v1.8.12
 	github.com/docker/docker v27.2.0+incompatible
-	github.com/dpeckett/contextio v0.5.0
-	github.com/dpeckett/triemap v0.2.0
+	github.com/dpeckett/contextio v0.5.1
+	github.com/dpeckett/triemap v0.2.1
 	github.com/envoyproxy/gateway v0.5.0-rc.1.0.20240618131507-bdff5d56b59d
 	github.com/envoyproxy/go-control-plane v0.12.1-0.20240612043845-c54ec4ce422d
 	github.com/envoyproxy/ratelimit v1.4.1-0.20230427142404-e2a87f41d3a7

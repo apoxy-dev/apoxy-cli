@@ -301,6 +301,7 @@ func (a *Domain) GetStatus() resource.StatusSubResource {
 }
 
 //+kubebuilder:object:root=true
+//+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // DomainList is a list of Domain resources.
 type DomainList struct {

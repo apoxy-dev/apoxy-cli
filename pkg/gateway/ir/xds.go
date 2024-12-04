@@ -789,6 +789,7 @@ func (j *JWT) validate() error {
 
 // RouteDestination holds the destination details associated with the route
 // +kubebuilder:object:generate=true
+// +k8s:deepcopy-gen=true
 type RouteDestination struct {
 	// Name of the destination. This field allows the xds layer
 	// to check if this route destination already exists and can be
@@ -834,6 +835,7 @@ func (r *RouteDestination) ToBackendWeights() *BackendWeights {
 
 // DestinationSetting holds the settings associated with the destination
 // +kubebuilder:object:generate=true
+// +k8s:deepcopy-gen=true
 type DestinationSetting struct {
 	// Weight associated with this destination,
 	// invalid endpoints are represents with a
