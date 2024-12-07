@@ -33,7 +33,6 @@ import (
 	"github.com/apoxy-dev/apoxy-cli/client/versioned"
 	"github.com/apoxy-dev/apoxy-cli/pkg/apiserver"
 	bpctrl "github.com/apoxy-dev/apoxy-cli/pkg/backplane/controllers"
-	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/dns"
 	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/healthchecker"
 	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/kvstore"
 	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/wasm/ext_proc"
@@ -204,13 +203,6 @@ func main() {
 	case <-ctx.Done():
 		log.Fatalf("Failed to start K/V store: %v", ctx.Err())
 	}
-
-	d := dns.NewResolver(kv)
-	go func() {
-		if err := d.Start(ctx, ":1053"); err != nil {
-			log.Fatalf("Failed to start DNS CNAME resolver: %v", err)
-		}
-	}()
 
 	log.Infof("Setting up WASM runtime")
 
