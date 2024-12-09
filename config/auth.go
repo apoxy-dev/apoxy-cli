@@ -13,6 +13,7 @@ import (
 	"github.com/pkg/browser"
 	"golang.org/x/exp/slog"
 
+	configv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/config/v1alpha1"
 	"github.com/apoxy-dev/apoxy-cli/rest"
 	"github.com/apoxy-dev/apoxy-cli/web"
 )
@@ -23,30 +24,48 @@ type authContext struct {
 }
 
 type Authenticator struct {
-	cfg    *Config
+	cfg    *configv1alpha1.Config
 	authCh chan authContext
 }
 
-func NewAuthenticator(cfg *Config) *Authenticator {
+func NewAuthenticator(cfg *configv1alpha1.Config) *Authenticator {
 	return &Authenticator{
 		cfg: cfg,
 	}
 }
 
 func (a *Authenticator) Check() (bool, error) {
-	slog.Debug("Checking API Key", "APIKey", a.cfg.APIKey)
-	c, err := rest.NewAPIClient(a.cfg.APIBaseURL, a.cfg.APIBaseHost, a.cfg.APIKey, a.cfg.ProjectID)
+	if a.cfg.CurrentProject == uuid.Nil {
+		return false, fmt.Errorf("project ID not set")
+	}
+
+	var project *configv1alpha1.Project
+	for i, p := range a.cfg.Projects {
+		if p.ID == a.cfg.CurrentProject {
+			project = &a.cfg.Projects[i]
+			break
+		}
+	}
+	if project == nil {
+		return false, fmt.Errorf("project not found: %s", a.cfg.CurrentProject)
+	}
+
+	slog.Debug("Checking API Key", "APIKey", project.APIKey)
+	c, err := rest.NewAPIClient(project.APIBaseURL, project.APIBaseHost, project.APIKey, project.ID)
 	if err != nil {
 		return true, err
 	}
+
 	resp, err := c.SendRequest(http.MethodPost, "/v1/terra/check", nil)
 	if err != nil {
 		return true, err
 	}
+
 	slog.Debug("/v1/terra/check returned", "status", resp.StatusCode)
 	if resp.StatusCode != 200 {
 		return false, nil
 	}
+
 	return true, nil
 }
 
@@ -105,11 +124,11 @@ func (a *Authenticator) launchServer() int {
 		slog.Debug(fmt.Sprintf("Server listening on port %d", port))
 		err = http.Serve(listener, nil)
 		if err != nil {
-			slog.Error(fmt.Sprintf("Error starting server: %v", err))
+			slog.Error("Error starting server", slog.Any("error", err))
 		}
 	}()
 	if err := a.awaitHealthy(port); err != nil {
-		slog.Error(fmt.Sprintf("Error starting server: %v", err))
+		slog.Error("Error starting server", slog.Any("error", err))
 		sentry.CaptureMessage("auth redirect server failed to start")
 	}
 	return port
@@ -128,9 +147,21 @@ func (a *Authenticator) Authenticate() {
 	fmt.Println("If a browser window did not open, you may authenticate using the following URL:")
 	fmt.Printf("\n\t%s\n\n", authUrl)
 	key := <-a.authCh
-	a.cfg.APIKey = key.APIKey
-	a.cfg.ProjectID = key.ProjectID
-	slog.Debug("API key set", "APIKey", a.cfg.APIKey, "ProjectID", a.cfg.ProjectID)
+
+	var projectUpdated bool
+	for i, p := range a.cfg.Projects {
+		if p.ID == a.cfg.CurrentProject {
+			a.cfg.Projects[i].APIKey = key.APIKey
+			projectUpdated = true
+			break
+		}
+	}
+	if !projectUpdated {
+		slog.Error("Failed to update project", "ProjectID", a.cfg.CurrentProject)
+		return
+	}
+
+	slog.Debug("API key set", "APIKey", key.APIKey, "ProjectID", a.cfg.CurrentProject)
 	fmt.Println("Login Succcessful!")
 	return
 }
