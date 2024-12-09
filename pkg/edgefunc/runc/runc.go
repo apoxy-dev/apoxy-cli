@@ -112,6 +112,7 @@ func initIPAM(
 	return prefixIPv4, nil
 }
 
+// New returns a new edgefunc.Runtime implementation based on runc.
 func New(ctx context.Context, opts ...Option) (edgefunc.Runtime, error) {
 	runtimeOpts := defaultOptions()
 	for _, o := range opts {
@@ -272,6 +273,7 @@ func newNs(rid string) (netns.NsHandle, error) {
 	return netns.NewNamed(rid)
 }
 
+// Start requests the runtime to start the execution of the function.
 func (r *runtime) Start(ctx context.Context, id string, esZipPath string) error {
 	h, err := newNs(id)
 	if err != nil {
@@ -325,6 +327,7 @@ func (r *runtime) Start(ctx context.Context, id string, esZipPath string) error 
 	return nil
 }
 
+// Stop requests the runtime to stop the execution of the function.
 func (r *runtime) Stop(ctx context.Context, id string) error {
 	ctr, err := libcontainer.Load(r.stateDir, id)
 	if err != nil {
@@ -356,22 +359,78 @@ func (r *runtime) Stop(ctx context.Context, id string) error {
 	return nil
 }
 
+func stateFromStatus(status libcontainer.Status) edgefunc.State {
+	switch status {
+	case libcontainer.Stopped:
+		return edgefunc.StateStopped
+	case libcontainer.Running:
+		return edgefunc.StateRunning
+	case libcontainer.Paused:
+		return edgefunc.StatePaused
+	default:
+		return edgefunc.StateUnknown
+	}
+}
+
+// Status returns the status of the function with the given id.
 func (r *runtime) Status(ctx context.Context, id string) (edgefunc.Status, error) {
 	ctr, err := libcontainer.Load(r.stateDir, id)
 	if err != nil {
 		return edgefunc.Status{}, fmt.Errorf("failed to load container: %v", err)
 	}
-	status, err := ctr.Status()
+
+	cStatus, err := ctr.Status()
 	if err != nil {
 		return edgefunc.Status{}, fmt.Errorf("failed to get container status: %v", err)
 	}
-	state, err := ctr.State()
+	cState, err := ctr.State()
 	if err != nil {
 		return edgefunc.Status{}, fmt.Errorf("failed to get container state: %v", err)
 	}
 
 	return edgefunc.Status{
-		State:     status.String(),
-		CreatedAt: state.Created,
+		ID:        id,
+		State:     stateFromStatus(cStatus),
+		CreatedAt: cState.Created,
 	}, nil
+}
+
+// List returns a list of all functions running in the runtime.
+func (r *runtime) List(ctx context.Context) ([]edgefunc.Status, error) {
+	dir, err := os.ReadDir(r.stateDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read state dir: %v", err)
+	}
+	if len(dir) == 0 {
+		return nil, nil
+	}
+
+	statuses := make([]edgefunc.Status, 0, len(dir))
+	for _, d := range dir {
+		if !d.IsDir() {
+			continue
+		}
+
+		ctr, err := libcontainer.Load(r.stateDir, d.Name())
+		if err != nil {
+			return nil, fmt.Errorf("failed to list containers: %v", err)
+		}
+
+		cStatus, err := ctr.Status()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get container status: %v", err)
+		}
+		cState, err := ctr.State()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get container state: %v", err)
+		}
+
+		statuses = append(statuses, edgefunc.Status{
+			ID:        d.Name(),
+			State:     stateFromStatus(cStatus),
+			CreatedAt: cState.Created,
+		})
+	}
+
+	return statuses, nil
 }
