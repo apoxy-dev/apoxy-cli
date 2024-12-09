@@ -204,7 +204,7 @@ func (r *EdgeFunctionReconciler) Reconcile(ctx context.Context, request reconcil
 func (r *EdgeFunctionReconciler) reconileEdgeRuntime(ctx context.Context, ref string) error {
 	log := clog.FromContext(ctx)
 
-	s, err := r.edgeRuntime.Status(ref)
+	s, err := r.edgeRuntime.Status(ctx, ref)
 	if err != nil {
 		return fmt.Errorf("failed to get Edge Runtime status: %w", err)
 	}
