@@ -40,10 +40,6 @@ func (r *EdgeFunction) Default() {
 			r.Spec.Runtime.Port = ptr.To(int32(8080))
 		}
 	}
-
-	if r.Status.Phase == "" {
-		r.Status.Phase = EdgeFunctionPhasePreparing
-	}
 }
 
 var _ resourcestrategy.Validater = &EdgeFunction{}

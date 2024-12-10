@@ -400,6 +400,7 @@ func (m *Manager) Start(
 	log.Infof("Registering EdgeFunction controller")
 	if err := extensions.NewEdgeFuncReconciler(
 		m.manager.GetClient(),
+		m.manager.GetScheme(),
 		tc,
 	).SetupWithManager(ctx, m.manager); err != nil {
 		return fmt.Errorf("failed to set up Project controller: %v", err)
@@ -545,6 +546,7 @@ func start(
 			WithResourceAndStorage(&ctrlv1alpha1.Proxy{}, kineStore).
 			WithResourceAndStorage(&policyv1alpha1.RateLimit{}, kineStore).
 			WithResourceAndStorage(&extensionsv1alpha1.EdgeFunction{}, kineStore).
+			WithResourceAndStorage(&extensionsv1alpha1.EdgeFunctionRevision{}, kineStore).
 			WithResourceAndStorage(&gatewayv1.GatewayClass{}, kineStore).
 			WithResourceAndStorage(&gatewayv1.Gateway{}, kineStore).
 			WithResourceAndStorage(&gatewayv1.HTTPRoute{}, kineStore).

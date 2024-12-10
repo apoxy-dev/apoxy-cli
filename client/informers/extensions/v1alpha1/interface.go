@@ -25,6 +25,8 @@ import (
 type Interface interface {
 	// EdgeFunctions returns a EdgeFunctionInformer.
 	EdgeFunctions() EdgeFunctionInformer
+	// EdgeFunctionRevisions returns a EdgeFunctionRevisionInformer.
+	EdgeFunctionRevisions() EdgeFunctionRevisionInformer
 }
 
 type version struct {
@@ -41,4 +43,9 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 // EdgeFunctions returns a EdgeFunctionInformer.
 func (v *version) EdgeFunctions() EdgeFunctionInformer {
 	return &edgeFunctionInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
+}
+
+// EdgeFunctionRevisions returns a EdgeFunctionRevisionInformer.
+func (v *version) EdgeFunctionRevisions() EdgeFunctionRevisionInformer {
+	return &edgeFunctionRevisionInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }

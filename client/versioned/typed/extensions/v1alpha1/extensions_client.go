@@ -28,6 +28,7 @@ import (
 type ExtensionsV1alpha1Interface interface {
 	RESTClient() rest.Interface
 	EdgeFunctionsGetter
+	EdgeFunctionRevisionsGetter
 }
 
 // ExtensionsV1alpha1Client is used to interact with features provided by the extensions.apoxy.dev group.
@@ -37,6 +38,10 @@ type ExtensionsV1alpha1Client struct {
 
 func (c *ExtensionsV1alpha1Client) EdgeFunctions() EdgeFunctionInterface {
 	return newEdgeFunctions(c)
+}
+
+func (c *ExtensionsV1alpha1Client) EdgeFunctionRevisions() EdgeFunctionRevisionInterface {
+	return newEdgeFunctionRevisions(c)
 }
 
 // NewForConfig creates a new ExtensionsV1alpha1Client for the given config.

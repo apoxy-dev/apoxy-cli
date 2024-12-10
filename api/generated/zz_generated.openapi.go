@@ -77,6 +77,8 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionCodeSource":        schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionCodeSource(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionList":              schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionList(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRevision":          schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionRevision(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRevisionList":      schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionRevisionList(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRevisionStatus":    schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionRevisionStatus(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRuntime":           schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionRuntime(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionSpec":              schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionSpec(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionStatus":            schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionStatus(ref),
@@ -2515,25 +2517,115 @@ func schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionRevision(ref common.Re
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
+				Description: "EdgeFunctionRevision is a single revision of an EdgeFunction",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
+						},
+					},
+					"spec": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionSpec"),
+						},
+					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRevisionStatus"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRevisionStatus", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionSpec", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+	}
+}
+
+func schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionRevisionList(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
 				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
+						},
+					},
+					"items": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRevision"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"items"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRevision", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+	}
+}
+
+func schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionRevisionStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "EdgeFunctionRevisionStatus defines the observed state of EdgeFunctionRevision",
+				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"ref": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Ref is the reference to the function revision.",
+							Description: "Ref is the functions' uniquely identifying reference.",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
-					"createdAt": {
-						SchemaProps: spec.SchemaProps{
-							Description: "CreatedAt is the time the function revision was created.",
-							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
-						},
-					},
 					"conditions": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Conditions describe the current conditions of the revision.",
+							Description: "Conditions represent the latest available observations of an EdgeFunctionRevision's current state.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -2546,11 +2638,11 @@ func schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionRevision(ref common.Re
 						},
 					},
 				},
-				Required: []string{"ref", "createdAt"},
+				Required: []string{"ref"},
 			},
 		},
 		Dependencies: []string{
-			"k8s.io/apimachinery/pkg/apis/meta/v1.Condition", "k8s.io/apimachinery/pkg/apis/meta/v1.Time"},
+			"k8s.io/apimachinery/pkg/apis/meta/v1.Condition"},
 	}
 }
 
@@ -2643,38 +2735,9 @@ func schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionStatus(ref common.Refe
 			SchemaProps: spec.SchemaProps{
 				Type: []string{"object"},
 				Properties: map[string]spec.Schema{
-					"phase": {
+					"liveRevision": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Phase is the current phase of the function.",
-							Default:     "",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"message": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Message is a human-readable message indicating details about the function.",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"revisions": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Revisions is a list of function revisions. Latest revision is the first element in the list.",
-							Type:        []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRevision"),
-									},
-								},
-							},
-						},
-					},
-					"live": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Live is the reference to the live function revision.",
+							Description: "LiveRevision is the revision of the function that is currently being served referenced by EdgeFunctionRevision object name.",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -2694,11 +2757,10 @@ func schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionStatus(ref common.Refe
 						},
 					},
 				},
-				Required: []string{"phase"},
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRevision", "k8s.io/apimachinery/pkg/apis/meta/v1.Condition"},
+			"k8s.io/apimachinery/pkg/apis/meta/v1.Condition"},
 	}
 }
 

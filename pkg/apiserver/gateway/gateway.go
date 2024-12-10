@@ -113,7 +113,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, request reconcile.Req
 	}
 
 	res := gatewayapi.NewResources()
-	extRefs, err := r.getExtensionRefs(ctx)
+	extRefs, err := r.getExtensionRefs(ctx, res)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to get extension references: %w", err)
 	}
@@ -151,17 +151,38 @@ type extensionRefKey struct {
 
 func (r *GatewayReconciler) getExtensionRefs(
 	ctx context.Context,
+	res *gatewayapi.Resources,
 ) (map[extensionRefKey]*unstructured.Unstructured, error) {
-	extRefs := make(map[extensionRefKey]*unstructured.Unstructured)
+	log := clog.FromContext(ctx)
+
+	var (
+		extRefs   = make(map[extensionRefKey]*unstructured.Unstructured)
+		edgeFuncs = make(map[string]bool)
+	)
 
 	funls := extensionsv1alpha1.EdgeFunctionList{}
 	if err := r.List(ctx, &funls, client.MatchingFields{edgeFunctionLiveIndex: "true"}); err != nil {
 		return nil, fmt.Errorf("failed to list EdgeFunctions: %w", err)
 	}
 	for _, fun := range funls.Items {
+		if fun.Status.LiveRevision == "" {
+			log.V(1).Info("EdgeFunction is not ready", "name", fun.Name)
+			continue
+		}
+
 		un, err := conv.ToUnstructured(&fun)
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert EdgeFunction to Unstructured: %w", err)
+		}
+
+		// Collect live revisions.
+		rev := &extensionsv1alpha1.EdgeFunctionRevision{}
+		if err := r.Get(ctx, types.NamespacedName{Name: fun.Status.LiveRevision}, rev); err != nil {
+			return nil, fmt.Errorf("failed to get EdgeFunctionRevision: %w", err)
+		}
+		if !edgeFuncs[fun.Name] {
+			edgeFuncs[fun.Name] = true
+			res.EdgeFunctionRevisions = append(res.EdgeFunctionRevisions, rev)
 		}
 
 		extRefs[extensionRefKey{
@@ -486,9 +507,9 @@ func (r *GatewayReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manag
 			return fmt.Errorf("failed to setup field indexer: %w", err)
 		}
 	}
-	// Index EdgeFunction objects that  are live.
+	// Index EdgeFunction objects that are ready.
 	if err := mgr.GetFieldIndexer().IndexField(ctx, &extensionsv1alpha1.EdgeFunction{}, edgeFunctionLiveIndex, func(obj client.Object) []string {
-		if obj.(*extensionsv1alpha1.EdgeFunction).Status.Live != "" {
+		if obj.(*extensionsv1alpha1.EdgeFunction).Status.LiveRevision != "" {
 			return []string{"true"}
 		}
 		return nil

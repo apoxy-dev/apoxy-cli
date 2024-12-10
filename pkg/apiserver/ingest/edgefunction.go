@@ -2,9 +2,7 @@ package ingest
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,7 +13,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
-	"slices"
 	"strings"
 	"time"
 
@@ -48,25 +45,13 @@ const (
 )
 
 type EdgeFunctionIngestParams struct {
-	Obj *v1alpha1.EdgeFunction
+	Obj *v1alpha1.EdgeFunctionRevision
 }
 
 type IngestResult struct {
 	AssetFilePath      string
 	AssetFileCreatedAt metav1.Time
 	Err                string
-}
-
-// WorkflowID returns a unique identifier for the Edge Function ingest workflow.
-// Each workflow is uniquely identified by the Edge Function name and its code configuration.
-func WorkflowID(o *v1alpha1.EdgeFunction) (string, error) {
-	bs, err := json.Marshal(o.Spec.Code)
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal EdgeFunction code spec: %w", err)
-	}
-	h := sha256.New()
-	h.Write(bs)
-	return o.Name + "@sha256:" + hex.EncodeToString(h.Sum(nil)), nil
 }
 
 // RegisterWorkflows registers Edge Function workflows with the Temporal worker.
@@ -104,6 +89,10 @@ func EdgeFunctionIngestWorkflow(ctx workflow.Context, in *EdgeFunctionIngestPara
 	var w *worker
 	var res IngestResult
 
+	if err := workflow.ExecuteActivity(ctx, w.AddIngestConditionActivity, in).Get(ctx, nil); err != nil {
+		return err
+	}
+
 	// Reflect if more than one pointer set.
 	cv := reflect.ValueOf(in.Obj.Spec.Code)
 	var fSet []reflect.Value
@@ -122,14 +111,14 @@ func EdgeFunctionIngestWorkflow(ctx workflow.Context, in *EdgeFunctionIngestPara
 	case 1:
 		switch fSet[0].Interface().(type) {
 		case *v1alpha1.WasmSource:
-			log.Info("EdgeFunction ingest started", "Source", "WASM")
+			log.Info("EdgeFunctionRevision ingest started", "Source", "WASM")
 			err = workflow.ExecuteActivity(sessCtx, w.DownloadWasmActivity, in).Get(sessCtx, &res)
 			if err != nil {
 				log.Error("Download activity failed", "Error", err)
 				goto Finalize
 			}
 
-			log.Info("EdgeFunction .wasm staged successfully", "WasmFilePath", res.AssetFilePath)
+			log.Info("EdgeFunctionRevision .wasm staged successfully", "WasmFilePath", res.AssetFilePath)
 
 			err = workflow.ExecuteActivity(sessCtx, w.StoreWasmActivity, in, res).Get(sessCtx, nil)
 			if err != nil {
@@ -137,13 +126,13 @@ func EdgeFunctionIngestWorkflow(ctx workflow.Context, in *EdgeFunctionIngestPara
 				goto Finalize
 			}
 		case *v1alpha1.JavaScriptSource:
-			log.Info("EdgeFunction ingest started", "Source", "JS")
+			log.Info("EdgeFunctionRevision ingest started", "Source", "JS")
 			if err = workflow.ExecuteActivity(sessCtx, w.DownloadJsActivity, in).Get(sessCtx, &res); err != nil {
 				log.Error("Failed to download JS source", "Error", err)
 				goto Finalize
 			}
 
-			log.Info("EdgeFunction .eszip staged successfully", "EsZipPath", res.AssetFilePath)
+			log.Info("EdgeFunctionRevision .eszip staged successfully", "EsZipPath", res.AssetFilePath)
 
 			if err = workflow.ExecuteActivity(sessCtx, w.BundleJsActivity, in, res).Get(sessCtx, &res); err != nil {
 				log.Error("Failed to bundle JS source", "Error", err)
@@ -155,14 +144,14 @@ func EdgeFunctionIngestWorkflow(ctx workflow.Context, in *EdgeFunctionIngestPara
 				goto Finalize
 			}
 		case *v1alpha1.GoPluginSource:
-			log.Info("EdgeFunction ingest started", "Source", "GoPlugin")
+			log.Info("EdgeFunctionRevision ingest started", "Source", "GoPlugin")
 			err = workflow.ExecuteActivity(sessCtx, w.DownloadGoPluginActivity, in).Get(sessCtx, &res)
 			if err != nil {
 				log.Error("Download activity failed", "Error", err)
 				goto Finalize
 			}
 
-			log.Info("EdgeFunction Go plugin staged successfully", "GoPluginFilePath", res.AssetFilePath)
+			log.Info("EdgeFunctionRevision Go plugin staged successfully", "GoPluginFilePath", res.AssetFilePath)
 			err = workflow.ExecuteActivity(sessCtx, w.StoreGoPluginActivity, in, res).Get(sessCtx, nil)
 			if err != nil {
 				log.Error("Store activity failed", "Error", err)
@@ -176,7 +165,7 @@ func EdgeFunctionIngestWorkflow(ctx workflow.Context, in *EdgeFunctionIngestPara
 		for _, f := range fSet {
 			names = append(names, f.Type().Name())
 		}
-		err = fmt.Errorf("EdgeFunction must have either WASM or JS source, got %s", strings.Join(names, ", "))
+		err = fmt.Errorf("EdgeFunctionRevision must have either WASM or JS source, got %s", strings.Join(names, ", "))
 	}
 
 Finalize:
@@ -211,6 +200,7 @@ func NewWorker(c versioned.Interface, baseDir string) *worker {
 // RegisterActivities registers Edge Functions Ingest activities with
 // the Temporal worker instance.
 func (w *worker) RegisterActivities(tw tworker.Worker) {
+	tw.RegisterActivity(w.AddIngestConditionActivity)
 	tw.RegisterActivity(w.DownloadWasmActivity)
 	tw.RegisterActivity(w.StoreWasmActivity)
 	tw.RegisterActivity(w.DownloadJsActivity)
@@ -219,6 +209,42 @@ func (w *worker) RegisterActivities(tw tworker.Worker) {
 	tw.RegisterActivity(w.DownloadGoPluginActivity)
 	tw.RegisterActivity(w.StoreGoPluginActivity)
 	tw.RegisterActivity(w.FinalizeActivity)
+}
+
+func (w *worker) AddIngestConditionActivity(
+	ctx context.Context,
+	in *EdgeFunctionIngestParams,
+) error {
+	log := tlog.With(activity.GetLogger(ctx), "Name", in.Obj.Name, "ResourceVersion", in.Obj.ResourceVersion)
+	log.Info("Adding ingest condition to EdgeFunctionRevision")
+
+	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		rev, err := w.a3y.ExtensionsV1alpha1().EdgeFunctionRevisions().Get(ctx, in.Obj.Name, metav1.GetOptions{})
+		if err != nil {
+			log.Error("Failed to get EdgeFunctionRevision", "Error", err)
+			return err
+		}
+
+		rev.Status.Conditions = append(rev.Status.Conditions, metav1.Condition{
+			Type:               "Ingest",
+			Status:             metav1.ConditionTrue,
+			Reason:             "InProgress",
+			Message:            "Edge Function code is being ingested",
+			LastTransitionTime: metav1.NewTime(time.Now()),
+		})
+
+		if _, err := w.a3y.ExtensionsV1alpha1().EdgeFunctionRevisions().UpdateStatus(ctx, rev, metav1.UpdateOptions{}); err != nil {
+			log.Error("Failed to update Edge Function status", "Error", err)
+			return err
+		}
+
+		log.Info("Edge Function ingest condition added successfully")
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (w *worker) stagingDir(name, rid string) string {
@@ -676,34 +702,72 @@ func (w *worker) FinalizeActivity(
 	log := tlog.With(activity.GetLogger(ctx), "Name", in.Obj.Name, "ResourceVersion", in.Obj.ResourceVersion)
 	log.Info("Finalizing Edge Function ingest", "Error", res.Err)
 
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		log.Info("Updating Edge Function status")
+	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		log.Info("Updating EdgeFunctionRevision status")
 
-		f, err := w.a3y.ExtensionsV1alpha1().EdgeFunctions().Get(ctx, in.Obj.Name, metav1.GetOptions{})
+		rev, err := w.a3y.ExtensionsV1alpha1().EdgeFunctionRevisions().Get(ctx, in.Obj.Name, metav1.GetOptions{})
 		if err != nil {
-			log.Error("Failed to get Edge Function", "Error", err)
+			log.Error("Failed to get EdgeFunctionRevision", "Error", err)
 			return err
 		}
 
-		rev := v1alpha1.EdgeFunctionRevision{
-			Ref:       activity.GetInfo(ctx).WorkflowExecution.ID,
-			CreatedAt: res.AssetFileCreatedAt,
-		}
 		if res.Err != "" {
-			rev.Conditions = append(f.Status.Conditions, metav1.Condition{
+			rev.Status.Conditions = append(rev.Status.Conditions, metav1.Condition{
 				Type:               "Ready",
 				Status:             metav1.ConditionFalse,
 				Reason:             "Failed",
 				Message:            res.Err,
 				LastTransitionTime: metav1.NewTime(time.Now()),
 			})
+		} else {
+			rev.Status.Conditions = append(rev.Status.Conditions, metav1.Condition{
+				Type:               "Ready",
+				Status:             metav1.ConditionTrue,
+				Reason:             "Ready",
+				Message:            "Ready",
+				LastTransitionTime: metav1.NewTime(time.Now()),
+			})
 
+			rev.Status.Ref = in.Obj.Name
+		}
+
+		if _, err := w.a3y.ExtensionsV1alpha1().EdgeFunctionRevisions().UpdateStatus(ctx, rev, metav1.UpdateOptions{}); err != nil {
+			log.Error("Failed to update Edge Function status", "Error", err)
+			return err
+		}
+
+		log.Info("Edge Function status updated successfully")
+
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		log.Info("Updating EdgeFunction status")
+
+		var fun *v1alpha1.EdgeFunction
+		for _, ref := range in.Obj.OwnerReferences {
+			if ref.Kind != "EdgeFunction" {
+				continue
+			}
+			var err error
+			fun, err = w.a3y.ExtensionsV1alpha1().EdgeFunctions().Get(ctx, ref.Name, metav1.GetOptions{})
+			if err != nil {
+				return fmt.Errorf("failed to get owner EdgeFunction: %w", err)
+			}
+			break
+		}
+		if fun == nil {
+			log.Error("No owner EdgeFunction found")
+			return fmt.Errorf("no owner EdgeFunction found")
+		}
+
+		if res.Err != "" {
 			// If there is no live revision to use, the function is not ready.
-			if f.Status.Live == "" {
-				f.Status.Phase = v1alpha1.EdgeFunctionPhaseNotReady
-				f.Status.Message = "No Ready revisions"
-				if !hasCondition(f.Status.Conditions, "Ready", metav1.ConditionFalse) {
-					f.Status.Conditions = append(f.Status.Conditions, metav1.Condition{
+			if fun.Status.LiveRevision == "" {
+				if !hasCondition(fun.Status.Conditions, "Ready", metav1.ConditionFalse) {
+					fun.Status.Conditions = append(fun.Status.Conditions, metav1.Condition{
 						Type:               "Ready",
 						Status:             metav1.ConditionFalse,
 						Reason:             "Failed",
@@ -711,22 +775,10 @@ func (w *worker) FinalizeActivity(
 						LastTransitionTime: metav1.NewTime(time.Now()),
 					})
 				}
-			} else {
-				f.Status.Phase = v1alpha1.EdgeFunctionPhaseReady // Was Updating.
-				if !hasCondition(f.Status.Conditions, "Ready", metav1.ConditionTrue) {
-					f.Status.Conditions = append(f.Status.Conditions, metav1.Condition{
-						Type:               "Ready",
-						Status:             metav1.ConditionTrue,
-						Reason:             "Ready",
-						Message:            "Ready",
-						LastTransitionTime: metav1.NewTime(time.Now()),
-					})
-				}
 			}
 		} else {
-			f.Status.Phase = v1alpha1.EdgeFunctionPhaseReady
-			if !hasCondition(f.Status.Conditions, "Ready", metav1.ConditionTrue) {
-				f.Status.Conditions = append(f.Status.Conditions, metav1.Condition{
+			if !hasCondition(fun.Status.Conditions, "Ready", metav1.ConditionTrue) {
+				fun.Status.Conditions = append(fun.Status.Conditions, metav1.Condition{
 					Type:               "Ready",
 					Status:             metav1.ConditionTrue,
 					Reason:             "Ready",
@@ -734,77 +786,12 @@ func (w *worker) FinalizeActivity(
 					LastTransitionTime: metav1.NewTime(time.Now()),
 				})
 			}
-
-			if !hasCondition(rev.Conditions, "Ready", metav1.ConditionTrue) {
-				rev.Conditions = append(rev.Conditions, metav1.Condition{
-					Type:               "Ready",
-					Status:             metav1.ConditionTrue,
-					Reason:             "Ready",
-					Message:            "Ready",
-					LastTransitionTime: metav1.NewTime(time.Now()),
-				})
-			}
-			if !hasCondition(rev.Conditions, "Live", metav1.ConditionTrue) {
-				rev.Conditions = append(rev.Conditions, metav1.Condition{
-					Type:               "Live",
-					Status:             metav1.ConditionTrue,
-					Reason:             "Live",
-					Message:            "Revision is live",
-					LastTransitionTime: metav1.NewTime(time.Now()),
-				})
-			}
-
-			resetLiveRevision(f, rev.Ref)
-
-			// Prepend the revision to the list of revisions.
-			f.Status.Revisions = append([]v1alpha1.EdgeFunctionRevision{rev}, f.Status.Revisions...)
 		}
 
-		if _, err := w.a3y.ExtensionsV1alpha1().EdgeFunctions().UpdateStatus(ctx, f, metav1.UpdateOptions{}); err != nil {
-			log.Error("Failed to update Edge Function status", "Error", err)
-			return err
-		}
-
-		log.Info("Edge Function status updated successfully", "Phase", f.Status.Phase)
+		fun.Status.LiveRevision = in.Obj.Name
 
 		return nil
 	})
-}
-
-func resetLiveRevision(f *v1alpha1.EdgeFunction, liveRef string) {
-	if f.Status.Live == liveRef {
-		return
-	}
-
-	// Find the previous Live revision.
-	prevIdx := slices.IndexFunc(f.Status.Revisions, func(r v1alpha1.EdgeFunctionRevision) bool {
-		return r.Ref == f.Status.Live
-	})
-	if prevIdx == -1 {
-		return
-	}
-
-	f.Status.Live = liveRef
-
-	// Find existing Live condition and update it.
-	liveIdx := slices.IndexFunc(f.Status.Revisions[prevIdx].Conditions, func(c metav1.Condition) bool {
-		return c.Type == "Live"
-	})
-	if liveIdx != -1 {
-		f.Status.Revisions[prevIdx].Conditions[liveIdx].Status = metav1.ConditionFalse
-		f.Status.Revisions[prevIdx].Conditions[liveIdx].Message = "Revision is not live"
-		f.Status.Revisions[prevIdx].Conditions[liveIdx].LastTransitionTime = metav1.NewTime(time.Now())
-	} else {
-		f.Status.Revisions[prevIdx].Conditions = append(f.Status.Revisions[prevIdx].Conditions,
-			metav1.Condition{
-				Type:               "Live",
-				Status:             metav1.ConditionFalse,
-				Reason:             "Live",
-				Message:            "Revision is not live",
-				LastTransitionTime: metav1.NewTime(time.Now()),
-			},
-		)
-	}
 }
 
 func hasCondition(conditions []metav1.Condition, condType string, status metav1.ConditionStatus) bool {

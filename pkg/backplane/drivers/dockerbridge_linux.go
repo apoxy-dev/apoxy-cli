@@ -9,7 +9,6 @@ import (
 	"github.com/vishvananda/netlink"
 )
 
-// Docker on linux doesn't support host.docker.internal.
 func getDockerBridgeIP() (string, error) {
 	link, err := netlink.LinkByName("docker0")
 	if err != nil {

@@ -103,6 +103,7 @@ func (t *Translator) ProcessListeners(gateways []*GatewayContext, xdsIR XdsIRMap
 						MergeSlashes:         true,
 						EscapedSlashesAction: ir.UnescapeAndRedirect,
 					},
+					EdgeFunctionRevisions: resources.EdgeFunctionRevisions,
 				}
 				if listener.Hostname != nil {
 					irListener.Hostnames = append(irListener.Hostnames, string(*listener.Hostname))

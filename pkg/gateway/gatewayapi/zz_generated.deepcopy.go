@@ -202,6 +202,17 @@ func (in *Resources) DeepCopyInto(out *Resources) {
 			}
 		}
 	}
+	if in.EdgeFunctionRevisions != nil {
+		in, out := &in.EdgeFunctionRevisions, &out.EdgeFunctionRevisions
+		*out = make([]*extensionsv1alpha1.EdgeFunctionRevision, len(*in))
+		for i := range *in {
+			if (*in)[i] != nil {
+				in, out := &(*in)[i], &(*out)[i]
+				*out = new(extensionsv1alpha1.EdgeFunctionRevision)
+				(*in).DeepCopyInto(*out)
+			}
+		}
+	}
 	if in.Backends != nil {
 		in, out := &in.Backends, &out.Backends
 		*out = make([]*v1alpha.Backend, len(*in))

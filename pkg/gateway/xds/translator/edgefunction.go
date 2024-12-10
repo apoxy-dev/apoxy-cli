@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/xds/types"
+	"github.com/apoxy-dev/apoxy-cli/pkg/log"
 	golangv3alpha "github.com/envoyproxy/go-control-plane/contrib/envoy/extensions/filters/http/golang/v3alpha"
 	routev3 "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
 	hcmv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
@@ -53,11 +54,13 @@ func (*edgeFunc) patchHCM(mgr *hcmv3.HttpConnectionManager, irListener *ir.HTTPL
 				continue
 			}
 
+			log.Infof("Found EdgeFunction %s", er.Object.GetName())
+
 			if hcmContainsFilter(mgr, edgeFuncFilterName(er.Object)) {
 				continue
 			}
 
-			filter, err := buildHCMEdgeFuncFilter(er.Object)
+			filter, err := buildHCMEdgeFuncFilter(er.Object, irListener)
 			if err != nil {
 				errs = errors.Join(errs, err)
 				continue
@@ -71,22 +74,32 @@ func (*edgeFunc) patchHCM(mgr *hcmv3.HttpConnectionManager, irListener *ir.HTTPL
 }
 
 // buildHCMEdgeFuncFilter returns an HCM HttpFilter for the associated EdgeFunction.
-func buildHCMEdgeFuncFilter(un *unstructured.Unstructured) (*hcmv3.HttpFilter, error) {
-	var fun extensionsv1alpha1.EdgeFunction
-	if err := conv.FromUnstructured(un.UnstructuredContent(), &fun); err != nil {
+func buildHCMEdgeFuncFilter(un *unstructured.Unstructured, irListener *ir.HTTPListener) (*hcmv3.HttpFilter, error) {
+	fun := &extensionsv1alpha1.EdgeFunction{}
+	if err := conv.FromUnstructured(un.UnstructuredContent(), fun); err != nil {
 		return nil, err
 	}
+	var rev *extensionsv1alpha1.EdgeFunctionRevision
+	for _, r := range irListener.EdgeFunctionRevisions {
+		if r.Name == fun.Status.LiveRevision {
+			rev = r
+			break
+		}
+	}
+	if rev == nil {
+		return nil, fmt.Errorf("EdgeFunctionRevision %s not found", fun.Status.LiveRevision)
+	}
 
-	if fun.Spec.Code.GoPluginSource == nil {
+	if rev.Spec.Code.GoPluginSource == nil {
 		return nil, errors.New("edge function source is not a Go plugin")
 	}
 
 	pluginConfig := structpb.Struct{}
 	// Parse JSON string into Struct
-	if fun.Spec.Code.GoPluginSource.PluginConfig != "" {
+	if rev.Spec.Code.GoPluginSource.PluginConfig != "" {
 		// yaml to json
 		var jsonBytes []byte
-		jsonBytes, err := yaml.YAMLToJSON([]byte(fun.Spec.Code.GoPluginSource.PluginConfig))
+		jsonBytes, err := yaml.YAMLToJSON([]byte(rev.Spec.Code.GoPluginSource.PluginConfig))
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert yaml to json: %w", err)
 		}
@@ -101,15 +114,15 @@ func buildHCMEdgeFuncFilter(un *unstructured.Unstructured) (*hcmv3.HttpFilter, e
 		return nil, fmt.Errorf("failed to marshal plugin config: %w", err)
 	}
 
-	pluginName := fun.Name
-	if fun.Spec.Code.Name != "" {
-		pluginName = fun.Spec.Code.Name
+	pluginName := rev.Name
+	if rev.Spec.Code.Name != "" {
+		pluginName = rev.Spec.Code.Name
 	}
 	var edgeFuncAny *anypb.Any
-	if fun.Spec.Code.GoPluginSource != nil {
+	if rev.Spec.Code.GoPluginSource != nil {
 		msg := &golangv3alpha.Config{
-			LibraryId:    fun.Status.Live,
-			LibraryPath:  fmt.Sprintf("go/%s/func.so", fun.Status.Live),
+			LibraryId:    rev.Name,
+			LibraryPath:  fmt.Sprintf("go/%s/func.so", rev.Status.Ref),
 			PluginName:   pluginName,
 			PluginConfig: pluginAny,
 			//MergePolicy: ...

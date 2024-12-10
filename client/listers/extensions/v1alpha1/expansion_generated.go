@@ -20,3 +20,7 @@ package v1alpha1
 // EdgeFunctionListerExpansion allows custom methods to be added to
 // EdgeFunctionLister.
 type EdgeFunctionListerExpansion interface{}
+
+// EdgeFunctionRevisionListerExpansion allows custom methods to be added to
+// EdgeFunctionRevisionLister.
+type EdgeFunctionRevisionListerExpansion interface{}
