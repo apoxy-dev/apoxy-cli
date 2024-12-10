@@ -10,8 +10,11 @@ import (
 	"go.temporal.io/api/serviceerror"
 	tclient "go.temporal.io/sdk/client"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	clog "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -25,18 +28,113 @@ var _ reconcile.Reconciler = &EdgeFunctionReconciler{}
 // EdgeFunctionReconciler reconciles a Proxy object.
 type EdgeFunctionReconciler struct {
 	client.Client
-	tc tclient.Client
+	scheme *runtime.Scheme
+	tc     tclient.Client
 }
 
 // NewEdgeFuncReconciler returns a new reconcile.Reconciler.
 func NewEdgeFuncReconciler(
 	c client.Client,
+	s *runtime.Scheme,
 	tc tclient.Client,
 ) *EdgeFunctionReconciler {
 	return &EdgeFunctionReconciler{
 		Client: c,
+		scheme: s,
 		tc:     tc,
 	}
+}
+
+func hasIngestCondition(obj *v1alpha1.EdgeFunctionRevision) bool {
+	for _, c := range obj.Status.Conditions {
+		if c.Type == "Ingest" && c.Status == metav1.ConditionTrue {
+			return true
+		}
+	}
+	return false
+}
+
+func (r *EdgeFunctionReconciler) startIngest(
+	ctx context.Context,
+	obj *v1alpha1.EdgeFunction,
+) (*v1alpha1.EdgeFunctionRevision, error) {
+	funcHash := EdgeFunctionHash(obj.Spec)
+
+	log := clog.FromContext(ctx, "Hash", funcHash)
+
+	revName := fmt.Sprintf("%s-%s", obj.Name, funcHash)
+	rev := &v1alpha1.EdgeFunctionRevision{}
+	if err := r.Get(ctx, client.ObjectKey{Name: revName}, rev); err != nil && !errors.IsNotFound(err) {
+		return nil, fmt.Errorf("failed to get EdgeFunctionRevision: %w", err)
+	} else if errors.IsNotFound(err) {
+		log.Info("EdgeFunctionRevision not found, starting ingest workflow")
+
+		rev = &v1alpha1.EdgeFunctionRevision{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:        revName,
+				Labels:      map[string]string{},
+				Annotations: map[string]string{},
+			},
+			Spec: *obj.Spec.DeepCopy(),
+		}
+		for k, v := range obj.Labels {
+			rev.Labels[k] = v
+		}
+		for k, v := range obj.Annotations {
+			rev.Annotations[k] = v
+		}
+		if err := controllerutil.SetControllerReference(obj, rev, r.scheme); err != nil {
+			return nil, fmt.Errorf("failed to set controller reference: %w", err)
+		}
+		if err := r.Create(ctx, rev); err != nil {
+			return nil, fmt.Errorf("failed to create EdgeFunctionRevision: %w", err)
+		}
+	} else if err == nil && hasIngestCondition(rev) {
+		log.Info("Found existing EdgeFunctionRevision, skipping ingest workflow")
+		return rev, nil
+	}
+
+	log.Info("Starting ingest workflow")
+
+	wOpts := tclient.StartWorkflowOptions{
+		ID:                       revName,
+		TaskQueue:                ingest.EdgeFunctionIngestQueue,
+		WorkflowExecutionTimeout: 10 * time.Minute,
+	}
+	in := &ingest.EdgeFunctionIngestParams{
+		Obj: rev.DeepCopy(),
+	}
+	if _, err := r.tc.ExecuteWorkflow(ctx, wOpts, ingest.EdgeFunctionIngestWorkflow, in); err != nil {
+		return nil, fmt.Errorf("failed to start ingest workflow: %w", err)
+	}
+	return rev, nil
+}
+
+func (r *EdgeFunctionReconciler) cancelIngest(ctx context.Context, obj *v1alpha1.EdgeFunction) error {
+	funcHash := EdgeFunctionHash(obj.Spec)
+	revName := fmt.Sprintf("%s-%s", obj.Name, funcHash)
+	log := clog.FromContext(ctx, "Revision", revName)
+
+	log.Info("Cancelling ingest workflow")
+
+	if err := r.tc.CancelWorkflow(ctx, revName, ""); err != nil {
+		var serviceErr *serviceerror.NotFound
+		if !goerrors.As(err, &serviceErr) {
+			return fmt.Errorf("failed to describe workflow execution: %w", err)
+		}
+		log.Info("Workflow is not found, nothing to cancel")
+	}
+
+	return nil
+}
+
+func hasReadyCondition(rev *v1alpha1.EdgeFunctionRevision) bool {
+	for _, c := range rev.Status.Conditions {
+		if c.Type == "Ready" && c.Status == metav1.ConditionTrue {
+			return true
+		}
+	}
+	return false
 }
 
 // Reconcile implements reconcile.Reconciler.
@@ -51,56 +149,30 @@ func (r *EdgeFunctionReconciler) Reconcile(ctx context.Context, request reconcil
 	}
 
 	log := clog.FromContext(ctx, "name", f.Name)
-	log.Info("Reconciling EdgeFunction", "phase", f.Status.Phase)
+	log.Info("Reconciling EdgeFunction")
 
 	if !f.ObjectMeta.DeletionTimestamp.IsZero() {
 		log.Info("EdgeFunction is being deleted")
-		if err := r.cancelIngestWorkflow(ctx, f); err != nil {
+		if err := r.cancelIngest(ctx, f); err != nil {
 			return ctrl.Result{}, fmt.Errorf("failed to cancel ingest workflow: %w", err)
 		}
 		return ctrl.Result{}, nil
 	}
 
-	switch f.Status.Phase {
-	case v1alpha1.EdgeFunctionPhasePreparing, v1alpha1.EdgeFunctionPhaseUpdating:
-		if ref, started, err := r.startIngestWorkflow(clog.IntoContext(ctx, log), f); err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to start ingest workflow: %w", err)
-		} else if started { // Still running, or just started - requeue to check on it later.
-			log.Info("Ingest workflow is running", "ref", ref)
-			return ctrl.Result{}, nil
-		} else if ref == "" {
-			// Workflow sets the status when completed, so if it's not running,
-			// and the state is still Preparing or Updating, it means the workflow failed.
-			log.Info("Ingest workflow is not running, switching to Unknown phase", "ref", ref)
-			f.Status.Phase = v1alpha1.EdgeFunctionPhaseUnknown
-			if err := r.Status().Update(ctx, f); err != nil {
-				return ctrl.Result{}, fmt.Errorf("failed to update EdgeFunction: %w", err)
-			}
-		}
-	case v1alpha1.EdgeFunctionPhaseReady:
-		log.Info("EdgeFunction is ready, detecting changes")
-		if ref, started, err := r.startIngestWorkflow(clog.IntoContext(ctx, log), f); err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to start ingest workflow: %w", err)
-		} else if started {
-			log.Info("Detected changes in EdgeFunction code, switching to Updating phase")
-			// Workflow with the given ID not found, means we haven't ingested this configuration yet.
-			// Switch the state to Updating to trigger a new ingest.
-			f.Status.Phase = v1alpha1.EdgeFunctionPhaseUpdating
-			if err := r.Status().Update(ctx, f); err != nil {
-				return ctrl.Result{}, fmt.Errorf("failed to update EdgeFunction: %w", err)
-			}
-		} else if ref != "" { // Found existing ref - bump it to the top.
-			log.Info("Found existing EdgeFunction revision, setting to live", "ref", ref)
+	if rev, err := r.startIngest(clog.IntoContext(ctx, log), f); err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to start ingest workflow: %w", err)
+	} else if rev != nil {
+		if hasReadyCondition(rev) {
+			// Found existing revision. Check if it has Ready condition (ingested successfully)
+			// and if yes, set it to live.
+			log.Info("Found existing EdgeFunction revision, setting to live", "Revision", rev)
 
-			f.Status.Live = ref
+			f.Status.LiveRevision = rev.Name
 
 			if err := r.Status().Update(ctx, f); err != nil {
 				return ctrl.Result{}, fmt.Errorf("failed to update EdgeFunction: %w", err)
 			}
 		}
-	default:
-		log.Info("EdgeFunction is in an unknown phase", "phase", f.Status.Phase)
-		return ctrl.Result{}, nil
 	}
 
 	return ctrl.Result{}, nil
@@ -110,71 +182,6 @@ func (r *EdgeFunctionReconciler) Reconcile(ctx context.Context, request reconcil
 func (r *EdgeFunctionReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.EdgeFunction{}).
+		Owns(&v1alpha1.EdgeFunctionRevision{}).
 		Complete(r)
-}
-
-func (r *EdgeFunctionReconciler) findExistingRef(
-	ctx context.Context,
-	ref string,
-	obj *v1alpha1.EdgeFunction,
-) bool {
-	log := clog.FromContext(ctx, "ref", ref)
-
-	for _, rev := range obj.Status.Revisions {
-		if rev.Ref == ref {
-			log.Info("Workflow with the given ref already exists in status")
-			return true
-		}
-	}
-
-	return false
-}
-
-func (r *EdgeFunctionReconciler) startIngestWorkflow(
-	ctx context.Context,
-	obj *v1alpha1.EdgeFunction,
-) (ref string, srarted bool, err error) {
-	wid, err := ingest.WorkflowID(obj)
-	if err != nil {
-		return "", false, fmt.Errorf("failed to get workflow ID: %w", err)
-	}
-	log := clog.FromContext(ctx, "workflow_id", wid)
-
-	if exists := r.findExistingRef(clog.IntoContext(ctx, log), wid, obj); exists {
-		return wid, false, nil
-	}
-
-	log.Info("Starting ingest workflow")
-
-	wOpts := tclient.StartWorkflowOptions{
-		ID:                       wid,
-		TaskQueue:                ingest.EdgeFunctionIngestQueue,
-		WorkflowExecutionTimeout: 10 * time.Minute,
-	}
-	in := &ingest.EdgeFunctionIngestParams{
-		Obj: obj.DeepCopy(),
-	}
-	if _, err = r.tc.ExecuteWorkflow(ctx, wOpts, ingest.EdgeFunctionIngestWorkflow, in); err != nil {
-		return "", false, fmt.Errorf("failed to start ingest workflow: %w", err)
-	}
-	return wid, true, nil
-}
-
-func (r *EdgeFunctionReconciler) cancelIngestWorkflow(ctx context.Context, obj *v1alpha1.EdgeFunction) error {
-	wid, err := ingest.WorkflowID(obj)
-	if err != nil {
-		return fmt.Errorf("failed to get workflow ID: %w", err)
-	}
-	log := clog.FromContext(ctx, "workflow_id", wid)
-
-	log.Info("Cancelling ingest workflow")
-
-	if err := r.tc.CancelWorkflow(ctx, wid, ""); err != nil {
-		var serviceErr *serviceerror.NotFound
-		if !goerrors.As(err, &serviceErr) {
-			return fmt.Errorf("failed to describe workflow execution: %w", err)
-		}
-		log.Info("Workflow is not found, nothing to cancel")
-	}
-	return nil
 }

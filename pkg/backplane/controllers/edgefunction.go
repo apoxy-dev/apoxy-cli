@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -21,6 +22,10 @@ import (
 	"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1"
 	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/wasm/manifest"
 	"github.com/apoxy-dev/apoxy-cli/pkg/edgefunc"
+)
+
+const (
+	edgeFuncRevsOwnerIndex = "edgeFuncRevsOwner"
 )
 
 var _ reconcile.Reconciler = &EdgeFunctionReconciler{}
@@ -36,7 +41,7 @@ type EdgeFunctionReconciler struct {
 	edgeRuntime   edgefunc.Runtime
 
 	mu        sync.Mutex
-	edgeFuncs map[string]*v1alpha1.EdgeFunction
+	edgeFuncs map[string]*v1alpha1.EdgeFunctionRevision
 }
 
 // NewEdgeFuncReconciler returns a new reconcile.Reconciler.
@@ -54,7 +59,7 @@ func NewEdgeFuncReconciler(
 		goStoreDir:    goStoreDir,
 		jsStoreDir:    jsStoreDir,
 
-		edgeFuncs: make(map[string]*v1alpha1.EdgeFunction),
+		edgeFuncs: make(map[string]*v1alpha1.EdgeFunctionRevision),
 	}
 }
 
@@ -85,10 +90,19 @@ func (r *EdgeFunctionReconciler) downloadFuncData(
 	return data, nil
 }
 
+func hasReadyCondition(conditions []metav1.Condition) bool {
+	for _, condition := range conditions {
+		if condition.Type == "Ready" && condition.Status == metav1.ConditionTrue {
+			return true
+		}
+	}
+	return false
+}
+
 // Reconcile implements reconcile.Reconciler.
 func (r *EdgeFunctionReconciler) Reconcile(ctx context.Context, request reconcile.Request) (ctrl.Result, error) {
-	f := &v1alpha1.EdgeFunction{}
-	err := r.Get(ctx, request.NamespacedName, f)
+	rev := &v1alpha1.EdgeFunctionRevision{}
+	err := r.Get(ctx, request.NamespacedName, rev)
 	if errors.IsNotFound(err) {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
@@ -96,105 +110,107 @@ func (r *EdgeFunctionReconciler) Reconcile(ctx context.Context, request reconcil
 		return ctrl.Result{}, fmt.Errorf("failed to get EdgeFunction: %w", err)
 	}
 
-	log := clog.FromContext(ctx, "name", f.Name)
-	log.Info("Reconciling EdgeFunction", "phase", f.Status.Phase)
+	log := clog.FromContext(ctx, "name", rev.Name)
+	log.Info("Reconciling EdgeFunctionRevision")
 
-	if !f.DeletionTimestamp.IsZero() {
-		if len(f.Status.Revisions) == 0 {
-			log.Info("No revisions found, nothing to delete")
-			return ctrl.Result{}, nil
-		}
-		log.Info("Deleting Wasm data", "ref", f.Status.Revisions[0].Ref)
-		if err := r.wasmStore.Delete(ctx, f.Status.Revisions[0].Ref); err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to delete Wasm data: %w", err)
+	if !rev.DeletionTimestamp.IsZero() {
+		log.Info("Deleting EdgeFunctionRevision")
+		if rev.Spec.Code.WasmSource != nil {
+			log.Info("Deleting Wasm data", "ref", rev.Status.Ref)
+			if err := r.wasmStore.Delete(ctx, rev.Status.Ref); err != nil {
+				return ctrl.Result{}, fmt.Errorf("failed to delete Wasm data: %w", err)
+			}
+		} else if rev.Spec.Code.GoPluginSource != nil {
+			log.Info("Deleting Go plugin data", "ref", rev.Status.Ref)
+			if err := os.RemoveAll(filepath.Join(r.goStoreDir, rev.Status.Ref)); err != nil {
+				return ctrl.Result{}, fmt.Errorf("failed to delete Go plugin data: %w", err)
+			}
+		} else if rev.Spec.Code.JsSource != nil {
+			log.Info("Deleting Js data", "ref", rev.Status.Ref)
+			if err := os.RemoveAll(filepath.Join(r.jsStoreDir, rev.Status.Ref)); err != nil {
+				return ctrl.Result{}, fmt.Errorf("failed to delete Js data: %w", err)
+			}
 		}
 		return ctrl.Result{}, nil
 	}
 
-	switch f.Status.Phase {
-	case v1alpha1.EdgeFunctionPhaseReady:
-		// Download the Wasm module and store it locally.
-		if len(f.Status.Revisions) == 0 {
-			log.Info("No revisions found")
+	// Stage the EdgeFunctionRevision that was successfully ingested (has a Ready condition)
+	// even if it's not Live yet.
+	if !hasReadyCondition(rev.Status.Conditions) {
+		log.Info("Revision is not Ready")
+		return ctrl.Result{}, nil
+	}
+
+	ref := rev.Status.Ref
+	log = log.WithValues("Ref", ref)
+
+	if rev.Spec.Code.WasmSource != nil {
+		log.Info("Wasm source detected")
+		if r.wasmStore.Exists(ctx, ref) {
+			log.Info("Wasm module already exists for ref")
 			return ctrl.Result{}, nil
 		}
-		if f.Status.Live == "" {
-			log.Info("No live revision found")
+
+		wasmData, err := r.downloadFuncData(clog.IntoContext(ctx, log), "wasm", ref)
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to download Wasm data: %w", err)
+		}
+
+		if err := r.wasmStore.Set(ctx, ref, manifest.WithWasmData(wasmData)); err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to set Wasm data: %w", err)
+		}
+
+		log.Info("Stored Wasm data")
+	} else if rev.Spec.Code.GoPluginSource != nil {
+		log.Info("Go plugin source detected")
+
+		if _, err := os.Stat(filepath.Join(r.goStoreDir, ref, "func.so")); err == nil {
+			log.Info("Go plugin already exists for ref")
 			return ctrl.Result{}, nil
 		}
-		ref := f.Status.Live
-		log = log.WithValues("ref", ref)
 
-		if f.Spec.Code.WasmSource != nil {
-			log.Info("Wasm source detected")
-			if r.wasmStore.Exists(ctx, ref) {
-				log.Info("Wasm module already exists for ref", "ref", ref)
-				return ctrl.Result{}, nil
-			}
-
-			wasmData, err := r.downloadFuncData(clog.IntoContext(ctx, log), "wasm", ref)
-			if err != nil {
-				return ctrl.Result{}, fmt.Errorf("failed to download Wasm data: %w", err)
-			}
-
-			if err := r.wasmStore.Set(ctx, ref, manifest.WithWasmData(wasmData)); err != nil {
-				return ctrl.Result{}, fmt.Errorf("failed to set Wasm data: %w", err)
-			}
-
-			log.Info("Stored Wasm data")
-		} else if f.Spec.Code.GoPluginSource != nil {
-			log.Info("Go plugin source detected")
-
-			if _, err := os.Stat(filepath.Join(r.goStoreDir, ref, "func.so")); err == nil {
-				log.Info("Go plugin already exists for ref")
-				return ctrl.Result{}, nil
-			}
-
-			soData, err := r.downloadFuncData(clog.IntoContext(ctx, log), "go", ref)
-			if err != nil {
-				return ctrl.Result{}, fmt.Errorf("failed to download Wasm data: %w", err)
-			}
-
-			if err := os.MkdirAll(filepath.Join(r.goStoreDir, ref), 0755); err != nil {
-				return ctrl.Result{}, fmt.Errorf("failed to create Go plugin directory: %w", err)
-			}
-
-			if err := os.WriteFile(filepath.Join(r.goStoreDir, ref, "data"), soData, 0644); err != nil {
-				return ctrl.Result{}, fmt.Errorf("failed to write Go plugin data: %w", err)
-			}
-			// Symlinking prevents Envoy from loading the plugin while it's being written to.
-			if err := os.Symlink("data", filepath.Join(r.goStoreDir, ref, "func.so")); err != nil {
-				return ctrl.Result{}, fmt.Errorf("failed to create Go plugin symlink: %w", err)
-			}
-		} else if f.Spec.Code.JsSource != nil {
-			log.Info("Js source detected")
-
-			jsBundle, err := r.downloadFuncData(clog.IntoContext(ctx, log), "js", ref)
-			if err != nil {
-				return ctrl.Result{}, fmt.Errorf("failed to download Js data: %w", err)
-			}
-
-			if err := os.MkdirAll(filepath.Join(r.jsStoreDir, ref), 0755); err != nil {
-				return ctrl.Result{}, fmt.Errorf("failed to create Js directory: %w", err)
-			}
-
-			if err := os.WriteFile(filepath.Join(r.jsStoreDir, ref, "data"), jsBundle, 0644); err != nil {
-				return ctrl.Result{}, fmt.Errorf("failed to write Js data: %w", err)
-			}
-			// Use symlink to prevent Envoy from loading the plugin while it's being written to.
-			esZipPath := filepath.Join(r.jsStoreDir, ref, "bin.eszip")
-			if err := os.Symlink("data", esZipPath); err != nil {
-				return ctrl.Result{}, fmt.Errorf("failed to create Js symlink: %w", err)
-			}
-
-			r.mu.Lock()
-			r.edgeFuncs[ref] = f
-			r.mu.Unlock()
-		} else {
-			log.Info("No source detected")
-			return ctrl.Result{}, nil
+		soData, err := r.downloadFuncData(clog.IntoContext(ctx, log), "go", ref)
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to download Wasm data: %w", err)
 		}
-	default:
+
+		if err := os.MkdirAll(filepath.Join(r.goStoreDir, ref), 0755); err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to create Go plugin directory: %w", err)
+		}
+
+		if err := os.WriteFile(filepath.Join(r.goStoreDir, ref, "data"), soData, 0644); err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to write Go plugin data: %w", err)
+		}
+		// Symlinking prevents Envoy from loading the plugin while it's being written to.
+		if err := os.Symlink("data", filepath.Join(r.goStoreDir, ref, "func.so")); err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to create Go plugin symlink: %w", err)
+		}
+	} else if rev.Spec.Code.JsSource != nil {
+		log.Info("Js source detected")
+
+		jsBundle, err := r.downloadFuncData(clog.IntoContext(ctx, log), "js", ref)
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to download Js data: %w", err)
+		}
+
+		if err := os.MkdirAll(filepath.Join(r.jsStoreDir, ref), 0755); err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to create Js directory: %w", err)
+		}
+
+		if err := os.WriteFile(filepath.Join(r.jsStoreDir, ref, "data"), jsBundle, 0644); err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to write Js data: %w", err)
+		}
+		// Use symlink to prevent Envoy from loading the plugin while it's being written to.
+		esZipPath := filepath.Join(r.jsStoreDir, ref, "bin.eszip")
+		if err := os.Symlink("data", esZipPath); err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to create Js symlink: %w", err)
+		}
+
+		r.mu.Lock()
+		r.edgeFuncs[ref] = rev
+		r.mu.Unlock()
+	} else {
+		log.Info("No source detected")
 		return ctrl.Result{}, nil
 	}
 
@@ -234,7 +250,7 @@ func targetRefPredicate(proxyName string) predicate.Funcs {
 			return false
 		}
 
-		f, ok := obj.(*v1alpha1.EdgeFunction)
+		rev, ok := obj.(*v1alpha1.EdgeFunctionRevision)
 		if !ok {
 			return false
 		}
@@ -244,7 +260,7 @@ func targetRefPredicate(proxyName string) predicate.Funcs {
 		return true
 
 		// Check if the EdgeFunction is owned by the Proxy.
-		for _, owner := range f.GetOwnerReferences() {
+		for _, owner := range rev.GetOwnerReferences() {
 			if owner.APIVersion == ctrlv1alpha1.GroupVersion.String() &&
 				owner.Kind == "Proxy" &&
 				owner.Name == proxyName {
@@ -265,8 +281,9 @@ func (r *EdgeFunctionReconciler) SetupWithManager(
 	if err := os.MkdirAll(filepath.Join(r.goStoreDir), 0755); err != nil {
 		return fmt.Errorf("failed to create Go plugin directory: %w", err)
 	}
+
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1alpha1.EdgeFunction{},
+		For(&v1alpha1.EdgeFunctionRevision{},
 			builder.WithPredicates(
 				&predicate.ResourceVersionChangedPredicate{},
 				targetRefPredicate(proxyName),

@@ -21,6 +21,7 @@ limitations under the License.
 package ir
 
 import (
+	extensionsv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1"
 	v1alpha1 "github.com/envoyproxy/gateway/api/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -812,6 +813,17 @@ func (in *HTTPListener) DeepCopyInto(out *HTTPListener) {
 		in, out := &in.Timeout, &out.Timeout
 		*out = new(ClientTimeout)
 		(*in).DeepCopyInto(*out)
+	}
+	if in.EdgeFunctionRevisions != nil {
+		in, out := &in.EdgeFunctionRevisions, &out.EdgeFunctionRevisions
+		*out = make([]*extensionsv1alpha1.EdgeFunctionRevision, len(*in))
+		for i := range *in {
+			if (*in)[i] != nil {
+				in, out := &(*in)[i], &(*out)[i]
+				*out = new(extensionsv1alpha1.EdgeFunctionRevision)
+				(*in).DeepCopyInto(*out)
+			}
+		}
 	}
 	return
 }

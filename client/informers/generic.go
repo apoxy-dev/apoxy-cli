@@ -76,6 +76,8 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 		// Group=extensions.apoxy.dev, Version=v1alpha1
 	case extensionsv1alpha1.SchemeGroupVersion.WithResource("edgefunctions"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Extensions().V1alpha1().EdgeFunctions().Informer()}, nil
+	case extensionsv1alpha1.SchemeGroupVersion.WithResource("edgefunctionrevisions"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Extensions().V1alpha1().EdgeFunctionRevisions().Informer()}, nil
 
 		// Group=gateway.apoxy.dev, Version=v1
 	case v1.SchemeGroupVersion.WithResource("grpcroutes"):

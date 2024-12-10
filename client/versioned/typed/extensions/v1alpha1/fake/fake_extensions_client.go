@@ -31,6 +31,10 @@ func (c *FakeExtensionsV1alpha1) EdgeFunctions() v1alpha1.EdgeFunctionInterface 
 	return &FakeEdgeFunctions{c}
 }
 
+func (c *FakeExtensionsV1alpha1) EdgeFunctionRevisions() v1alpha1.EdgeFunctionRevisionInterface {
+	return &FakeEdgeFunctionRevisions{c}
+}
+
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
 func (c *FakeExtensionsV1alpha1) RESTClient() rest.Interface {

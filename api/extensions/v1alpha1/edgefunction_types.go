@@ -240,49 +240,11 @@ type EdgeFunctionSpec struct {
 	Runtime *EdgeFunctionRuntime `json:"runtime,omitempty"`
 }
 
-type EdgeFunctionRevision struct {
-	// Ref is the reference to the function revision.
-	Ref string `json:"ref"`
-
-	// CreatedAt is the time the function revision was created.
-	CreatedAt metav1.Time `json:"createdAt"`
-
-	// Conditions describe the current conditions of the revision.
-	// +optional
-	Conditions []metav1.Condition `json:"conditions,omitempty"`
-}
-
-type EdgeFunctionPhase string
-
-const (
-	// EdgeFunctionPhasePreparing means the function is being prepared.
-	EdgeFunctionPhasePreparing EdgeFunctionPhase = "Preparing"
-	// EdgeFunctionPhaseReady means the function is ready.
-	EdgeFunctionPhaseReady EdgeFunctionPhase = "Ready"
-	// EdgeFunctionPhaseUpdating means the function is being updated.
-	EdgeFunctionPhaseUpdating EdgeFunctionPhase = "Updating"
-	// EdgeFunctionPhaseNotReady means the function has no revisions ready to be used.
-	EdgeFunctionPhaseNotReady EdgeFunctionPhase = "NotReady"
-	// EdgeFunctionPhaseUnknown means the function is in an unknown state.
-	EdgeFunctionPhaseUnknown EdgeFunctionPhase = "Unknown"
-)
-
 type EdgeFunctionStatus struct {
-	// Phase is the current phase of the function.
-	Phase EdgeFunctionPhase `json:"phase"`
-
-	// Message is a human-readable message indicating details about the function.
+	// LiveRevision is the revision of the function that is currently being served
+	// referenced by EdgeFunctionRevision object name.
 	// +optional
-	Message string `json:"message,omitempty"`
-
-	// Revisions is a list of function revisions.
-	// Latest revision is the first element in the list.
-	// +optional
-	Revisions []EdgeFunctionRevision `json:"revisions,omitempty"`
-
-	// Live is the reference to the live function revision.
-	// +optional
-	Live string `json:"live,omitempty"`
+	LiveRevision string `json:"liveRevision,omitempty"`
 
 	// Conditions describe the current conditions of the EdgeFunction.
 	// +optional

@@ -22,6 +22,7 @@ import (
 	mcsapi "sigs.k8s.io/mcs-api/pkg/apis/v1alpha1"
 
 	"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
+	extensionsv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1"
 	agwapiv1a1 "github.com/apoxy-dev/apoxy-cli/api/gateway/v1"
 	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/gatewayapi/status"
 	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/ir"
@@ -1536,13 +1537,23 @@ func (t *Translator) processEdgeFunctionDestinationSetting(
 ) (*ir.DestinationSetting, error) {
 	fun := resources.GetEdgeFunctionBackend(string(backendRef.Name))
 	if fun == nil {
-		return nil, nil
+		return nil, fmt.Errorf("EdgeFunction %s not found", backendRef.Name)
+	}
+	var rev *extensionsv1alpha1.EdgeFunctionRevision
+	for _, r := range resources.EdgeFunctionRevisions {
+		if r.Name == fun.Status.LiveRevision {
+			rev = r
+			break
+		}
+	}
+	if rev == nil {
+		return nil, fmt.Errorf("EdgeFunctionRevision %s not found", rev.Name)
 	}
 
-	if fun.Spec.Runtime == nil || fun.Spec.Runtime.Port == nil {
-		return nil, fmt.Errorf("invalid runtime configuration for backend function %q", fun.Name)
+	if rev.Spec.Runtime == nil || rev.Spec.Runtime.Port == nil {
+		return nil, fmt.Errorf("invalid runtime configuration for backend function %q", rev.Name)
 	}
-	port := *fun.Spec.Runtime.Port
+	port := *rev.Spec.Runtime.Port
 	if port < 1 || port > 65535 {
 		return nil, fmt.Errorf("invalid port %d", port)
 	}
@@ -1551,7 +1562,7 @@ func (t *Translator) processEdgeFunctionDestinationSetting(
 		Protocol: protocol,
 		Endpoints: []*ir.DestinationEndpoint{
 			{
-				Host: fmt.Sprintf("%s.apoxy.local", fun.Name),
+				Host: fmt.Sprintf("%s.apoxy.local", rev.Name),
 				Port: uint32(port),
 			},
 		},
