@@ -220,9 +220,9 @@ allowing you to test and develop your proxy infrastructure.`,
 		if err != nil {
 			return err
 		}
-		projID := uuid.New()
-		if cfg.ProjectID != uuid.Nil {
-			projID = cfg.ProjectID
+		projectID := uuid.New()
+		if cfg.CurrentProject != uuid.Nil {
+			projectID = cfg.CurrentProject
 		}
 
 		path := args[0]
@@ -327,7 +327,7 @@ allowing you to test and develop your proxy infrastructure.`,
 			return err
 		}
 
-		if err := chDriver.Start(ctx, projID); err != nil {
+		if err := chDriver.Start(ctx, projectID); err != nil {
 			return err
 		}
 		chAddr, err := chDriver.GetAddr(ctx)
@@ -341,7 +341,7 @@ allowing you to test and develop your proxy infrastructure.`,
 		}
 		cname, err := bpDriver.Start(
 			ctx,
-			projID,
+			projectID,
 			proxyName,
 			bpdrivers.WithArgs(
 				"--ch_addrs", chAddr+":9000",

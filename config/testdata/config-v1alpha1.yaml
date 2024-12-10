@@ -1,0 +1,10 @@
+apiVersion: config.apoxy.dev/v1alpha1
+kind: Config
+verbose: true
+dashboardURL: "https://dashboard.example.com"
+currentProject: "123e4567-e89b-12d3-a456-426614174000"
+projects:
+- id: "123e4567-e89b-12d3-a456-426614174000"
+  apiBaseURL: "https://api.example.com"
+  apiBaseHost: "api.example.com"
+  apiKey: "your_api_key_here"

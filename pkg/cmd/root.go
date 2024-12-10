@@ -37,6 +37,7 @@ func init() {
 	rootCmd.PersistentFlags().BoolVar(&config.AlsoLogToStderr, "alsologtostderr", false, "Log to standard error as well as files.")
 	rootCmd.PersistentFlags().BoolVarP(&config.Verbose, "verbose", "v", false, "Enable verbose output.")
 	rootCmd.PersistentFlags().BoolVar(&config.LocalMode, "local", false, "Run in local mode.")
+	rootCmd.PersistentFlags().StringVar(&config.ProjectID, "project", "", "The project ID to use.")
 
 	rootCmd.AddCommand(alpha.Cmd())
 }

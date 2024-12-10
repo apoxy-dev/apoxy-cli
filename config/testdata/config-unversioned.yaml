@@ -1,0 +1,6 @@
+api_key: "your_api_key_here"
+project_id: "123e4567-e89b-12d3-a456-426614174000"
+verbose: true
+api_base_url: "https://api.example.com"
+api_base_host: "api.example.com"
+dashboard_url: "https://dashboard.example.com"
