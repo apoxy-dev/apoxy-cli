@@ -69,7 +69,7 @@ func EdgeFunctionIngestWorkflow(ctx workflow.Context, in *EdgeFunctionIngestPara
 			InitialInterval:        time.Second,
 			BackoffCoefficient:     5.0,
 			MaximumInterval:        60 * time.Second,
-			MaximumAttempts:        3,
+			MaximumAttempts:        5,
 			NonRetryableErrorTypes: []string{"FatalError"},
 		},
 	}
