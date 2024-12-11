@@ -18,6 +18,9 @@ var _ runtime.Object = (*Config)(nil)
 // Config is the Schema for the Apoxy Backplane configuration.
 type Config struct {
 	metav1.TypeMeta `json:",inline"`
+	// The name of this instance, if not specified the hostname of the machine
+	// will be used.
+	Name string `json:"name,omitempty"`
 	// Whether to enable verbose logging.
 	Verbose bool `json:"verbose,omitempty"`
 	// The URL for the dashboard UI.
