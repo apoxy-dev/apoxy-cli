@@ -7,7 +7,7 @@ import (
 	"k8s.io/apiserver/pkg/registry/rest"
 	"sigs.k8s.io/apiserver-runtime/pkg/builder/resource"
 
-	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
+	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
 )
 
 type SourceFile struct {
@@ -73,15 +73,17 @@ type WasmSource struct {
 
 type OCICredentialsObjectReference struct {
 	// Group is the group of the target resource.
-	// Currently only controllers.apoxy.dev/v1alpha1 is supported.
-	Group gwapiv1.Group `json:"group"`
+	Group corev1alpha.Group `json:"group"`
 
 	// Kind is kind of the target resource.
-	// Supports Secret with on-prem deploys and
-	Kind gwapiv1.Kind `json:"kind"`
+	// Supports Secret with on-prem deploys.
+	Kind corev1alpha.Kind `json:"kind"`
 
 	// Name is the name of the target resource.
-	Name gwapiv1.ObjectName `json:"name"`
+	Name corev1alpha.ObjectName `json:"name"`
+
+	// Namespace is the namespace of the target resource.
+	Namespace corev1alpha.Namespace `json:"namespace"`
 }
 
 type OCICredentials struct {
@@ -195,19 +197,6 @@ type EdgeFunctionRuntime struct {
 	// +kubebuilder:default=8080
 	// +optional
 	Port *int32 `json:"port,omitempty"`
-}
-
-type EdgeFunctionTargetReference struct {
-	// Group is the group of the target resource.
-	// Currently only controllers.apoxy.dev/v1alpha1 is supported.
-	Group gwapiv1.Group `json:"group"`
-
-	// Kind is kind of the target resource.
-	// Currently only Proxy is supported.
-	Kind gwapiv1.Kind `json:"kind"`
-
-	// Name is the name of the target resource.
-	Name gwapiv1.ObjectName `json:"name"`
 }
 
 type EdgeFunctionMode string

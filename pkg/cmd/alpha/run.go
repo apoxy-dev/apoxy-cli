@@ -271,7 +271,7 @@ allowing you to test and develop your proxy infrastructure.`,
 		}
 		w := tworker.New(tc, ingest.EdgeFunctionIngestQueue, wOpts)
 		ingest.RegisterWorkflows(w)
-		ww := ingest.NewWorker(c, os.Getenv("TMPDIR"))
+		ww := ingest.NewWorker(nil /* no k8s client in local mode */, c, os.Getenv("TMPDIR"))
 		ww.RegisterActivities(w)
 		go func() {
 			if err = ww.ListenAndServeEdgeFuncs("localhost", 8081); err != nil {

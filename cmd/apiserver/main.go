@@ -91,6 +91,7 @@ func main() {
 		}
 	}()
 
+	var kc *rest.Config
 	rC := apiserver.NewClientConfig()
 	if *inCluster {
 		rC, err = rest.InClusterConfig()
@@ -98,6 +99,7 @@ func main() {
 			log.Errorf("failed to create in-cluster k8s config: %v", err)
 			ctxCancel(&startErr{Err: err})
 		}
+		kc = rC
 	}
 	m := apiserver.New()
 	go func() {
@@ -140,7 +142,7 @@ func main() {
 	}
 	w := tworker.New(tc, ingest.EdgeFunctionIngestQueue, wOpts)
 	ingest.RegisterWorkflows(w)
-	ww := ingest.NewWorker(a3y, *ingestStoreDir)
+	ww := ingest.NewWorker(kc, a3y, *ingestStoreDir)
 	ww.RegisterActivities(w)
 	go func() {
 		if err = ww.ListenAndServeEdgeFuncs("" /* host */, *ingestStorePort); err != nil {

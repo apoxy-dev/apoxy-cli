@@ -83,7 +83,6 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRuntime":           schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionRuntime(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionSpec":              schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionSpec(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionStatus":            schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionStatus(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionTargetReference":   schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionTargetReference(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EnvVar":                        schema_apoxy_cli_api_extensions_v1alpha1_EnvVar(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.GoPluginSource":                schema_apoxy_cli_api_extensions_v1alpha1_GoPluginSource(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.JavaScriptAssetsSource":        schema_apoxy_cli_api_extensions_v1alpha1_JavaScriptAssetsSource(ref),
@@ -2794,43 +2793,6 @@ func schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionStatus(ref common.Refe
 	}
 }
 
-func schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionTargetReference(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
-				Properties: map[string]spec.Schema{
-					"group": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Group is the group of the target resource. Currently only controllers.apoxy.dev/v1alpha1 is supported.",
-							Default:     "",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"kind": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Kind is kind of the target resource. Currently only Proxy is supported.",
-							Default:     "",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"name": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Name is the name of the target resource.",
-							Default:     "",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-				},
-				Required: []string{"group", "kind", "name"},
-			},
-		},
-	}
-}
-
 func schema_apoxy_cli_api_extensions_v1alpha1_EnvVar(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -3068,7 +3030,7 @@ func schema_apoxy_cli_api_extensions_v1alpha1_OCICredentialsObjectReference(ref 
 				Properties: map[string]spec.Schema{
 					"group": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Group is the group of the target resource. Currently only controllers.apoxy.dev/v1alpha1 is supported.",
+							Description: "Group is the group of the target resource.",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -3076,7 +3038,7 @@ func schema_apoxy_cli_api_extensions_v1alpha1_OCICredentialsObjectReference(ref 
 					},
 					"kind": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Kind is kind of the target resource. Supports Secret with on-prem deploys and",
+							Description: "Kind is kind of the target resource. Supports Secret with on-prem deploys.",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -3090,8 +3052,16 @@ func schema_apoxy_cli_api_extensions_v1alpha1_OCICredentialsObjectReference(ref 
 							Format:      "",
 						},
 					},
+					"namespace": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Namespace is the namespace of the target resource.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 				},
-				Required: []string{"group", "kind", "name"},
+				Required: []string{"group", "kind", "name", "namespace"},
 			},
 		},
 	}

@@ -22,7 +22,10 @@ import (
 	"go.temporal.io/sdk/temporal"
 	tworker "go.temporal.io/sdk/worker"
 	"go.temporal.io/sdk/workflow"
+	k8scorev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/retry"
 	"oras.land/oras-go/v2"
 	"oras.land/oras-go/v2/content"
@@ -185,16 +188,19 @@ Finalize:
 
 // Worker implements Temporal Activities for Edge Functions Ingest queue.
 type worker struct {
+	k8s     kubernetes.Interface
 	a3y     versioned.Interface
 	baseDir string
 }
 
 // NewWorker returns a new worker for Edge Functions Ingest queue.
-func NewWorker(c versioned.Interface, baseDir string) *worker {
-	return &worker{
+func NewWorker(kc *rest.Config, c versioned.Interface, baseDir string) *worker {
+	w := &worker{
 		a3y:     c,
 		baseDir: baseDir,
 	}
+	w.k8s = kubernetes.NewForConfigOrDie(kc)
+	return w
 }
 
 // RegisterActivities registers Edge Functions Ingest activities with
@@ -405,8 +411,35 @@ func (w *worker) pullOCIImage(
 				Password: string(pwd),
 			},
 		)
-	} else if ociRef.CredentialsRef != nil {
-		// TODO(dsky): Implement credentials ref.
+	} else if secretRef := ociRef.CredentialsRef; secretRef != nil {
+		if secretRef.Group == "" && secretRef.Kind == "Secret" {
+			// Secret refs are only valid in k8s environment.
+			if w.k8s == nil {
+				return nil, errors.New("k8s environment is not set")
+			}
+
+			secret, err := w.k8s.CoreV1().Secrets(string(secretRef.Namespace)).Get(ctx, string(secretRef.Name), metav1.GetOptions{})
+			if err != nil {
+				return nil, fmt.Errorf("failed to get secret: %w", err)
+			}
+			if secret.Type != k8scorev1.SecretTypeDockerConfigJson {
+				return nil, fmt.Errorf("invalid secret type %q, expected %q", secret.Type, "kubernetes.io/dockerconfigjson")
+			}
+			encodedToken := secret.Data[".dockerconfigjson"]
+			var dockerConfig struct {
+				Auths map[string]auth.Credential `json:"auths"`
+			}
+			if err := json.Unmarshal(encodedToken, &dockerConfig); err != nil {
+				return nil, fmt.Errorf("failed to parse dockerconfigjson: %w", err)
+			}
+
+			credsFunc = func(_ context.Context, _ string) (auth.Credential, error) {
+				return dockerConfig.Auths[repo.Reference.Registry], nil
+			}
+		} else {
+			// TODO(dilyevsky): Support other kinds of secrets for non-k8s environments.
+			return nil, fmt.Errorf("invalid secret kind %q, expected %q", secretRef.Kind, "Secret")
+		}
 	} else {
 		log.Debug("No credentials provided for OCI registry")
 	}
