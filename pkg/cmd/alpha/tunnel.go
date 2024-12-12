@@ -3,25 +3,19 @@ package alpha
 import (
 	"context"
 	"fmt"
-	"html/template"
 	"log/slog"
-	"maps"
-	"net/netip"
 	"os"
-	"strings"
-	"sync"
 	"time"
 
-	"github.com/goombaio/namegenerator"
 	"github.com/spf13/cobra"
-	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/ptr"
+	"k8s.io/utils/set"
 
-	ctrlv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
+	configv1alpha "github.com/apoxy-dev/apoxy-cli/api/config/v1alpha1"
 	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
 	"github.com/apoxy-dev/apoxy-cli/client/informers"
 	"github.com/apoxy-dev/apoxy-cli/client/versioned"
@@ -34,197 +28,6 @@ const (
 	resyncPeriod = 10 * time.Second
 )
 
-var demoProxyConfigTmpl = template.Must(template.New("demoProxyConfig").Parse(`
-admin:
-  address:
-    socket_address: { address: 127.0.0.1, port_value: 9901 }
-
-static_resources:
-  listeners:
-  - name: listener_0
-    address:
-      socket_address: { address: 0.0.0.0, port_value: {{ .Port }} }
-    filter_chains:
-    - filters:
-      - name: envoy.filters.network.http_connection_manager
-        typed_config:
-          "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
-          stat_prefix: ingress_http
-          codec_type: AUTO
-          upgrade_configs:
-          - upgrade_type: websocket
-          access_log:
-          - name: envoy.access_loggers.file
-            typed_config:
-              "@type": type.googleapis.com/envoy.extensions.access_loggers.file.v3.FileAccessLog
-              path: /var/log/accesslogs
-          route_config:
-            name: local_route
-            virtual_hosts:
-            - name: local_service
-              domains: ["*"]
-              routes:
-              - match: { prefix: "/" }
-                route:
-                  cluster: some_service
-                  auto_host_rewrite: true
-          http_filters:
-          - name: envoy.filters.http.tap
-            typed_config:
-              "@type": type.googleapis.com/envoy.extensions.filters.http.tap.v3.Tap
-              common_config:
-                static_config:
-                  match_config:
-                    any_match: true
-                  output_config:
-                    sinks:
-                      - format: PROTO_BINARY
-                        file_per_tap:
-                          path_prefix: /var/log/taps/
-          - name: envoy.filters.http.router
-            typed_config:
-              "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
-  clusters:
-  - name: some_service
-    connect_timeout: 2s
-    type: STATIC
-    dns_lookup_family: V4_ONLY
-    lb_policy: ROUND_ROBIN
-    load_assignment:
-      cluster_name: some_service
-      endpoints:
-      - lb_endpoints:
-        - endpoint:
-            address:
-              socket_address:
-                address: "{{ .Addr }}"
-                port_value: {{ .Port }}`))
-
-var (
-	printDemoProxyStatusOnce sync.Once
-)
-
-func createDemoProxy(
-	ctx context.Context,
-	c versioned.Interface,
-	intAddr netip.Addr, port int,
-) (error, func()) {
-	pName := namegenerator.NewNameGenerator(time.Now().UTC().UnixNano()).Generate()
-	factory := informers.NewSharedInformerFactoryWithOptions(
-		c,
-		resyncPeriod,
-		informers.WithTweakListOptions(func(opts *metav1.ListOptions) {
-			opts.FieldSelector = "metadata.name=" + pName
-		}),
-	)
-
-	proxyCfg := &strings.Builder{}
-	if err := demoProxyConfigTmpl.Execute(proxyCfg, map[string]interface{}{
-		"Addr": intAddr.String(),
-		"Port": port,
-	}); err != nil {
-		return fmt.Errorf("unable to execute proxy config template: %w", err), nil
-	}
-
-	fmt.Printf("Creating demo proxy %s with port %d...\n", pName, port)
-
-	_, err := c.ControllersV1alpha1().Proxies().Create(
-		ctx,
-		&ctrlv1alpha1.Proxy{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: pName,
-				Labels: map[string]string{
-					"apoxy.dev/demo": "true",
-				},
-			},
-			Spec: ctrlv1alpha1.ProxySpec{
-				Provider: ctrlv1alpha1.InfraProviderCloud,
-				Config:   proxyCfg.String(),
-			},
-		},
-		metav1.CreateOptions{},
-	)
-	if err != nil {
-		return fmt.Errorf("unable to create proxy: %w", err), nil
-	}
-
-	proxyInformer := factory.Controllers().V1alpha1().Proxies().Informer()
-	proxyInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		UpdateFunc: func(oldObj, newObj interface{}) {
-			newProxy, ok := newObj.(*ctrlv1alpha1.Proxy)
-			if !ok {
-				return
-			}
-			if newProxy.ObjectMeta.Name == pName &&
-				newProxy.Status.Phase == ctrlv1alpha1.ProxyPhaseRunning &&
-				len(newProxy.Status.IPs) > 0 {
-				printDemoProxyStatusOnce.Do(func() {
-					fmt.Printf("Proxy %s is ready at %s:%d\n", newProxy.Name, newProxy.Status.IPs[0], port)
-				})
-			}
-		},
-	})
-	factory.Start(ctx.Done()) // Must be called after new informers are added.
-	factory.WaitForCacheSync(ctx.Done())
-
-	return nil, func() {
-		ctx := context.Background()
-		fmt.Printf("Deleting demo proxy %s...\n", pName)
-		c.ControllersV1alpha1().Proxies().Delete(ctx, pName, metav1.DeleteOptions{})
-	}
-}
-
-func createTunnelObj(
-	ctx context.Context,
-	c versioned.Interface,
-	name string,
-	wgTun tunnel.Tunnel,
-) error {
-	tunn := &corev1alpha.TunnelNode{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
-		},
-		Spec: corev1alpha.TunnelNodeSpec{
-			PublicKey:       wgTun.PublicKey(),
-			ExternalAddress: wgTun.ExternalAddress().String(),
-			InternalAddress: wgTun.InternalAddress().String(),
-		},
-		Status: corev1alpha.TunnelNodeStatus{
-			Phase: corev1alpha.NodePhasePending,
-		},
-	}
-	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		_, err := c.CoreV1alpha().TunnelNodes().Create(ctx, tunn, metav1.CreateOptions{})
-		if err != nil {
-			if kerrors.IsAlreadyExists(err) {
-				fmt.Printf("TunnelNode %s already exists\n", name)
-				fmt.Printf("Overwrite? (y/n): ")
-				var response string
-				if _, err := fmt.Scanln(&response); err != nil {
-					return fmt.Errorf("unable to read response: %w", err)
-				}
-				if response != "y" {
-					fmt.Printf("Aborting\n")
-					return nil
-				}
-
-				oldTunn, err := c.CoreV1alpha().TunnelNodes().Get(ctx, name, metav1.GetOptions{})
-				if err != nil {
-					return fmt.Errorf("unable to get TunnelNode: %w", err)
-				}
-				tunn.ResourceVersion = oldTunn.ResourceVersion
-
-				if _, err := c.CoreV1alpha().TunnelNodes().Update(ctx, tunn, metav1.UpdateOptions{}); err != nil {
-					return fmt.Errorf("unable to update TunnelNode: %w", err)
-				}
-			} else {
-				return fmt.Errorf("unable to create TunnelNode: %w", err)
-			}
-		}
-		return nil
-	})
-}
-
 // tunnelCmd implements the `tunnel` command that creates a secure tunnel
 // to the remote Apoxy Edge fabric.
 var tunnelCmd = &cobra.Command{
@@ -232,21 +35,6 @@ var tunnelCmd = &cobra.Command{
 	Short: "Create a secure tunnel to the remote Apoxy Edge fabric",
 	Long:  "Create a secure tunnel to the remote Apoxy Edge fabric.",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		isDemo, err := cmd.Flags().GetBool("demo")
-		if err != nil {
-			return fmt.Errorf("unable to get demo flag: %w", err)
-		}
-		var port int
-		if isDemo {
-			var err error
-			port, err = cmd.Flags().GetInt("port")
-			if err != nil {
-				return fmt.Errorf("unable to get port flag: %w", err)
-			}
-			if port == 0 {
-				return fmt.Errorf("port must be specified in demo mode")
-			}
-		}
 		cmd.SilenceUsage = true
 
 		cfg, err := config.Load()
@@ -254,118 +42,155 @@ var tunnelCmd = &cobra.Command{
 			return fmt.Errorf("unable to load config: %w", err)
 		}
 
-		c, err := config.DefaultAPIClient()
+		client, err := config.DefaultAPIClient()
 		if err != nil {
 			return fmt.Errorf("unable to create API client: %w", err)
 		}
 
-		// TODO(dsky): Allow the user to specify the endpoint.
-		host, err := os.Hostname()
+		tunnelNodePath, err := cmd.Flags().GetString("tunnel-path")
 		if err != nil {
-			return fmt.Errorf("unable to get hostname: %w", err)
+			return fmt.Errorf("unable to get tunnel path: %w", err)
 		}
 
-		userspaceMode, err := cmd.Flags().GetBool("userspace")
+		tunnelNodeName, err := cmd.Flags().GetString("tunnel-name")
 		if err != nil {
-			return fmt.Errorf("unable to get userspace flag: %w", err)
+			return fmt.Errorf("unable to get tunnel name: %w", err)
 		}
 
-		var t tunnel.Tunnel
-		if userspaceMode {
-			socksPort, err := cmd.Flags().GetUint16("userspace-socks-port")
+		var tunnelNode *corev1alpha.TunnelNode
+		if tunnelNodePath != "" {
+			tunnelNode, err = loadTunnelNodeFromPath(tunnelNodePath)
 			if err != nil {
-				return fmt.Errorf("unable to get socks proxy port flag: %w", err)
+				return fmt.Errorf("unable to load tunnel node: %w", err)
 			}
 
-			t, err = tunnel.CreateUserspaceTunnel(cmd.Context(), c.ProjectID, host, socksPort, cfg.Verbose)
+			tunnelNodeName = tunnelNode.Name
+
+			// Clean up the tunnel node after the command completes.
+			defer func() {
+				if err := client.CoreV1alpha().TunnelNodes().Delete(
+					context.Background(),
+					tunnelNodeName,
+					metav1.DeleteOptions{},
+				); err != nil {
+					slog.Warn("Failed to delete TunnelNode", slog.Any("error", err))
+				}
+			}()
+		} else if tunnelNodeName != "" {
+			tunnelNode, err = client.CoreV1alpha().TunnelNodes().Get(
+				cmd.Context(),
+				tunnelNodeName,
+				metav1.GetOptions{},
+			)
+			if err != nil {
+				return fmt.Errorf("unable to get tunnel node: %w", err)
+			}
 		} else {
-			t, err = tunnel.CreateKernelTunnel(cmd.Context(), c.ProjectID, host)
+			return fmt.Errorf("either --tunnel-path or --tunnel-name must be specified")
+		}
+
+		var tun tunnel.Tunnel
+		if cfg.Tunnel != nil && cfg.Tunnel.Mode == configv1alpha.TunnelModeUserspace {
+			socksPort := uint16(1080)
+			if cfg.Tunnel.SocksPort != nil {
+				socksPort = uint16(*cfg.Tunnel.SocksPort)
+			}
+
+			tun, err = tunnel.CreateUserspaceTunnel(cmd.Context(), client.ProjectID, tunnelNodeName, socksPort, cfg.Verbose)
+		} else {
+			tun, err = tunnel.CreateKernelTunnel(cmd.Context(), client.ProjectID, tunnelNodeName)
 		}
 		if err != nil {
 			return fmt.Errorf("unable to create tunnel: %w", err)
 		}
-		defer t.Close()
+		defer tun.Close()
 
-		if isDemo {
-			err, cleanup := createDemoProxy(cmd.Context(), c, t.InternalAddress().Addr(), port)
-			if err != nil {
-				return fmt.Errorf("unable to create demo proxy: %w", err)
-			}
-			defer cleanup()
-		}
-
+		// TODO: Listen for changes to our peerrefs and update the tunnel accordingly.
 		factory := informers.NewSharedInformerFactoryWithOptions(
-			c,
+			client,
 			resyncPeriod,
-			informers.WithTweakListOptions(func(opts *metav1.ListOptions) {
-				opts.FieldSelector = "metadata.name=" + host
-			}),
 		)
-		tunnelInformer := factory.Core().V1alpha().TunnelNodes().Informer()
-		proxyPeers := make(map[string]*wireguard.PeerConfig)
+
 		doneCh := make(chan struct{})
+		tunnelInformer := factory.Core().V1alpha().TunnelNodes().Informer()
 		tunnelInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-			UpdateFunc: func(oldObj, newObj interface{}) {
-				newTunnel, ok := newObj.(*corev1alpha.TunnelNode)
+			AddFunc: func(obj any) {
+				updatedTunnelNode, ok := obj.(*corev1alpha.TunnelNode)
 				if !ok {
 					return
 				}
-				slog.Debug("Tunnel updated", "tunnel", newTunnel.Name)
 
-				// Create a new peer for the tunnel.
-				newPeers := make(map[string]*wireguard.PeerConfig)
-				for _, p := range newTunnel.Status.PeerStatuses {
-					if _, ok := proxyPeers[p.PublicKey]; !ok {
-						if _, err := wgtypes.ParseKey(p.PublicKey); err != nil {
-							slog.Error("Failed to parse peer public key", "err", err)
-							continue
-						}
-						extAddrPort, err := netip.ParseAddrPort(p.ExternalAddress)
-						if err != nil {
-							slog.Error("Failed to parse peer address", "err", err)
-							continue
-						}
-						intAddr, err := netip.ParseAddr(p.InternalAddress)
-						if err != nil {
-							slog.Error("Failed to parse peer address", "err", err)
-							continue
-						}
-						if !intAddr.Is6() {
-							slog.Error("Internal address must be an IPv6 address")
-							continue
-						}
+				if updatedTunnelNode.Name == tunnelNodeName {
+					tunnelNode = updatedTunnelNode
+				} else {
+					var err error
+					tunnelNode, err = client.CoreV1alpha().TunnelNodes().Get(cmd.Context(), tunnelNodeName, metav1.GetOptions{})
+					if err != nil {
+						slog.Warn("Failed to get TunnelNode", slog.String("name", tunnelNodeName), slog.Any("error", err))
+						return
+					}
 
-						peer := &wireguard.PeerConfig{
-							PublicKey:                      &p.PublicKey,
-							Endpoint:                       ptr.To(extAddrPort.String()),
-							AllowedIPs:                     []string{intAddr.String() + "/128"},
-							PersistentKeepaliveIntervalSec: ptr.To(uint16(15)),
+					// Do we have a reference to the object?
+					var foundRef bool
+					for _, peer := range tunnelNode.Spec.Peers {
+						if peer.TunnelNodeRef != nil && peer.TunnelNodeRef.Name == updatedTunnelNode.Name {
+							foundRef = true
+							break
 						}
-
-						slog.Debug("Adding peer", "peer", peer)
-
-						if err := t.AddPeer(peer); err != nil {
-							slog.Error("Failed to add peer", "err", err)
-							continue
-						}
-						newPeers[p.PublicKey] = peer
-					} else {
-						delete(proxyPeers, p.PublicKey)
+					}
+					if !foundRef {
+						// Nothing for us to do.
+						return
 					}
 				}
-				// Remove any peers that are no longer present.
-				for _, p := range proxyPeers {
-					if err := t.RemovePeer(*p.PublicKey); err != nil {
-						slog.Error("Failed to remove peer", "err", err)
-					}
-				}
-				proxyPeers = maps.Clone(newPeers)
+
+				syncTunnelNode(cmd.Context(), client, tunnelNode, tun)
 			},
-			DeleteFunc: func(obj interface{}) {
+			UpdateFunc: func(oldObj, newObj any) {
+				updatedTunnelNode, ok := newObj.(*corev1alpha.TunnelNode)
+				if !ok {
+					return
+				}
+
+				if updatedTunnelNode.Name == tunnelNodeName {
+					tunnelNode = updatedTunnelNode
+				} else {
+					var err error
+					tunnelNode, err = client.CoreV1alpha().TunnelNodes().Get(cmd.Context(), tunnelNodeName, metav1.GetOptions{})
+					if err != nil {
+						slog.Warn("Failed to get TunnelNode", slog.String("name", tunnelNodeName), slog.Any("error", err))
+						return
+					}
+
+					// Do we have a reference to the object?
+					var foundRef bool
+					for _, peer := range tunnelNode.Spec.Peers {
+						if peer.TunnelNodeRef != nil && peer.TunnelNodeRef.Name == updatedTunnelNode.Name {
+							foundRef = true
+							break
+						}
+					}
+					if !foundRef {
+						// Nothing for us to do.
+						return
+					}
+				}
+
+				syncTunnelNode(cmd.Context(), client, tunnelNode, tun)
+			},
+			DeleteFunc: func(obj any) {
+				tunnelNode, ok := obj.(*corev1alpha.TunnelNode)
+				if !ok {
+					return
+				}
+
+				slog.Info("TunnelNode deleted", slog.String("name", tunnelNode.Name))
+
 				doneCh <- struct{}{}
 			},
 		})
-		factory.Start(cmd.Context().Done()) // Must be called after new informers are added.
+
+		factory.Start(cmd.Context().Done())
 		synced := factory.WaitForCacheSync(cmd.Context().Done())
 		for v, s := range synced {
 			if !s {
@@ -373,19 +198,21 @@ var tunnelCmd = &cobra.Command{
 			}
 		}
 
-		if err := createTunnelObj(cmd.Context(), c, host, t); err != nil {
-			return fmt.Errorf("unable to create TunnelNode: %w", err)
+		// Set the initial status of the TunnelNode object.
+		tunnelNode.Status.Phase = corev1alpha.NodePhaseReady
+		tunnelNode.Status.PublicKey = tun.PublicKey()
+		tunnelNode.Status.ExternalAddress = tun.ExternalAddress().String()
+		tunnelNode.Status.InternalAddress = tun.InternalAddress().String()
+
+		// Create the TunnelNode object in the API.
+		if err := upsertTunnelNode(cmd.Context(), client, tunnelNode); err != nil {
+			return err
 		}
 
-		<-cmd.Context().Done()
-		fmt.Printf("\nCleaning up tunnel...\n")
-		dCtx := context.Background() // Use a new context to ensure the tunnel is closed.
-		if err := c.CoreV1alpha().TunnelNodes().Delete(
-			dCtx,
-			host,
-			metav1.DeleteOptions{},
-		); err != nil {
-			return fmt.Errorf("unable to delete TunnelNode: %w", err)
+		// Wait for the TunnelNode object to be deleted, or for the command to be cancelled.
+		select {
+		case <-doneCh:
+		case <-cmd.Context().Done():
 		}
 
 		return nil
@@ -393,10 +220,103 @@ var tunnelCmd = &cobra.Command{
 }
 
 func init() {
-	tunnelCmd.Flags().Bool("userspace", false, "Use an unprivileged userspace tunnel implementation.")
-	tunnelCmd.Flags().Uint16("userspace-socks-port", 9050, "The port to use for the local SOCKS5 proxy (outbound traffic).")
-	tunnelCmd.Flags().Bool("demo", false, "Creates a demo Proxy with a single upstream for this tunnel. Requires --port flag.")
-	tunnelCmd.Flags().Int("port", 0, "The port to use for the demo Proxy.")
+	tunnelCmd.Flags().String("tunnel-path", "", "Path to the TunnelNode to create in the API.")
+	tunnelCmd.Flags().String("tunnel-name", "", "Name of the TunnelNode to manage. Must not be used with --tunnel-path.")
 
 	alphaCmd.AddCommand(tunnelCmd)
+}
+
+func syncTunnelNode(ctx context.Context, client versioned.Interface, tunnelNode *corev1alpha.TunnelNode, tun tunnel.Tunnel) {
+	peerPublicKeys := set.New[string]()
+	peerTunnelNodes := map[string]*corev1alpha.TunnelNode{}
+
+	for _, peer := range tunnelNode.Spec.Peers {
+		if peer.TunnelNodeRef != nil {
+			peerTunnelNode, err := client.CoreV1alpha().TunnelNodes().Get(ctx, peer.TunnelNodeRef.Name, metav1.GetOptions{})
+			if err != nil && !errors.IsNotFound(err) {
+				slog.Warn("Failed to get peer", slog.String("name", peer.TunnelNodeRef.Name), slog.Any("error", err))
+				continue
+			}
+
+			if peerTunnelNode.Status.PublicKey != "" {
+				peerPublicKeys.Insert(peerTunnelNode.Status.PublicKey)
+				peerTunnelNodes[peerTunnelNode.Status.PublicKey] = peerTunnelNode
+			}
+		}
+	}
+
+	knownPeers, err := tun.Peers()
+	if err != nil {
+		slog.Error("Failed to get known peers", slog.String("name", tunnelNode.Name), slog.Any("error", err))
+		return
+	}
+
+	for peerPublicKey := range peerPublicKeys.Difference(knownPeers) {
+		peerTunnelNode := peerTunnelNodes[peerPublicKey]
+
+		peerConf := &wireguard.PeerConfig{
+			PublicKey:  ptr.To(peerTunnelNode.Status.PublicKey),
+			Endpoint:   ptr.To(peerTunnelNode.Status.ExternalAddress),
+			AllowedIPs: []string{peerTunnelNode.Status.InternalAddress},
+		}
+
+		if err := tun.AddPeer(peerConf); err != nil {
+			slog.Error("Failed to add peer", slog.String("name", peerTunnelNode.Name), slog.Any("error", err))
+		}
+	}
+
+	for peerPublicKey := range knownPeers.Difference(peerPublicKeys) {
+		if err := tun.RemovePeer(peerPublicKey); err != nil {
+			slog.Error("Failed to remove peer", slog.String("publicKey", peerPublicKey), slog.Any("error", err))
+		}
+	}
+}
+
+func loadTunnelNodeFromPath(path string) (*corev1alpha.TunnelNode, error) {
+	yamlFile, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read file: %w", err)
+	}
+
+	obj, gvk, err := decodeFn(yamlFile, nil, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode TunnelNode: %w", err)
+	}
+
+	tunnelNode, ok := obj.(*corev1alpha.TunnelNode)
+	if !ok {
+		return nil, fmt.Errorf("not a TunnelNode object: %v", gvk)
+	}
+
+	return tunnelNode, nil
+}
+
+func upsertTunnelNode(ctx context.Context, client versioned.Interface, tunnelNode *corev1alpha.TunnelNode) error {
+	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		_, err := client.CoreV1alpha().TunnelNodes().Create(ctx, tunnelNode, metav1.CreateOptions{})
+		if errors.IsAlreadyExists(err) {
+			existingTunnelNode, err := client.CoreV1alpha().TunnelNodes().Get(ctx, tunnelNode.Name, metav1.GetOptions{})
+			if err != nil {
+				return fmt.Errorf("failed to get existing TunnelNode: %w", err)
+			}
+
+			tunnelNode.ResourceVersion = existingTunnelNode.ResourceVersion
+
+			_, err = client.CoreV1alpha().TunnelNodes().Update(ctx, tunnelNode, metav1.UpdateOptions{})
+			if err != nil {
+				return fmt.Errorf("failed to update existing TunnelNode: %w", err)
+			}
+
+			_, err = client.CoreV1alpha().TunnelNodes().UpdateStatus(ctx, tunnelNode, metav1.UpdateOptions{})
+			if err != nil {
+				return fmt.Errorf("failed to update existing TunnelNode status: %w", err)
+			}
+
+			return nil
+		} else if err != nil {
+			return fmt.Errorf("failed to create TunnelNode: %w", err)
+		}
+
+		return nil
+	})
 }

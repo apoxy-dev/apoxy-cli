@@ -63,7 +63,6 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DynamicProxySpec":                     schema_apoxy_cli_api_core_v1alpha_DynamicProxySpec(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.FileAccessLog":                        schema_apoxy_cli_api_core_v1alpha_FileAccessLog(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.ForwardingRule":                       schema_apoxy_cli_api_core_v1alpha_ForwardingRule(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.PeerStatus":                           schema_apoxy_cli_api_core_v1alpha_PeerStatus(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.PortRange":                            schema_apoxy_cli_api_core_v1alpha_PortRange(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.Proxy":                                schema_apoxy_cli_api_core_v1alpha_Proxy(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.ProxyList":                            schema_apoxy_cli_api_core_v1alpha_ProxyList(ref),
@@ -71,6 +70,8 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.ProxyStatus":                          schema_apoxy_cli_api_core_v1alpha_ProxyStatus(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNode":                           schema_apoxy_cli_api_core_v1alpha_TunnelNode(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNodeList":                       schema_apoxy_cli_api_core_v1alpha_TunnelNodeList(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNodePeer":                       schema_apoxy_cli_api_core_v1alpha_TunnelNodePeer(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNodeRef":                        schema_apoxy_cli_api_core_v1alpha_TunnelNodeRef(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNodeSpec":                       schema_apoxy_cli_api_core_v1alpha_TunnelNodeSpec(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNodeStatus":                     schema_apoxy_cli_api_core_v1alpha_TunnelNodeStatus(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunction":                  schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunction(ref),
@@ -1918,46 +1919,6 @@ func schema_apoxy_cli_api_core_v1alpha_ForwardingRule(ref common.ReferenceCallba
 	}
 }
 
-func schema_apoxy_cli_api_core_v1alpha_PeerStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
-				Properties: map[string]spec.Schema{
-					"publicKey": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Public key of the peer (base64 encoded).",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"externalAddress": {
-						SchemaProps: spec.SchemaProps{
-							Description: "ExternalAddress of the peer. This is the address of the peer that is directly accessible via host network.",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"internalAddress": {
-						SchemaProps: spec.SchemaProps{
-							Description: "InternalAddress of the peer. This is the address of the peer on the tunnel overlay network.",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"phase": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Phase of the peer.",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
 func schema_apoxy_cli_api_core_v1alpha_PortRange(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -2297,12 +2258,84 @@ func schema_apoxy_cli_api_core_v1alpha_TunnelNodeList(ref common.ReferenceCallba
 	}
 }
 
+func schema_apoxy_cli_api_core_v1alpha_TunnelNodePeer(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"tunnelNodeRef": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNodeRef"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNodeRef"},
+	}
+}
+
+func schema_apoxy_cli_api_core_v1alpha_TunnelNodeRef(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Name of the tunnel node.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
 func schema_apoxy_cli_api_core_v1alpha_TunnelNodeSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
 				Type: []string{"object"},
 				Properties: map[string]spec.Schema{
+					"peers": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNodePeer"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNodePeer"},
+	}
+}
+
+func schema_apoxy_cli_api_core_v1alpha_TunnelNodeStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"phase": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Phase of the node.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 					"publicKey": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Public key of the node (base64 encoded).",
@@ -2324,59 +2357,9 @@ func schema_apoxy_cli_api_core_v1alpha_TunnelNodeSpec(ref common.ReferenceCallba
 							Format:      "",
 						},
 					},
-					"forwardedFor": {
-						SchemaProps: spec.SchemaProps{
-							Description: "CIDRs that the node will be relaying traffic for. These are endpoints downstream of the node for which the node is acting as a gateway.",
-							Type:        []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: "",
-										Type:    []string{"string"},
-										Format:  "",
-									},
-								},
-							},
-						},
-					},
 				},
 			},
 		},
-	}
-}
-
-func schema_apoxy_cli_api_core_v1alpha_TunnelNodeStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
-				Properties: map[string]spec.Schema{
-					"phase": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Phase of the node.",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"peerStatuses": {
-						SchemaProps: spec.SchemaProps{
-							Description: "PeerStatuses is a list of statuses of the peers that the node is connected to.",
-							Type:        []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.PeerStatus"),
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.PeerStatus"},
 	}
 }
 

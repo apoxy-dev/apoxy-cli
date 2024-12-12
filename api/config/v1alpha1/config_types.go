@@ -2,7 +2,6 @@ package v1alpha1
 
 import (
 	"github.com/google/uuid"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
@@ -29,8 +28,8 @@ type Config struct {
 	CurrentProject uuid.UUID `json:"currentProject,omitempty"`
 	// Projects is a list of projects that this instance is managing.
 	Projects []Project `json:"projects,omitempty"`
-	// Resources is a list of resources that this instance should manage/reconcile.
-	Resources []ObjectReferenceWithProject `json:"resources,omitempty"`
+	// Tunnel is the configuration for the tunnel.
+	Tunnel *TunnelConfig `json:"tunnelConfig,omitempty"`
 }
 
 // Project is a configuration for a project.
@@ -45,9 +44,21 @@ type Project struct {
 	APIKey string `json:"apiKey"`
 }
 
-// ObjectReferenceWithContext is a reference to an object with an API server context.
-type ObjectReferenceWithProject struct {
-	corev1.ObjectReference `json:",inline"`
-	// Project is the project ID to use for this object.
-	Project string `json:"project"`
+// TunnelConfig is the configuration for the tunnel.
+type TunnelConfig struct {
+	// Mode is the mode of the tunnel.
+	Mode TunnelMode `json:"mode,omitempty"`
+	// SocksPort, when running in userspace mode, is the port to listen on for
+	// SOCKS5 proxy connections. If not specified it will default to 1080.
+	SocksPort *int `json:"socksPort,omitempty"`
 }
+
+// TunnelMode is the mode of the tunnel.
+type TunnelMode string
+
+const (
+	// Use the kernel implementation of WireGuard.
+	TunnelModeKernel TunnelMode = "kernel"
+	// Use an unprivileged userspace implementation of WireGuard.
+	TunnelModeUserspace TunnelMode = "userspace"
+)

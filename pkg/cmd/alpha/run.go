@@ -36,17 +36,19 @@ import (
 	"github.com/apoxy-dev/apoxy-cli/pkg/log"
 
 	ctrlv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
+	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
 	extensionsv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1"
 	policyv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/policy/v1alpha1"
 )
 
 var (
-	scheme   = runtime.NewScheme()
-	codecs   = serializer.NewCodecFactory(scheme)
-	decodeFn = codecs.UniversalDeserializer().Decode
+	scheme       = runtime.NewScheme()
+	codecFactory = serializer.NewCodecFactory(scheme)
+	decodeFn     = codecFactory.UniversalDeserializer().Decode
 )
 
 func init() {
+	utilruntime.Must(corev1alpha.Install(scheme))
 	utilruntime.Must(ctrlv1alpha1.Install(scheme))
 	utilruntime.Must(policyv1alpha1.Install(scheme))
 	utilruntime.Must(extensionsv1alpha1.Install(scheme))

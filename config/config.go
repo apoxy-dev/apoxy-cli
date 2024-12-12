@@ -12,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/runtime/serializer/json"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/klog/v2"
 
 	configv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/config/v1alpha1"
@@ -36,7 +37,7 @@ var (
 
 func init() {
 	scheme := runtime.NewScheme()
-	_ = configv1alpha1.Install(scheme)
+	utilruntime.Must(configv1alpha1.Install(scheme))
 	s := json.NewYAMLSerializer(json.DefaultMetaFactory, scheme, scheme)
 	codec = serializer.NewCodecFactory(scheme).CodecForVersions(s, s, configv1alpha1.SchemeGroupVersion, configv1alpha1.SchemeGroupVersion)
 }
