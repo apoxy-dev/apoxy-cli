@@ -25,15 +25,15 @@ import (
 
 var _ reconcile.Reconciler = &EdgeFunctionReconciler{}
 
-// EdgeFunctionReconciler reconciles a Proxy object.
+// EdgeFunctionReconciler reconciles an EdgeFunction object.
 type EdgeFunctionReconciler struct {
 	client.Client
 	scheme *runtime.Scheme
 	tc     tclient.Client
 }
 
-// NewEdgeFuncReconciler returns a new reconcile.Reconciler.
-func NewEdgeFuncReconciler(
+// NewEdgeFunctionReconciler returns a new reconcile.Reconciler.
+func NewEdgeFunctionReconciler(
 	c client.Client,
 	s *runtime.Scheme,
 	tc tclient.Client,
@@ -58,11 +58,11 @@ func (r *EdgeFunctionReconciler) startIngest(
 	ctx context.Context,
 	obj *v1alpha1.EdgeFunction,
 ) (*v1alpha1.EdgeFunctionRevision, error) {
-	funcHash := EdgeFunctionHash(obj.Spec)
+	tmplHash := EdgeFunctionHash(obj.Spec.Template)
 
-	log := clog.FromContext(ctx, "Hash", funcHash)
+	log := clog.FromContext(ctx, "Hash", tmplHash)
 
-	revName := fmt.Sprintf("%s-%s", obj.Name, funcHash)
+	revName := fmt.Sprintf("%s-%s", obj.Name, tmplHash)
 	rev := &v1alpha1.EdgeFunctionRevision{}
 	if err := r.Get(ctx, client.ObjectKey{Name: revName}, rev); err != nil && !errors.IsNotFound(err) {
 		return nil, fmt.Errorf("failed to get EdgeFunctionRevision: %w", err)
@@ -75,7 +75,7 @@ func (r *EdgeFunctionReconciler) startIngest(
 				Labels:      map[string]string{},
 				Annotations: map[string]string{},
 			},
-			Spec: *obj.Spec.DeepCopy(),
+			Spec: *obj.Spec.Template.DeepCopy(),
 		}
 		for k, v := range obj.Labels {
 			rev.Labels[k] = v
@@ -111,8 +111,8 @@ func (r *EdgeFunctionReconciler) startIngest(
 }
 
 func (r *EdgeFunctionReconciler) cancelIngest(ctx context.Context, obj *v1alpha1.EdgeFunction) error {
-	funcHash := EdgeFunctionHash(obj.Spec)
-	revName := fmt.Sprintf("%s-%s", obj.Name, funcHash)
+	tmplHash := EdgeFunctionHash(obj.Spec.Template)
+	revName := fmt.Sprintf("%s-%s", obj.Name, tmplHash)
 	log := clog.FromContext(ctx, "Revision", revName)
 
 	log.Info("Cancelling ingest workflow")

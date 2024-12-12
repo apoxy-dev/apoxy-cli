@@ -21,7 +21,7 @@ type EdgeFunctionRevision struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec EdgeFunctionSpec `json:"spec,omitempty"`
+	Spec EdgeFunctionRevisionSpec `json:"spec,omitempty"`
 
 	Status EdgeFunctionRevisionStatus `json:"status,omitempty"`
 }

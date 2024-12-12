@@ -67,18 +67,11 @@ kind: EdgeFunction
 metadata:
   name: websocket
 spec:
-  mode: filter
-  code:
-    goPluginSource:
-      oci:
-        repo: registry-1.docker.io/apoxy/websocket
-        tag: "5091d06"
-    
-    
-    
-    
-    
-    
-    
-    
-    
+  revisionHistoryLimit: 2
+  template:
+    mode: filter
+    code:
+      goPluginSource:
+        oci:
+          repo: registry-1.docker.io/apoxy/websocket
+          tag: "5091d06"

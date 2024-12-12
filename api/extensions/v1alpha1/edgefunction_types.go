@@ -223,6 +223,16 @@ const (
 )
 
 type EdgeFunctionSpec struct {
+	// Template is the template of the function.
+	Template EdgeFunctionRevisionSpec `json:"template"`
+
+	// RevisionHistoryLimit is the number of old revisions to keep.
+	// Defaults to 10.
+	// +optional
+	RevisionHistoryLimit *int32 `json:"revisionHistoryLimit,omitempty"`
+}
+
+type EdgeFunctionRevisionSpec struct {
 	// Mode is runtime mode of the function.
 	Mode EdgeFunctionMode `json:"mode"`
 

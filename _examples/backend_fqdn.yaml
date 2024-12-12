@@ -66,7 +66,10 @@ kind: EdgeFunction
 metadata:
   name: websocket
 spec:
-  mode: filter
-  code:
-    goPluginSource:
-      url: http://localhost:8000/websocket.so
+  template:
+    mode: filter
+    code:
+      goPluginSource:
+        oci:
+          repo: registry-1.docker.io/apoxy/websocket
+          tag: "5091d06"

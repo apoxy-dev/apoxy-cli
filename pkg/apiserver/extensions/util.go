@@ -18,8 +18,8 @@ func DeepHashObject(hasher hash.Hash, objectToWrite interface{}) {
 	fmt.Fprintf(hasher, "%v", dump.ForHash(objectToWrite))
 }
 
-// EdgeFunctionHash hashes an EdgeFunctionSpec.
-func EdgeFunctionHash(spec v1alpha1.EdgeFunctionSpec) string {
+// EdgeFunctionHash hashes an EdgeFunctionRevisionTemplate.
+func EdgeFunctionHash(spec v1alpha1.EdgeFunctionRevisionSpec) string {
 	h := fnv.New32a()
 	DeepHashObject(h, spec)
 

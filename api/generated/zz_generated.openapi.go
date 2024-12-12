@@ -78,6 +78,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionList":              schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionList(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRevision":          schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionRevision(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRevisionList":      schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionRevisionList(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRevisionSpec":      schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionRevisionSpec(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRevisionStatus":    schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionRevisionStatus(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRuntime":           schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionRuntime(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionSpec":              schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionSpec(ref),
@@ -2543,7 +2544,7 @@ func schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionRevision(ref common.Re
 					"spec": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionSpec"),
+							Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRevisionSpec"),
 						},
 					},
 					"status": {
@@ -2556,7 +2557,7 @@ func schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionRevision(ref common.Re
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRevisionStatus", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionSpec", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRevisionSpec", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRevisionStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
 	}
 }
 
@@ -2605,6 +2606,56 @@ func schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionRevisionList(ref commo
 		},
 		Dependencies: []string{
 			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRevision", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+	}
+}
+
+func schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionRevisionSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"mode": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Mode is runtime mode of the function.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"code": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Code is the source of the function code/binary.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionCodeSource"),
+						},
+					},
+					"env": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Env is a list of environment variables to set in the function runtime. These will be available via WASIp1 environ* routines as well as Apoxy Runtime SDK APIs.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EnvVar"),
+									},
+								},
+							},
+						},
+					},
+					"runtime": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Configuration for the function runtime.",
+							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRuntime"),
+						},
+					},
+				},
+				Required: []string{"mode", "code"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionCodeSource", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRuntime", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EnvVar"},
 	}
 }
 
@@ -2685,47 +2736,26 @@ func schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionSpec(ref common.Refere
 			SchemaProps: spec.SchemaProps{
 				Type: []string{"object"},
 				Properties: map[string]spec.Schema{
-					"mode": {
+					"template": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Mode is runtime mode of the function.",
-							Default:     "",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"code": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Code is the source of the function code/binary.",
+							Description: "Template is the template of the function.",
 							Default:     map[string]interface{}{},
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionCodeSource"),
+							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRevisionSpec"),
 						},
 					},
-					"env": {
+					"revisionHistoryLimit": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Env is a list of environment variables to set in the function runtime. These will be available via WASIp1 environ* routines as well as Apoxy Runtime SDK APIs.",
-							Type:        []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EnvVar"),
-									},
-								},
-							},
-						},
-					},
-					"runtime": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Configuration for the function runtime.",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRuntime"),
+							Description: "RevisionHistoryLimit is the number of old revisions to keep. Defaults to 10.",
+							Type:        []string{"integer"},
+							Format:      "int32",
 						},
 					},
 				},
-				Required: []string{"mode", "code"},
+				Required: []string{"template"},
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionCodeSource", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRuntime", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EnvVar"},
+			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRevisionSpec"},
 	}
 }
 

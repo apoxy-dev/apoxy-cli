@@ -219,6 +219,7 @@ type options struct {
 	certPairName, certDir string
 	enableKubeAPI         bool
 	additionalControllers []CreateController
+	gcInterval            time.Duration
 }
 
 // WithClientConfig sets the client configuration.
@@ -291,6 +292,13 @@ func WithKubeAPI() Option {
 	}
 }
 
+// WithGCInterval sets the garbage collection interval.
+func WithGCInterval(interval time.Duration) Option {
+	return func(o *options) {
+		o.gcInterval = interval
+	}
+}
+
 func encodeSQLiteConnArgs(args map[string]string) string {
 	var buf strings.Builder
 	for k, v := range args {
@@ -318,6 +326,7 @@ func defaultOptions() *options {
 		},
 		certDir:      "",
 		certPairName: "tls",
+		gcInterval:   10 * time.Minute,
 	}
 }
 
@@ -398,12 +407,19 @@ func (m *Manager) Start(
 	}
 
 	log.Infof("Registering EdgeFunction controller")
-	if err := extensions.NewEdgeFuncReconciler(
+	if err := extensions.NewEdgeFunctionReconciler(
 		m.manager.GetClient(),
 		m.manager.GetScheme(),
 		tc,
 	).SetupWithManager(ctx, m.manager); err != nil {
 		return fmt.Errorf("failed to set up Project controller: %v", err)
+	}
+	if err := extensions.NewEdgeFunctionRevisionGCReconciler(
+		m.manager.GetClient(),
+		m.manager.GetScheme(),
+		dOpts.gcInterval,
+	).SetupWithManager(ctx, m.manager); err != nil {
+		return fmt.Errorf("failed to set up EdgeFunctionRevision GC controller: %v", err)
 	}
 
 	if len(dOpts.additionalControllers) > 0 {
