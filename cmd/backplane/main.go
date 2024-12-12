@@ -289,7 +289,7 @@ func main() {
 		return
 	}
 
-	if err := bpctrl.NewEdgeFuncReconciler(
+	if err := bpctrl.NewEdgeFunctionRevisionReconciler(
 		mgr.GetClient(),
 		net.JoinHostPort(apiServerHost, strconv.Itoa(*wasmStorePort)),
 		ms,

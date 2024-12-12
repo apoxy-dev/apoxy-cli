@@ -8,9 +8,10 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -28,10 +29,11 @@ const (
 	edgeFuncRevsOwnerIndex = "edgeFuncRevsOwner"
 )
 
-var _ reconcile.Reconciler = &EdgeFunctionReconciler{}
+var _ reconcile.Reconciler = &EdgeFunctionRevisionReconciler{}
 
-// EdgeFunctionReconciler reconciles a Proxy object.
-type EdgeFunctionReconciler struct {
+// EdgeFunctionRevisionReconciler reconciles an EdgeFunctionRevision object
+// representing an edge function executable.
+type EdgeFunctionRevisionReconciler struct {
 	client.Client
 
 	apiserverHost string
@@ -44,15 +46,15 @@ type EdgeFunctionReconciler struct {
 	edgeFuncs map[string]*v1alpha1.EdgeFunctionRevision
 }
 
-// NewEdgeFuncReconciler returns a new reconcile.Reconciler.
-func NewEdgeFuncReconciler(
+// NewEdgeFunctionRevisionReconciler returns a new reconcile.Reconciler.
+func NewEdgeFunctionRevisionReconciler(
 	c client.Client,
 	apiserverHost string,
 	wasmStore manifest.Store,
 	goStoreDir string,
 	jsStoreDir string,
-) *EdgeFunctionReconciler {
-	return &EdgeFunctionReconciler{
+) *EdgeFunctionRevisionReconciler {
+	return &EdgeFunctionRevisionReconciler{
 		Client:        c,
 		apiserverHost: apiserverHost,
 		wasmStore:     wasmStore,
@@ -63,7 +65,7 @@ func NewEdgeFuncReconciler(
 	}
 }
 
-func (r *EdgeFunctionReconciler) downloadFuncData(
+func (r *EdgeFunctionRevisionReconciler) downloadFuncData(
 	ctx context.Context,
 	fnType string,
 	ref string,
@@ -100,21 +102,39 @@ func hasReadyCondition(conditions []metav1.Condition) bool {
 }
 
 // Reconcile implements reconcile.Reconciler.
-func (r *EdgeFunctionReconciler) Reconcile(ctx context.Context, request reconcile.Request) (ctrl.Result, error) {
-	rev := &v1alpha1.EdgeFunctionRevision{}
-	err := r.Get(ctx, request.NamespacedName, rev)
-	if errors.IsNotFound(err) {
-		return ctrl.Result{}, client.IgnoreNotFound(err)
-	}
-	if err != nil {
-		return ctrl.Result{}, fmt.Errorf("failed to get EdgeFunction: %w", err)
-	}
-
-	log := clog.FromContext(ctx, "name", rev.Name)
+func (r *EdgeFunctionRevisionReconciler) Reconcile(ctx context.Context, request reconcile.Request) (ctrl.Result, error) {
+	log := clog.FromContext(ctx)
 	log.Info("Reconciling EdgeFunctionRevision")
 
+	rev := &v1alpha1.EdgeFunctionRevision{}
+	if err := r.Get(ctx, request.NamespacedName, rev); err != nil {
+		log.Error(err, "Failed to get EdgeFunctionRevision")
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+
+	owner := metav1.GetControllerOf(rev)
+	if owner == nil {
+		log.Info("EdgeFunctionRevision is not controlled by an EdgeFunction, Skipping reconciliation.")
+		return ctrl.Result{}, nil // Do not requeue for this version.
+	}
+	if owner.APIVersion != v1alpha1.GroupVersion.String() || owner.Kind != "EdgeFunction" {
+		log.Info("EdgeFunctionRevision is not controlled by an EdgeFunction, Skipping reconciliation.", "owner", owner)
+		return ctrl.Result{}, nil // Do not requeue for this version.
+	}
+	ef := &v1alpha1.EdgeFunction{}
+	if err := r.Get(ctx, types.NamespacedName{Name: owner.Name}, ef); err != nil {
+		log.Error(err, "Failed to get EdgeFunction owner")
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+
 	if !rev.DeletionTimestamp.IsZero() {
+		if ef.Status.LiveRevision == rev.Name { // Do not delete the live revision.
+			log.Info("EdgeFunctionRevision is the live revision, Skipping deletion.")
+			return ctrl.Result{RequeueAfter: time.Second * 10}, nil
+		}
+
 		log.Info("Deleting EdgeFunctionRevision")
+
 		if rev.Spec.Code.WasmSource != nil {
 			log.Info("Deleting Wasm data", "ref", rev.Status.Ref)
 			if err := r.wasmStore.Delete(ctx, rev.Status.Ref); err != nil {
@@ -217,7 +237,7 @@ func (r *EdgeFunctionReconciler) Reconcile(ctx context.Context, request reconcil
 	return ctrl.Result{}, nil
 }
 
-func (r *EdgeFunctionReconciler) reconileEdgeRuntime(ctx context.Context, ref string) error {
+func (r *EdgeFunctionRevisionReconciler) reconileEdgeRuntime(ctx context.Context, ref string) error {
 	log := clog.FromContext(ctx)
 
 	s, err := r.edgeRuntime.Status(ctx, ref)
@@ -273,7 +293,7 @@ func targetRefPredicate(proxyName string) predicate.Funcs {
 }
 
 // SetupWithManager sets up the controller with the Controller Manager.
-func (r *EdgeFunctionReconciler) SetupWithManager(
+func (r *EdgeFunctionRevisionReconciler) SetupWithManager(
 	ctx context.Context,
 	mgr ctrl.Manager,
 	proxyName string,
