@@ -31,6 +31,7 @@ type TunnelNodeSpec struct {
 
 type TunnelNodePeer struct {
 	TunnelNodeRef *TunnelNodeRef `json:"tunnelNodeRef,omitempty"`
+	// TODO: Also implement label selectors etc.
 }
 
 type TunnelNodeRef struct {
