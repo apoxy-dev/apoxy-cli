@@ -3,7 +3,7 @@ package wireguard
 // DeviceConfig represents the configuration of a WireGuard device.
 // This is the [Interface] section of a wg-quick(8) compatible INI configuration file.
 type DeviceConfig struct {
-	// Hex-encoded private key. "0" indicates removal in set operations.
+	// Private key (base64). "0" indicates removal in set operations.
 	PrivateKey *string `ini:"PrivateKey" uapi:"private_key,hex"`
 	// Listening port in decimal-string format.
 	ListenPort *uint16 `ini:"ListenPort" uapi:"listen_port"`
@@ -40,9 +40,9 @@ type DeviceConfig struct {
 // PeerConfig represents the configuration of a WireGuard peer.
 // This is the [Peer] section of a wg-quick(8) compatible INI configuration file.
 type PeerConfig struct {
-	// Hex-encoded public key. Unique within a message; not repeated.
+	// Public key (base64). Unique within a message; not repeated.
 	PublicKey *string `ini:"PublicKey" uapi:"public_key,hex"`
-	// Hex-encoded preshared key; "0" removes it in set operations.
+	// Preshared key (base64), "0" removes it in set operations.
 	PresharedKey *string `ini:"PresharedKey" uapi:"preshared_key,hex"`
 	// Endpoint in IP:port format (IPv4) or [IP]:port format (IPv6).
 	Endpoint *string `ini:"Endpoint" uapi:"endpoint"`

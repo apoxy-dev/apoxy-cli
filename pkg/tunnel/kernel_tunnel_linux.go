@@ -19,6 +19,7 @@ import (
 	"golang.zx2c4.com/wireguard/wgctrl"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	"k8s.io/utils/ptr"
+	"k8s.io/utils/set"
 
 	"github.com/apoxy-dev/apoxy-cli/pkg/utils"
 	"github.com/apoxy-dev/apoxy-cli/pkg/wireguard"
@@ -134,6 +135,20 @@ func (t *kernelTunnel) Close() error {
 	}
 
 	return nil
+}
+
+func (t *kernelTunnel) Peers() (set.Set[string], error) {
+	device, err := t.wgClient.Device(t.ifaceName)
+	if err != nil {
+		return nil, fmt.Errorf("could not fetch WireGuard device info: %w", err)
+	}
+
+	publicKeys := make([]string, len(device.Peers))
+	for i, peer := range device.Peers {
+		publicKeys[i] = peer.PublicKey.String()
+	}
+
+	return set.New(publicKeys...), nil
 }
 
 func (t *kernelTunnel) AddPeer(peerConf *wireguard.PeerConfig) error {

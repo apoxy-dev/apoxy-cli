@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	"k8s.io/utils/ptr"
+	"k8s.io/utils/set"
 
 	"github.com/apoxy-dev/apoxy-cli/pkg/socksproxy"
 	"github.com/apoxy-dev/apoxy-cli/pkg/utils"
@@ -85,6 +86,10 @@ func CreateUserspaceTunnel(
 func (t *userspaceTunnel) Close() error {
 	t.wgNet.Close()
 	return nil
+}
+
+func (t *userspaceTunnel) Peers() (set.Set[string], error) {
+	return t.wgNet.Peers()
 }
 
 func (t *userspaceTunnel) AddPeer(peerConf *wireguard.PeerConfig) error {
