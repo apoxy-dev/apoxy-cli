@@ -193,6 +193,7 @@ func (m *ApoxyCli) BuildBackplane(
 		WithEnvVariable("GOMODCACHE", "/go/pkg/mod").
 		WithMountedCache("/go/build-cache", dag.CacheVolume("go-build-"+goarch)).
 		WithEnvVariable("GOCACHE", "/go/build-cache").
+		WithEnvVariable("CGO_ENABLED", "1").
 		WithExec([]string{"go", "build", "-o", bpOut, "./cmd/backplane"}).
 		WithExec([]string{"go", "build", "-o", dsOut, "./cmd/dial-stdio"})
 
