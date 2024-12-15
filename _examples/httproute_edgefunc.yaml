@@ -61,35 +61,20 @@ spec:
           files:
             - path: "main.ts"
               content: |
-                import { createServer } from "node:http";
-                import { WebSocketServer } from "npm:ws";
+                interface reqPayload {
+                	name: string;
+                }
 
-                const server = createServer();
-                const wss = new WebSocketServer({ noServer: true });
+                console.info('server started modified');
 
-                wss.on("connection", ws => {
-                    console.log("socket opened");
-                    ws.on("message", (data /** Buffer */, isBinary /** bool */) => {
-                        if (isBinary) {
-                            console.log("socket message:", data);
-                        } else {
-                            console.log("socket message:", data.toString());
-                        }
+                Deno.serve(async (req: Request) => {
+                	const { name }: reqPayload = await req.json();
+                	const data = {
+                		message: `Hello ${name} from foo!`,
+                	};
 
-                        ws.send(new Date().toString());
-                    });
-
-                    ws.on("error", err => {
-                        console.log("socket errored:", err.message);
-                    });
-
-                    ws.on("close", () => console.log("socket closed"));
+                	return new Response(
+                		JSON.stringify(data),
+                		{ headers: { 'Content-Type': 'application/json', 'Connection': 'keep-alive' } },
+                	);
                 });
-
-                server.on("upgrade", (req, socket, head) => {
-                    wss.handleUpgrade(req, socket, head, ws => {
-                        wss.emit("connection", ws, req);
-                    });
-                });
-
-                server.listen(8080);
