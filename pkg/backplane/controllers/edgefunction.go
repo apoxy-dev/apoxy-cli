@@ -2,19 +2,21 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
-	"sync"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	clog "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -41,9 +43,6 @@ type EdgeFunctionRevisionReconciler struct {
 	goStoreDir    string
 	jsStoreDir    string
 	edgeRuntime   edgefunc.Runtime
-
-	mu        sync.Mutex
-	edgeFuncs map[string]*v1alpha1.EdgeFunctionRevision
 }
 
 // NewEdgeFunctionRevisionReconciler returns a new reconcile.Reconciler.
@@ -53,6 +52,7 @@ func NewEdgeFunctionRevisionReconciler(
 	wasmStore manifest.Store,
 	goStoreDir string,
 	jsStoreDir string,
+	edgeRuntime edgefunc.Runtime,
 ) *EdgeFunctionRevisionReconciler {
 	return &EdgeFunctionRevisionReconciler{
 		Client:        c,
@@ -60,8 +60,7 @@ func NewEdgeFunctionRevisionReconciler(
 		wasmStore:     wasmStore,
 		goStoreDir:    goStoreDir,
 		jsStoreDir:    jsStoreDir,
-
-		edgeFuncs: make(map[string]*v1alpha1.EdgeFunctionRevision),
+		edgeRuntime:   edgeRuntime,
 	}
 }
 
@@ -74,17 +73,16 @@ func (r *EdgeFunctionRevisionReconciler) downloadFuncData(
 
 	resp, err := http.Get(fmt.Sprintf("http://%s/%s/%s", r.apiserverHost, fnType, ref))
 	if err != nil {
-		return nil, fmt.Errorf("failed to download Wasm module: %w", err)
+		return nil, fmt.Errorf("failed to download edge function: %w", err)
 	}
-
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to download Wasm module: %s", resp.Status)
+		return nil, fmt.Errorf("failed to download edge function: %s", resp.Status)
 	}
 	defer resp.Body.Close()
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read Wasm module: %w", err)
+		return nil, fmt.Errorf("failed to read edge function data: %w", err)
 	}
 
 	log.Info("Downloaded EdgeFunction module", "size", len(data), "type", fnType, "ref", ref)
@@ -99,6 +97,55 @@ func hasReadyCondition(conditions []metav1.Condition) bool {
 		}
 	}
 	return false
+}
+
+func (r *EdgeFunctionRevisionReconciler) reconileEdgeRuntime(ctx context.Context, ref string) error {
+	log := clog.FromContext(ctx)
+
+	esZipPath := filepath.Join(r.jsStoreDir, ref, "bin.eszip")
+	if _, err := os.Stat(esZipPath); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("Js bundle already exists for ref")
+	} else if os.IsNotExist(err) {
+		jsBundle, err := r.downloadFuncData(clog.IntoContext(ctx, log), "js", ref)
+		if err != nil {
+			return fmt.Errorf("failed to download Js data: %w", err)
+		}
+
+		if err := os.MkdirAll(filepath.Join(r.jsStoreDir, ref), 0755); err != nil {
+			return fmt.Errorf("failed to create Js directory: %w", err)
+		}
+
+		if err := os.WriteFile(filepath.Join(r.jsStoreDir, ref, "data"), jsBundle, 0644); err != nil {
+			return fmt.Errorf("failed to write Js data: %w", err)
+		}
+		// Use symlink to prevent Envoy from loading the plugin while it's being written to.
+		if err := os.Symlink("data", esZipPath); err != nil {
+			return fmt.Errorf("failed to create Js symlink: %w", err)
+		}
+	}
+
+	s, err := r.edgeRuntime.Status(ctx, ref)
+	if err != nil && !errors.Is(err, edgefunc.ErrNotFound) {
+		return fmt.Errorf("failed to get Edge Runtime status: %w", err)
+	}
+
+	log.Info("Edge Runtime status", "state", s.State)
+
+	switch s.State {
+	case edgefunc.StateRunning, edgefunc.StateCreated:
+		log.Info("Edge Runtime is already running or created", "state", s.State)
+		return nil
+	case edgefunc.StateStopped:
+		log.Info("Edge Runtime is stopped, starting it")
+	}
+
+	log.Info("Starting Edge Runtime")
+
+	if err := r.edgeRuntime.Start(ctx, ref, esZipPath); err != nil {
+		return fmt.Errorf("failed to start Edge Runtime: %w", err)
+	}
+
+	return nil
 }
 
 // Reconcile implements reconcile.Reconciler.
@@ -208,60 +255,15 @@ func (r *EdgeFunctionRevisionReconciler) Reconcile(ctx context.Context, request 
 	} else if rev.Spec.Code.JsSource != nil {
 		log.Info("Js source detected")
 
-		jsBundle, err := r.downloadFuncData(clog.IntoContext(ctx, log), "js", ref)
-		if err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to download Js data: %w", err)
+		if err := r.reconileEdgeRuntime(ctx, ref); err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to reconile Edge Runtime: %w", err)
 		}
-
-		if err := os.MkdirAll(filepath.Join(r.jsStoreDir, ref), 0755); err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to create Js directory: %w", err)
-		}
-
-		if err := os.WriteFile(filepath.Join(r.jsStoreDir, ref, "data"), jsBundle, 0644); err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to write Js data: %w", err)
-		}
-		// Use symlink to prevent Envoy from loading the plugin while it's being written to.
-		esZipPath := filepath.Join(r.jsStoreDir, ref, "bin.eszip")
-		if err := os.Symlink("data", esZipPath); err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to create Js symlink: %w", err)
-		}
-
-		r.mu.Lock()
-		r.edgeFuncs[ref] = rev
-		r.mu.Unlock()
 	} else {
 		log.Info("No source detected")
 		return ctrl.Result{}, nil
 	}
 
 	return ctrl.Result{}, nil
-}
-
-func (r *EdgeFunctionRevisionReconciler) reconileEdgeRuntime(ctx context.Context, ref string) error {
-	log := clog.FromContext(ctx)
-
-	s, err := r.edgeRuntime.Status(ctx, ref)
-	if err != nil {
-		return fmt.Errorf("failed to get Edge Runtime status: %w", err)
-	}
-
-	switch s.State {
-	case edgefunc.StateRunning:
-		log.Info("Edge Runtime is already running")
-		return nil
-	case edgefunc.StateCreated:
-		log.Info("Edge Runtime is already created")
-		return nil
-	case edgefunc.StateStopped:
-		log.Info("Edge Runtime is stopped, starting it")
-	default:
-		return fmt.Errorf("Edge Runtime is in an unknown state: %s", s.State)
-	}
-
-	if err := r.edgeRuntime.Start(ctx, ref, filepath.Join(r.jsStoreDir, ref, "bin.eszip")); err != nil {
-		return fmt.Errorf("failed to start Edge Runtime: %w", err)
-	}
-	return nil
 }
 
 func targetRefPredicate(proxyName string) predicate.Funcs {
@@ -309,5 +311,9 @@ func (r *EdgeFunctionRevisionReconciler) SetupWithManager(
 				targetRefPredicate(proxyName),
 			),
 		).
+		WithOptions(controller.Options{
+			MaxConcurrentReconciles: 1,
+			RecoverPanic:            ptr.To(true),
+		}).
 		Complete(r)
 }

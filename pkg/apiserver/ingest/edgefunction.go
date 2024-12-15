@@ -199,7 +199,9 @@ func NewWorker(kc *rest.Config, c versioned.Interface, baseDir string) *worker {
 		a3y:     c,
 		baseDir: baseDir,
 	}
-	w.k8s = kubernetes.NewForConfigOrDie(kc)
+	if kc != nil {
+		w.k8s = kubernetes.NewForConfigOrDie(kc)
+	}
 	return w
 }
 
@@ -841,6 +843,7 @@ func (w *worker) ListenAndServeEdgeFuncs(host string, port int) error {
 	mux := http.NewServeMux()
 	mux.Handle("/wasm/", w)
 	mux.Handle("/go/", w)
+	mux.Handle("/js/", w)
 	addr := fmt.Sprintf("%s:%d", host, port)
 	log.Infof("Listening on %s", addr)
 	return http.ListenAndServe(addr, mux)

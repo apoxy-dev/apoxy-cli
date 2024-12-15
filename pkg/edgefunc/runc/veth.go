@@ -2,6 +2,7 @@ package runc
 
 import (
 	"fmt"
+	"hash/fnv"
 	"net"
 	"net/netip"
 
@@ -17,7 +18,13 @@ const (
 )
 
 func ethName(prefix, cid string) string {
-	return prefix + cid[:8]
+	h := fnv.New32a()
+	h.Write([]byte(cid))
+	n := prefix + fmt.Sprintf("%x", h.Sum32())
+	if len(n) > netlink.IFNAMSIZ-1 {
+		n = n[:netlink.IFNAMSIZ-1]
+	}
+	return n
 }
 
 func setupContainerVeth(cethName string, h netns.NsHandle, v4addr, v4gw netip.Addr, v4prefix netip.Prefix) error {
@@ -89,6 +96,7 @@ func setupVeth(cid string, h netns.NsHandle, v4 *ipam.IP) error {
 		},
 		PeerName: ethName("c", cid),
 	}
+	log.Infof("Creating veth pair %s <-> %s", vp.Name, vp.PeerName)
 	if err := netlink.LinkAdd(vp); err != nil {
 		return fmt.Errorf("failed to create veth pair: %w", err)
 	}
@@ -108,6 +116,7 @@ func setupVeth(cid string, h netns.NsHandle, v4 *ipam.IP) error {
 	if err != nil {
 		return fmt.Errorf("failed to get veth: %w", err)
 	}
+	log.Infof("Bringing up veth %s", vp.Name)
 	// Bring up the host side of the veth pair.
 	if err := netlink.LinkSetUp(veth); err != nil {
 		return fmt.Errorf("failed to bring up veth: %w", err)
@@ -128,7 +137,7 @@ func setupVeth(cid string, h netns.NsHandle, v4 *ipam.IP) error {
 	// TODO(dilyevsky): Will also need to add routes for external IPs allocated
 	// the proxy.
 	// TODO(dilyevsky): IPv6.
-	log.Infof("Adding route for %s", v4gw)
+	log.Infof("Adding route for %s via %s", v4gw, vp.Name)
 	if err := netlink.RouteAdd(&netlink.Route{
 		LinkIndex: veth.Attrs().Index,
 		Scope:     netlink.SCOPE_HOST,

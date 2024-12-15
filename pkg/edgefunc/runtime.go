@@ -2,7 +2,13 @@ package edgefunc
 
 import (
 	"context"
+	"errors"
 	"time"
+)
+
+var (
+	ErrAlreadyExists = errors.New("function already exists")
+	ErrNotFound      = errors.New("function not found")
 )
 
 type State string

@@ -38,6 +38,7 @@ import (
 	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/wasm/ext_proc"
 	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/wasm/manifest"
 	"github.com/apoxy-dev/apoxy-cli/pkg/cmd/utils"
+	"github.com/apoxy-dev/apoxy-cli/pkg/edgefunc/runc"
 	"github.com/apoxy-dev/apoxy-cli/pkg/log"
 
 	ctrlv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
@@ -252,7 +253,7 @@ func main() {
 		log.Fatalf("Failed to add readyz check: %v", err)
 	}
 
-	log.Infof("Setting up controllers")
+	log.Infof("Setting up controllers...")
 	proxyOpts := []bpctrl.Option{
 		bpctrl.WithGoPluginDir(*goPluginDir),
 	}
@@ -277,6 +278,8 @@ func main() {
 		apiServerHost = *apiServerAddr
 	}
 
+	log.Infof("Starting Backplane controller")
+
 	pctrl := bpctrl.NewProxyReconciler(
 		mgr.GetClient(),
 		*proxyName,
@@ -285,19 +288,24 @@ func main() {
 		proxyOpts...,
 	)
 	if err := pctrl.SetupWithManager(ctx, mgr); err != nil {
-		log.Errorf("failed to set up Backplane controller: %v", err)
-		return
+		log.Fatalf("failed to set up Backplane controller: %v", err)
 	}
 
+	log.Infof("Starting EdgeFunction controller")
+
+	edgeRuntime, err := runc.NewRuntime(ctx)
+	if err != nil {
+		log.Fatalf("failed to set up EdgeFunction controller: %v", err)
+	}
 	if err := bpctrl.NewEdgeFunctionRevisionReconciler(
 		mgr.GetClient(),
 		net.JoinHostPort(apiServerHost, strconv.Itoa(*wasmStorePort)),
 		ms,
 		*goPluginDir,
 		*esZipDir,
+		edgeRuntime,
 	).SetupWithManager(ctx, mgr, *proxyName); err != nil {
-		log.Errorf("failed to set up EdgeFunction controller: %v", err)
-		return
+		log.Fatalf("failed to set up EdgeFunction controller: %v", err)
 	}
 
 	// Setup SIGTERM handler.
