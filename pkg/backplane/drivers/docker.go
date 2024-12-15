@@ -104,6 +104,7 @@ func (d *dockerDriver) Start(
 	log.Infof("Starting container %s", cname)
 	cmd := exec.CommandContext(ctx,
 		"docker", "run",
+		"--pull=always",
 		"--detach",
 		//"--rm",
 		"--name", cname,
