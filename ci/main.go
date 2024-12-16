@@ -27,15 +27,19 @@ import (
 
 type ApoxyCli struct{}
 
-func hostArch() string {
-	switch runtime.GOARCH {
+func canonArchFromGoArch(goarch string) string {
+	switch goarch {
 	case "amd64":
 		return "x86_64"
 	case "arm64":
 		return "aarch64"
 	default:
-		return runtime.GOARCH
+		return goarch
 	}
+}
+
+func hostArch() string {
+	return canonArchFromGoArch(runtime.GOARCH)
 }
 
 // BuilderContainer builds a CLI binary.
@@ -192,10 +196,17 @@ func (m *ApoxyCli) BuildBackplane(
 		WithMountedCache("/go/pkg/mod", dag.CacheVolume("go-mod-"+goarch)).
 		WithEnvVariable("GOMODCACHE", "/go/pkg/mod").
 		WithMountedCache("/go/build-cache", dag.CacheVolume("go-build-"+goarch)).
-		WithEnvVariable("GOCACHE", "/go/build-cache").
-		WithEnvVariable("CGO_ENABLED", "1").
-		WithExec([]string{"go", "build", "-o", bpOut, "./cmd/backplane"}).
-		WithExec([]string{"go", "build", "-o", dsOut, "./cmd/dial-stdio"})
+		WithEnvVariable("GOCACHE", "/go/build-cache")
+
+	if goarch == "amd64" {
+		builder = builder.
+			WithEnvVariable("CGO_ENABLED", "1").
+			WithEnvVariable("CC", fmt.Sprintf("zig cc --target=%s-linux-musl", canonArchFromGoArch(goarch)))
+	}
+
+	builder = builder.
+		WithExec([]string{"go", "build", "-ldflags", "-v -linkmode=external", "-o", bpOut, "./cmd/backplane"}).
+		WithExec([]string{"go", "build", "-ldflags", "-v -linkmode=external", "-o", dsOut, "./cmd/dial-stdio"})
 
 	runtimeCtr := m.PullEdgeRuntime(ctx, platform)
 
@@ -229,7 +240,10 @@ func (m *ApoxyCli) PublishImages(
 	fmt.Println("API server image published to", addr)
 
 	var bCtrs []*dagger.Container
-	for _, platform := range []string{"linux/amd64", "linux/arm64"} {
+	// TODO(dilyevsky): When Go team finally gets around fixing their
+	// https://github.com/golang/go/issues/22040 hack, we can enable arm64
+	// builds in CI.
+	for _, platform := range []string{"linux/amd64" /* "linux/arm64", */} {
 		bCtr := m.BuildBackplane(ctx, src, platform)
 		bCtrs = append(bCtrs, bCtr)
 	}
