@@ -12,7 +12,6 @@ import (
 	"github.com/google/uuid"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	"k8s.io/utils/ptr"
-	"k8s.io/utils/set"
 
 	"github.com/apoxy-dev/apoxy-cli/pkg/socksproxy"
 	"github.com/apoxy-dev/apoxy-cli/pkg/utils"
@@ -33,6 +32,7 @@ func CreateUserspaceTunnel(
 	projectID uuid.UUID,
 	endpoint string,
 	socksPort uint16,
+	stunServers []string,
 	verbose bool,
 ) (*userspaceTunnel, error) {
 	privateKey, err := wgtypes.GeneratePrivateKey()
@@ -88,7 +88,7 @@ func (t *userspaceTunnel) Close() error {
 	return nil
 }
 
-func (t *userspaceTunnel) Peers() (set.Set[string], error) {
+func (t *userspaceTunnel) Peers() ([]wireguard.PeerConfig, error) {
 	return t.wgNet.Peers()
 }
 

@@ -13,7 +13,6 @@ import (
 	"golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	"k8s.io/utils/ptr"
-	"k8s.io/utils/set"
 
 	"github.com/apoxy-dev/apoxy-cli/pkg/network"
 	"github.com/apoxy-dev/apoxy-cli/pkg/wireguard/netstack"
@@ -119,7 +118,7 @@ func (n *WireGuardNetwork) Endpoint() netip.AddrPort {
 }
 
 // Peers returns the list of public keys for all peers on the WireGuard network.
-func (n *WireGuardNetwork) Peers() (set.Set[string], error) {
+func (n *WireGuardNetwork) Peers() ([]PeerConfig, error) {
 	var uapiConf strings.Builder
 	if err := n.dev.IpcGetOperation(&uapiConf); err != nil {
 		return nil, fmt.Errorf("failed to get device config: %w", err)
@@ -128,7 +127,7 @@ func (n *WireGuardNetwork) Peers() (set.Set[string], error) {
 	entries := strings.Split(uapiConf.String(), "public_key=")
 
 	// The first entry is the device config (which we don't care about).
-	var publicKeys []string
+	var peers []PeerConfig
 	for _, entry := range entries[1:] {
 		// Subsequent entries are peer configs.
 		entry = "public_key=" + entry
@@ -138,10 +137,10 @@ func (n *WireGuardNetwork) Peers() (set.Set[string], error) {
 			return nil, fmt.Errorf("failed to unmarshal peer config: %w", err)
 		}
 
-		publicKeys = append(publicKeys, *peerConf.PublicKey)
+		peers = append(peers, peerConf)
 	}
 
-	return set.New(publicKeys...), nil
+	return peers, nil
 }
 
 // AddPeer adds, or updates, a peer to the WireGuard network.

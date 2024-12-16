@@ -29,7 +29,7 @@ type Config struct {
 	// Projects is a list of projects that this instance is managing.
 	Projects []Project `json:"projects,omitempty"`
 	// Tunnel is the configuration for the tunnel.
-	Tunnel *TunnelConfig `json:"tunnelConfig,omitempty"`
+	Tunnel *TunnelConfig `json:"tunnel,omitempty"`
 }
 
 // Project is a configuration for a project.
@@ -51,6 +51,10 @@ type TunnelConfig struct {
 	// SocksPort, when running in userspace mode, is the port to listen on for
 	// SOCKS5 proxy connections. If not specified it will default to 1080.
 	SocksPort *int `json:"socksPort,omitempty"`
+	// STUNServers is an optional list of STUN servers to use for determining the
+	// external address of the tunnel node. If not specified it will default to
+	// Google and Cloudflare's public STUN servers.
+	STUNServers []string `json:"stunServers,omitempty"`
 }
 
 // TunnelMode is the mode of the tunnel.

@@ -18,6 +18,7 @@ import (
 	configv1alpha "github.com/apoxy-dev/apoxy-cli/api/config/v1alpha1"
 	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
 	"github.com/apoxy-dev/apoxy-cli/client/informers"
+	corev1alphaclient "github.com/apoxy-dev/apoxy-cli/client/listers/core/v1alpha"
 	"github.com/apoxy-dev/apoxy-cli/client/versioned"
 	"github.com/apoxy-dev/apoxy-cli/config"
 	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel"
@@ -25,7 +26,8 @@ import (
 )
 
 const (
-	resyncPeriod = 10 * time.Second
+	// resyncPeriod is the interval at which the informer will resync its cache.
+	resyncPeriod = 30 * time.Second
 )
 
 // tunnelCmd implements the `tunnel` command that creates a secure tunnel
@@ -35,6 +37,7 @@ var tunnelCmd = &cobra.Command{
 	Short: "Create a secure tunnel to the remote Apoxy Edge fabric",
 	Long:  "Create a secure tunnel to the remote Apoxy Edge fabric.",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		ctx := cmd.Context()
 		cmd.SilenceUsage = true
 
 		cfg, err := config.Load()
@@ -57,165 +60,7 @@ var tunnelCmd = &cobra.Command{
 			return fmt.Errorf("unable to get tunnel name: %w", err)
 		}
 
-		var tunnelNode *corev1alpha.TunnelNode
-		if tunnelNodePath != "" {
-			tunnelNode, err = loadTunnelNodeFromPath(tunnelNodePath)
-			if err != nil {
-				return fmt.Errorf("unable to load tunnel node: %w", err)
-			}
-
-			tunnelNodeName = tunnelNode.Name
-
-			// Clean up the tunnel node after the command completes.
-			defer func() {
-				if err := client.CoreV1alpha().TunnelNodes().Delete(
-					context.Background(),
-					tunnelNodeName,
-					metav1.DeleteOptions{},
-				); err != nil {
-					slog.Warn("Failed to delete TunnelNode", slog.Any("error", err))
-				}
-			}()
-		} else if tunnelNodeName != "" {
-			tunnelNode, err = client.CoreV1alpha().TunnelNodes().Get(
-				cmd.Context(),
-				tunnelNodeName,
-				metav1.GetOptions{},
-			)
-			if err != nil {
-				return fmt.Errorf("unable to get tunnel node: %w", err)
-			}
-		} else {
-			return fmt.Errorf("either --tunnel-path or --tunnel-name must be specified")
-		}
-
-		var tun tunnel.Tunnel
-		if cfg.Tunnel != nil && cfg.Tunnel.Mode == configv1alpha.TunnelModeUserspace {
-			socksPort := uint16(1080)
-			if cfg.Tunnel.SocksPort != nil {
-				socksPort = uint16(*cfg.Tunnel.SocksPort)
-			}
-
-			tun, err = tunnel.CreateUserspaceTunnel(cmd.Context(), client.ProjectID, tunnelNodeName, socksPort, cfg.Verbose)
-		} else {
-			tun, err = tunnel.CreateKernelTunnel(cmd.Context(), client.ProjectID, tunnelNodeName)
-		}
-		if err != nil {
-			return fmt.Errorf("unable to create tunnel: %w", err)
-		}
-		defer tun.Close()
-
-		// TODO: Listen for changes to our peerrefs and update the tunnel accordingly.
-		factory := informers.NewSharedInformerFactoryWithOptions(
-			client,
-			resyncPeriod,
-		)
-
-		doneCh := make(chan struct{})
-		tunnelInformer := factory.Core().V1alpha().TunnelNodes().Informer()
-		tunnelInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-			AddFunc: func(obj any) {
-				updatedTunnelNode, ok := obj.(*corev1alpha.TunnelNode)
-				if !ok {
-					return
-				}
-
-				if updatedTunnelNode.Name == tunnelNodeName {
-					tunnelNode = updatedTunnelNode
-				} else {
-					var err error
-					tunnelNode, err = client.CoreV1alpha().TunnelNodes().Get(cmd.Context(), tunnelNodeName, metav1.GetOptions{})
-					if err != nil {
-						slog.Warn("Failed to get TunnelNode", slog.String("name", tunnelNodeName), slog.Any("error", err))
-						return
-					}
-
-					// Do we have a reference to the object?
-					var foundRef bool
-					for _, peer := range tunnelNode.Spec.Peers {
-						if peer.TunnelNodeRef != nil && peer.TunnelNodeRef.Name == updatedTunnelNode.Name {
-							foundRef = true
-							break
-						}
-					}
-					if !foundRef {
-						// Nothing for us to do.
-						return
-					}
-				}
-
-				syncTunnelNode(cmd.Context(), client, tunnelNode, tun)
-			},
-			UpdateFunc: func(oldObj, newObj any) {
-				updatedTunnelNode, ok := newObj.(*corev1alpha.TunnelNode)
-				if !ok {
-					return
-				}
-
-				if updatedTunnelNode.Name == tunnelNodeName {
-					tunnelNode = updatedTunnelNode
-				} else {
-					var err error
-					tunnelNode, err = client.CoreV1alpha().TunnelNodes().Get(cmd.Context(), tunnelNodeName, metav1.GetOptions{})
-					if err != nil {
-						slog.Warn("Failed to get TunnelNode", slog.String("name", tunnelNodeName), slog.Any("error", err))
-						return
-					}
-
-					// Do we have a reference to the object?
-					var foundRef bool
-					for _, peer := range tunnelNode.Spec.Peers {
-						if peer.TunnelNodeRef != nil && peer.TunnelNodeRef.Name == updatedTunnelNode.Name {
-							foundRef = true
-							break
-						}
-					}
-					if !foundRef {
-						// Nothing for us to do.
-						return
-					}
-				}
-
-				syncTunnelNode(cmd.Context(), client, tunnelNode, tun)
-			},
-			DeleteFunc: func(obj any) {
-				tunnelNode, ok := obj.(*corev1alpha.TunnelNode)
-				if !ok {
-					return
-				}
-
-				slog.Info("TunnelNode deleted", slog.String("name", tunnelNode.Name))
-
-				doneCh <- struct{}{}
-			},
-		})
-
-		factory.Start(cmd.Context().Done())
-		synced := factory.WaitForCacheSync(cmd.Context().Done())
-		for v, s := range synced {
-			if !s {
-				return fmt.Errorf("informer %s failed to sync", v)
-			}
-		}
-
-		// Set the initial status of the TunnelNode object.
-		tunnelNode.Status.Phase = corev1alpha.NodePhaseReady
-		tunnelNode.Status.PublicKey = tun.PublicKey()
-		tunnelNode.Status.ExternalAddress = tun.ExternalAddress().String()
-		tunnelNode.Status.InternalAddress = tun.InternalAddress().String()
-
-		// Create the TunnelNode object in the API.
-		if err := upsertTunnelNode(cmd.Context(), client, tunnelNode); err != nil {
-			return err
-		}
-
-		// Wait for the TunnelNode object to be deleted, or for the command to be cancelled.
-		select {
-		case <-doneCh:
-		case <-cmd.Context().Done():
-		}
-
-		return nil
+		return runTunnel(ctx, cfg, client, tunnelNodePath, tunnelNodeName)
 	},
 }
 
@@ -226,15 +71,179 @@ func init() {
 	alphaCmd.AddCommand(tunnelCmd)
 }
 
-func syncTunnelNode(ctx context.Context, client versioned.Interface, tunnelNode *corev1alpha.TunnelNode, tun tunnel.Tunnel) {
+func runTunnel(ctx context.Context, cfg *configv1alpha.Config, client versioned.Interface, tunnelNodePath, tunnelNodeName string) error {
+	var tunnelNode *corev1alpha.TunnelNode
+	var err error
+	if tunnelNodePath != "" {
+		tunnelNode, err = loadTunnelNodeFromPath(tunnelNodePath)
+		if err != nil {
+			return fmt.Errorf("unable to load tunnel node: %w", err)
+		}
+
+		tunnelNodeName = tunnelNode.Name
+
+		// Clean up the tunnel node after the command completes.
+		defer func() {
+			slog.Info("Deleting TunnelNode", slog.String("name", tunnelNodeName))
+
+			if err := client.CoreV1alpha().TunnelNodes().Delete(
+				context.Background(),
+				tunnelNodeName,
+				metav1.DeleteOptions{},
+			); err != nil {
+				slog.Warn("Failed to delete TunnelNode", slog.Any("error", err))
+			}
+		}()
+	} else if tunnelNodeName != "" {
+		tunnelNode, err = client.CoreV1alpha().TunnelNodes().Get(
+			ctx,
+			tunnelNodeName,
+			metav1.GetOptions{},
+		)
+		if err != nil {
+			return fmt.Errorf("unable to get tunnel node: %w", err)
+		}
+	} else {
+		return fmt.Errorf("either --tunnel-path or --tunnel-name must be specified")
+	}
+
+	stunServers := tunnel.DefaultSTUNServers
+	if cfg.Tunnel != nil && len(cfg.Tunnel.STUNServers) > 0 {
+		stunServers = cfg.Tunnel.STUNServers
+	}
+
+	var tun tunnel.Tunnel
+	if cfg.Tunnel != nil && cfg.Tunnel.Mode == configv1alpha.TunnelModeUserspace {
+		socksPort := uint16(1080)
+		if cfg.Tunnel.SocksPort != nil {
+			socksPort = uint16(*cfg.Tunnel.SocksPort)
+		}
+
+		tun, err = tunnel.CreateUserspaceTunnel(ctx, cfg.CurrentProject, tunnelNodeName, socksPort, stunServers, cfg.Verbose)
+	} else {
+		tun, err = tunnel.CreateKernelTunnel(ctx, cfg.CurrentProject, tunnelNodeName, stunServers)
+	}
+	if err != nil {
+		return fmt.Errorf("unable to create tunnel: %w", err)
+	}
+	defer tun.Close()
+
+	factory := informers.NewSharedInformerFactoryWithOptions(
+		client,
+		resyncPeriod,
+	)
+
+	tunnelNodeInformer := factory.Core().V1alpha().TunnelNodes().Informer()
+	tunnelNodeLister := factory.Core().V1alpha().TunnelNodes().Lister()
+
+	doneCh := make(chan struct{})
+	tunnelNodeInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj any) {
+			updatedTunnelNode, ok := obj.(*corev1alpha.TunnelNode)
+			if !ok {
+				return
+			}
+
+			handleTunnelNodeUpdate(tunnelNodeLister, tunnelNodeName, tun, updatedTunnelNode)
+		},
+		UpdateFunc: func(_, newObj any) {
+			updatedTunnelNode, ok := newObj.(*corev1alpha.TunnelNode)
+			if !ok {
+				return
+			}
+
+			handleTunnelNodeUpdate(tunnelNodeLister, tunnelNodeName, tun, updatedTunnelNode)
+		},
+		DeleteFunc: func(obj any) {
+			deletedTunnelNode, ok := obj.(*corev1alpha.TunnelNode)
+			if !ok {
+				return
+			}
+
+			if deletedTunnelNode.Name != tunnelNodeName {
+				// Nothing for us to do.
+				return
+			}
+
+			doneCh <- struct{}{}
+		},
+	})
+
+	factory.Start(ctx.Done())
+	synced := factory.WaitForCacheSync(ctx.Done())
+	for v, s := range synced {
+		if !s {
+			return fmt.Errorf("informer %s failed to sync", v)
+		}
+	}
+
+	// Set the initial status of the TunnelNode object.
+	tunnelNode.Status.Phase = corev1alpha.NodePhaseReady
+	tunnelNode.Status.PublicKey = tun.PublicKey()
+	tunnelNode.Status.ExternalAddress = tun.ExternalAddress().String()
+	tunnelNode.Status.InternalAddress = tun.InternalAddress().String()
+
+	// Create the TunnelNode object in the API.
+	slog.Info("Creating TunnelNode", slog.String("name", tunnelNode.Name))
+
+	if err := upsertTunnelNode(ctx, client, tunnelNode); err != nil {
+		return err
+	}
+
+	// Wait for the TunnelNode object to be deleted, or for the command to be cancelled.
+	select {
+	case <-doneCh:
+	case <-ctx.Done():
+	}
+
+	return nil
+}
+
+// handleTunnelNodeUpdate is called every time a TunnelNode object is added or updated.
+func handleTunnelNodeUpdate(tunnelNodeLister corev1alphaclient.TunnelNodeLister,
+	tunnelNodeName string, tun tunnel.Tunnel, updatedTunnelNode *corev1alpha.TunnelNode) {
+	var tunnelNode *corev1alpha.TunnelNode
+	if updatedTunnelNode.Name == tunnelNodeName {
+		tunnelNode = updatedTunnelNode
+	} else {
+		var err error
+
+		tunnelNode, err = tunnelNodeLister.Get(tunnelNodeName)
+		if err != nil {
+			slog.Warn("Failed to get TunnelNode", slog.String("name", tunnelNodeName), slog.Any("error", err))
+			return
+		}
+
+		// Do we have a reference to the object?
+		var foundRef bool
+		for _, peer := range tunnelNode.Spec.Peers {
+			if peer.TunnelNodeRef != nil && peer.TunnelNodeRef.Name == updatedTunnelNode.Name {
+				foundRef = true
+				break
+			}
+		}
+		if !foundRef {
+			// Nothing for us to do.
+			return
+		}
+	}
+
+	syncTunnelNode(tunnelNodeLister, tunnelNode, tun)
+}
+
+// syncTunnelNode reconciles the state of our TunnelNode object with the state of the tunnel.
+func syncTunnelNode(tunnelNodeLister corev1alphaclient.TunnelNodeLister,
+	tunnelNode *corev1alpha.TunnelNode, tun tunnel.Tunnel) {
 	peerPublicKeys := set.New[string]()
 	peerTunnelNodes := map[string]*corev1alpha.TunnelNode{}
 
 	for _, peer := range tunnelNode.Spec.Peers {
 		if peer.TunnelNodeRef != nil {
-			peerTunnelNode, err := client.CoreV1alpha().TunnelNodes().Get(ctx, peer.TunnelNodeRef.Name, metav1.GetOptions{})
-			if err != nil && !errors.IsNotFound(err) {
-				slog.Warn("Failed to get peer", slog.String("name", peer.TunnelNodeRef.Name), slog.Any("error", err))
+			peerTunnelNode, err := tunnelNodeLister.Get(peer.TunnelNodeRef.Name)
+			if err != nil {
+				if !errors.IsNotFound(err) {
+					slog.Warn("Failed to get peer", slog.String("name", peer.TunnelNodeRef.Name), slog.Any("error", err))
+				}
 				continue
 			}
 
@@ -251,7 +260,46 @@ func syncTunnelNode(ctx context.Context, client versioned.Interface, tunnelNode 
 		return
 	}
 
-	for peerPublicKey := range peerPublicKeys.Difference(knownPeers) {
+	knownPeerPublicKeys := set.New[string]()
+	for _, peerConf := range knownPeers {
+		knownPeerPublicKeys.Insert(*peerConf.PublicKey)
+	}
+
+	// Check for peers with no longer valid configurations.
+	for _, peerConf := range knownPeers {
+		peerTunnelNode, ok := peerTunnelNodes[*peerConf.PublicKey]
+		if !ok {
+			continue
+		}
+
+		// Check if the peer configuration has changed.
+		var peerConfChanged bool
+		if *peerConf.PublicKey != peerTunnelNode.Status.PublicKey {
+			peerConfChanged = true
+		}
+		if (peerConf.Endpoint == nil && peerTunnelNode.Status.ExternalAddress != "") ||
+			(peerConf.Endpoint != nil && *peerConf.Endpoint != peerTunnelNode.Status.ExternalAddress) {
+			peerConfChanged = true
+		}
+		if (len(peerConf.AllowedIPs) == 0 && peerTunnelNode.Status.InternalAddress != "") ||
+			len(peerConf.AllowedIPs) > 0 && peerConf.AllowedIPs[0] != peerTunnelNode.Status.InternalAddress {
+			peerConfChanged = true
+		}
+
+		if peerConfChanged {
+			slog.Debug("Peer configuration changed", slog.String("name", peerTunnelNode.Name))
+
+			if err := tun.RemovePeer(*peerConf.PublicKey); err != nil {
+				slog.Error("Failed to remove peer", slog.String("name", peerTunnelNode.Name), slog.Any("error", err))
+			}
+
+			// Will be re-added below with the new configuration.
+			peerPublicKeys.Delete(*peerConf.PublicKey)
+		}
+	}
+
+	// New peers to add.
+	for peerPublicKey := range peerPublicKeys.Difference(knownPeerPublicKeys) {
 		peerTunnelNode := peerTunnelNodes[peerPublicKey]
 
 		peerConf := &wireguard.PeerConfig{
@@ -260,37 +308,24 @@ func syncTunnelNode(ctx context.Context, client versioned.Interface, tunnelNode 
 			AllowedIPs: []string{peerTunnelNode.Status.InternalAddress},
 		}
 
+		slog.Debug("Adding peer", slog.String("name", peerTunnelNode.Name))
+
 		if err := tun.AddPeer(peerConf); err != nil {
 			slog.Error("Failed to add peer", slog.String("name", peerTunnelNode.Name), slog.Any("error", err))
 		}
 	}
 
-	for peerPublicKey := range knownPeers.Difference(peerPublicKeys) {
+	// Peers to remove.
+	for peerPublicKey := range knownPeerPublicKeys.Difference(peerPublicKeys) {
+		slog.Debug("Removing peer", slog.String("publicKey", peerPublicKey))
+
 		if err := tun.RemovePeer(peerPublicKey); err != nil {
 			slog.Error("Failed to remove peer", slog.String("publicKey", peerPublicKey), slog.Any("error", err))
 		}
 	}
 }
 
-func loadTunnelNodeFromPath(path string) (*corev1alpha.TunnelNode, error) {
-	yamlFile, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read file: %w", err)
-	}
-
-	obj, gvk, err := decodeFn(yamlFile, nil, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode TunnelNode: %w", err)
-	}
-
-	tunnelNode, ok := obj.(*corev1alpha.TunnelNode)
-	if !ok {
-		return nil, fmt.Errorf("not a TunnelNode object: %v", gvk)
-	}
-
-	return tunnelNode, nil
-}
-
+// upsertTunnelNode creates or updates a TunnelNode object in the API.
 func upsertTunnelNode(ctx context.Context, client versioned.Interface, tunnelNode *corev1alpha.TunnelNode) error {
 	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		_, err := client.CoreV1alpha().TunnelNodes().Create(ctx, tunnelNode, metav1.CreateOptions{})
@@ -319,4 +354,23 @@ func upsertTunnelNode(ctx context.Context, client versioned.Interface, tunnelNod
 
 		return nil
 	})
+}
+
+func loadTunnelNodeFromPath(path string) (*corev1alpha.TunnelNode, error) {
+	yamlFile, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read file: %w", err)
+	}
+
+	obj, gvk, err := decodeFn(yamlFile, nil, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode TunnelNode: %w", err)
+	}
+
+	tunnelNode, ok := obj.(*corev1alpha.TunnelNode)
+	if !ok {
+		return nil, fmt.Errorf("not a TunnelNode object: %v", gvk)
+	}
+
+	return tunnelNode, nil
 }

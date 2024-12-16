@@ -37,7 +37,7 @@ func TestKernelTunnel(t *testing.T) {
 
 	// Create a new kernel tunnel.
 	projectID := uuid.New()
-	tun, err := tunnel.CreateKernelTunnel(context.Background(), projectID, "kernel-node")
+	tun, err := tunnel.CreateKernelTunnel(context.Background(), projectID, "kernel-node", tunnel.DefaultSTUNServers)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, tun.Close())
@@ -112,6 +112,8 @@ func TestKernelTunnel(t *testing.T) {
 		Timeout: 5 * time.Second,
 	}
 
+	t.Logf("Making request to http://%s", srv.Addr)
+
 	resp, err := httpClient.Get("http://" + srv.Addr)
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -124,9 +126,20 @@ func TestKernelTunnel(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, "Hello, World!", string(body))
+
+	knownPeers, err := tun.Peers()
+	require.NoError(t, err)
+
+	require.Len(t, knownPeers, 1)
+	require.Equal(t, *knownPeers[0].PublicKey, privateKey.PublicKey().String())
 }
 
 func hasNetAdminCapability() (bool, error) {
+	// Check if we are running as root
+	if unix.Geteuid() == 0 {
+		return true, nil
+	}
+
 	// Get the current process's capabilities
 	var capData unix.CapUserData
 	var capHeader unix.CapUserHeader
