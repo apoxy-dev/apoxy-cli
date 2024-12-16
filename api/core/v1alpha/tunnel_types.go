@@ -30,8 +30,10 @@ type TunnelNodeSpec struct {
 }
 
 type TunnelNodePeer struct {
+	// TunnelNodeRef is a reference to a TunnelNode that this node should peer with.
 	TunnelNodeRef *TunnelNodeRef `json:"tunnelNodeRef,omitempty"`
-	// TODO: Also implement label selectors etc.
+	// LabelSelector is a label selector that selects the peers to peer with.
+	LabelSelector *metav1.LabelSelector `json:"labelSelector,omitempty"`
 }
 
 type TunnelNodeRef struct {

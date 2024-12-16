@@ -2266,14 +2266,21 @@ func schema_apoxy_cli_api_core_v1alpha_TunnelNodePeer(ref common.ReferenceCallba
 				Properties: map[string]spec.Schema{
 					"tunnelNodeRef": {
 						SchemaProps: spec.SchemaProps{
-							Ref: ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNodeRef"),
+							Description: "TunnelNodeRef is a reference to a TunnelNode that this node should peer with.",
+							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNodeRef"),
+						},
+					},
+					"labelSelector": {
+						SchemaProps: spec.SchemaProps{
+							Description: "LabelSelector is a label selector that selects the peers to peer with.",
+							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector"),
 						},
 					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNodeRef"},
+			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNodeRef", "k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector"},
 	}
 }
 

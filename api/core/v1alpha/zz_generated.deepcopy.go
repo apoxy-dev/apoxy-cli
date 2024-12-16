@@ -945,6 +945,11 @@ func (in *TunnelNodePeer) DeepCopyInto(out *TunnelNodePeer) {
 		*out = new(TunnelNodeRef)
 		**out = **in
 	}
+	if in.LabelSelector != nil {
+		in, out := &in.LabelSelector, &out.LabelSelector
+		*out = new(v1.LabelSelector)
+		(*in).DeepCopyInto(*out)
+	}
 	return
 }
 

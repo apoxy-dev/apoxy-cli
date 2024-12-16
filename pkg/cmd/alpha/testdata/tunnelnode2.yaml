@@ -4,5 +4,6 @@ metadata:
   name: tunnelnode2
 spec:
   peers:
-  - tunnelNodeRef:
-      name: tunnelnode1
+  - labelSelector:
+      matchLabels:
+        tunnelnode.core.apoxy.dev/network: demo

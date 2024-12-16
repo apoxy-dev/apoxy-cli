@@ -204,10 +204,11 @@ func handleTunnelNodeUpdate(tunnelNodeLister corev1alphaclient.TunnelNodeLister,
 	tunnelNodeName string, tun tunnel.Tunnel, updatedTunnelNode *corev1alpha.TunnelNode) {
 	var tunnelNode *corev1alpha.TunnelNode
 	if updatedTunnelNode.Name == tunnelNodeName {
+		// The updated object is the one we are managing.
 		tunnelNode = updatedTunnelNode
 	} else {
+		// A different object was updated. We need to check if it references the object we are managing.
 		var err error
-
 		tunnelNode, err = tunnelNodeLister.Get(tunnelNodeName)
 		if err != nil {
 			slog.Warn("Failed to get TunnelNode", slog.String("name", tunnelNodeName), slog.Any("error", err))
@@ -217,13 +218,35 @@ func handleTunnelNodeUpdate(tunnelNodeLister corev1alphaclient.TunnelNodeLister,
 		// Do we have a reference to the object?
 		var foundRef bool
 		for _, peer := range tunnelNode.Spec.Peers {
-			if peer.TunnelNodeRef != nil && peer.TunnelNodeRef.Name == updatedTunnelNode.Name {
-				foundRef = true
-				break
+			if peer.TunnelNodeRef != nil {
+				if peer.TunnelNodeRef.Name == updatedTunnelNode.Name {
+					foundRef = true
+					break
+				}
+			} else if peer.LabelSelector != nil {
+				selector, err := metav1.LabelSelectorAsSelector(peer.LabelSelector)
+				if err != nil {
+					slog.Warn("Invalid label selector", slog.Any("error", err))
+					continue
+				}
+
+				peerTunnelNodesList, err := tunnelNodeLister.List(selector)
+				if err != nil {
+					slog.Warn("Failed to list TunnelNodes", slog.Any("error", err))
+					continue
+				}
+
+				for _, peerTunnelNode := range peerTunnelNodesList {
+					if peerTunnelNode.Name == updatedTunnelNode.Name {
+						foundRef = true
+						break
+					}
+				}
 			}
 		}
+
 		if !foundRef {
-			// Nothing for us to do.
+			// The updated object is not referenced by the object we are managing.
 			return
 		}
 	}
@@ -250,6 +273,25 @@ func syncTunnelNode(tunnelNodeLister corev1alphaclient.TunnelNodeLister,
 			if peerTunnelNode.Status.PublicKey != "" {
 				peerPublicKeys.Insert(peerTunnelNode.Status.PublicKey)
 				peerTunnelNodes[peerTunnelNode.Status.PublicKey] = peerTunnelNode
+			}
+		} else if peer.LabelSelector != nil {
+			selector, err := metav1.LabelSelectorAsSelector(peer.LabelSelector)
+			if err != nil {
+				slog.Warn("Invalid label selector", slog.Any("error", err))
+				continue
+			}
+
+			peerTunnelNodeList, err := tunnelNodeLister.List(selector)
+			if err != nil {
+				slog.Warn("Failed to list TunnelNodes", slog.Any("error", err))
+				continue
+			}
+
+			for _, peerTunnelNode := range peerTunnelNodeList {
+				if peerTunnelNode.Status.PublicKey != "" {
+					peerPublicKeys.Insert(peerTunnelNode.Status.PublicKey)
+					peerTunnelNodes[peerTunnelNode.Status.PublicKey] = peerTunnelNode
+				}
 			}
 		}
 	}
