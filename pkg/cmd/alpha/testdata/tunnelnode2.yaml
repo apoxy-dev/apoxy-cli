@@ -1,0 +1,9 @@
+apiVersion: core.apoxy.dev/v1alpha
+kind: TunnelNode
+metadata:
+  name: tunnelnode2
+spec:
+  peers:
+  - labelSelector:
+      matchLabels:
+        tunnelnode.core.apoxy.dev/network: demo

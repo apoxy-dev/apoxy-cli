@@ -26,19 +26,19 @@ type TunnelNode struct {
 }
 
 type TunnelNodeSpec struct {
-	// Public key of the node (base64 encoded).
-	PublicKey string `json:"publicKey,omitempty"`
+	Peers []TunnelNodePeer `json:"peers,omitempty"`
+}
 
-	// External address of the node or address of the NAT hole punched.
-	ExternalAddress string `json:"externalAddress,omitempty"`
+type TunnelNodePeer struct {
+	// TunnelNodeRef is a reference to a TunnelNode that this node should peer with.
+	TunnelNodeRef *TunnelNodeRef `json:"tunnelNodeRef,omitempty"`
+	// LabelSelector is a label selector that selects the peers to peer with.
+	LabelSelector *metav1.LabelSelector `json:"labelSelector,omitempty"`
+}
 
-	// Internal address of the node. Always a /96 IPv6 address.
-	InternalAddress string `json:"internalAddress,omitempty"`
-
-	// CIDRs that the node will be relaying traffic for.
-	// These are endpoints downstream of the node for which the node is acting
-	// as a gateway.
-	ForwardedFor []string `json:"forwardedFor,omitempty"`
+type TunnelNodeRef struct {
+	// Name of the tunnel node.
+	Name string `json:"name,omitempty"`
 }
 
 type NodePhase string
@@ -54,42 +54,15 @@ const (
 	NodePhaseFailed NodePhase = "Failed"
 )
 
-type PeerPhase string
-
-const (
-	// PeerPhaseWaiting is the phase for a peer that is waiting for the node
-	// to accept its connection.
-	PeerPhaseWaiting PeerPhase = "Waiting"
-	// PeerPhaseConnected is the phase for a peer that is connected to the node.
-	PeerPhaseConnected PeerPhase = "Connected"
-	// PeerPhaseFailed is the phase for a peer that failed to connect to the node.
-	// This phase is used when the node is unable to accept the peer's connection.
-	PeerPhaseFailed PeerPhase = "Failed"
-)
-
-type PeerStatus struct {
-	// Public key of the peer (base64 encoded).
-	PublicKey string `json:"publicKey,omitempty"`
-
-	// ExternalAddress of the peer.
-	// This is the address of the peer that is directly accessible
-	// via host network.
-	ExternalAddress string `json:"externalAddress,omitempty"`
-
-	// InternalAddress of the peer.
-	// This is the address of the peer on the tunnel overlay network.
-	InternalAddress string `json:"internalAddress,omitempty"`
-
-	// Phase of the peer.
-	Phase PeerPhase `json:"phase,omitempty"`
-}
-
 type TunnelNodeStatus struct {
 	// Phase of the node.
 	Phase NodePhase `json:"phase,omitempty"`
-
-	// PeerStatuses is a list of statuses of the peers that the node is connected to.
-	PeerStatuses []PeerStatus `json:"peerStatuses,omitempty"`
+	// Public key of the node (base64 encoded).
+	PublicKey string `json:"publicKey,omitempty"`
+	// External address of the node or address of the NAT hole punched.
+	ExternalAddress string `json:"externalAddress,omitempty"`
+	// Internal address of the node. Always a /96 IPv6 address.
+	InternalAddress string `json:"internalAddress,omitempty"`
 }
 
 var _ resource.StatusSubResource = &TunnelNodeStatus{}

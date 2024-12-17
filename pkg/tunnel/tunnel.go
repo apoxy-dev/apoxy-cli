@@ -4,12 +4,12 @@ import (
 	"io"
 	"net/netip"
 
-	"k8s.io/utils/set"
-
 	"github.com/apoxy-dev/apoxy-cli/pkg/wireguard"
 )
 
-var stunServers = []string{
+// DefaultSTUNServers is a list of default STUN servers to use for determining
+// the external address.
+var DefaultSTUNServers = []string{
 	"stun.l.google.com:19302",
 	"stun.cloudflare.com:3478",
 }
@@ -18,7 +18,7 @@ var stunServers = []string{
 type Tunnel interface {
 	io.Closer
 	// Peers returns the public keys of the peers in the tunnel.
-	Peers() (set.Set[string], error)
+	Peers() ([]wireguard.PeerConfig, error)
 	// AddPeer adds a new peer to the tunnel.
 	AddPeer(peerConf *wireguard.PeerConfig) error
 	// RemovePeer removes a peer from the tunnel.

@@ -19,7 +19,6 @@ import (
 	"golang.zx2c4.com/wireguard/wgctrl"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	"k8s.io/utils/ptr"
-	"k8s.io/utils/set"
 
 	"github.com/apoxy-dev/apoxy-cli/pkg/utils"
 	"github.com/apoxy-dev/apoxy-cli/pkg/wireguard"
@@ -41,6 +40,7 @@ func CreateKernelTunnel(
 	ctx context.Context,
 	projectID uuid.UUID,
 	endpoint string,
+	stunServers []string,
 ) (*kernelTunnel, error) {
 	privateKey, err := wgtypes.GeneratePrivateKey()
 	if err != nil {
@@ -137,18 +137,30 @@ func (t *kernelTunnel) Close() error {
 	return nil
 }
 
-func (t *kernelTunnel) Peers() (set.Set[string], error) {
+func (t *kernelTunnel) Peers() ([]wireguard.PeerConfig, error) {
 	device, err := t.wgClient.Device(t.ifaceName)
 	if err != nil {
 		return nil, fmt.Errorf("could not fetch WireGuard device info: %w", err)
 	}
 
-	publicKeys := make([]string, len(device.Peers))
+	peers := make([]wireguard.PeerConfig, len(device.Peers))
 	for i, peer := range device.Peers {
-		publicKeys[i] = peer.PublicKey.String()
+		peerConf := wireguard.PeerConfig{
+			PublicKey:                      ptr.To(peer.PublicKey.String()),
+			PresharedKey:                   ptr.To(peer.PresharedKey.String()),
+			Endpoint:                       ptr.To(peer.Endpoint.String()),
+			AllowedIPs:                     make([]string, len(peer.AllowedIPs)),
+			PersistentKeepaliveIntervalSec: ptr.To(uint16(peer.PersistentKeepaliveInterval / time.Second)),
+		}
+
+		for j, allowedIP := range peer.AllowedIPs {
+			peerConf.AllowedIPs[j] = allowedIP.String()
+		}
+
+		peers[i] = peerConf
 	}
 
-	return set.New(publicKeys...), nil
+	return peers, nil
 }
 
 func (t *kernelTunnel) AddPeer(peerConf *wireguard.PeerConfig) error {
