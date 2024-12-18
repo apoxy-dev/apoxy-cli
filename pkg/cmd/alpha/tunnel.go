@@ -84,7 +84,7 @@ func runTunnel(ctx context.Context, cfg *configv1alpha.Config, client versioned.
 
 		// Clean up the tunnel node after the command completes.
 		defer func() {
-			slog.Info("Deleting TunnelNode", slog.String("name", tunnelNodeName))
+			slog.Debug("Deleting TunnelNode", slog.String("name", tunnelNodeName))
 
 			if err := client.CoreV1alpha().TunnelNodes().Delete(
 				context.Background(),
@@ -127,6 +127,10 @@ func runTunnel(ctx context.Context, cfg *configv1alpha.Config, client versioned.
 		return fmt.Errorf("unable to create tunnel: %w", err)
 	}
 	defer tun.Close()
+
+	slog.Debug("Tunnel created",
+		slog.String("name", tunnelNodeName), slog.String("publicKey", tun.PublicKey()),
+		slog.String("internalAddress", tun.InternalAddress().String()))
 
 	factory := informers.NewSharedInformerFactoryWithOptions(
 		client,
@@ -184,7 +188,7 @@ func runTunnel(ctx context.Context, cfg *configv1alpha.Config, client versioned.
 	tunnelNode.Status.InternalAddress = tun.InternalAddress().String()
 
 	// Create the TunnelNode object in the API.
-	slog.Info("Creating TunnelNode", slog.String("name", tunnelNode.Name))
+	slog.Debug("Creating TunnelNode", slog.String("name", tunnelNode.Name))
 
 	if err := upsertTunnelNode(ctx, client, tunnelNode); err != nil {
 		return err
@@ -211,7 +215,10 @@ func handleTunnelNodeUpdate(tunnelNodeLister corev1alphaclient.TunnelNodeLister,
 		var err error
 		tunnelNode, err = tunnelNodeLister.Get(tunnelNodeName)
 		if err != nil {
-			slog.Warn("Failed to get TunnelNode", slog.String("name", tunnelNodeName), slog.Any("error", err))
+			if !errors.IsNotFound(err) {
+				slog.Warn("Failed to get TunnelNode",
+					slog.String("name", tunnelNodeName), slog.Any("error", err))
+			}
 			return
 		}
 

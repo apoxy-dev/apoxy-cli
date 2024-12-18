@@ -146,8 +146,7 @@ func Load() (*configv1alpha1.Config, error) {
 		logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
 		slog.SetDefault(logger)
 		klog.SetSlogLogger(logger)
-		slog.Debug("Verbose logging enabled")
-		lOpts = append(lOpts, log.WithLevel(log.DebugLevel))
+		lOpts = append(lOpts, log.WithLevel(log.DebugLevel), log.WithDevMode())
 	} else {
 		klog.SetOutput(log.NewDefaultLogWriter(log.InfoLevel))
 		klog.LogToStderr(false)
