@@ -83,6 +83,18 @@ func buildXdsCluster(args *xdsClusterArgs) *clusterv3.Cluster {
 				LocalityWeightedLbConfig: &clusterv3.Cluster_CommonLbConfig_LocalityWeightedLbConfig{}}},
 		OutlierDetection:              &clusterv3.OutlierDetection{},
 		PerConnectionBufferLimitBytes: wrapperspb.UInt32(tcpClusterPerConnectionBufferLimitBytes),
+		DnsResolvers: []*corev3.Address{
+			{
+				Address: &corev3.Address_SocketAddress{
+					SocketAddress: &corev3.SocketAddress{
+						Address: "127.0.0.1",
+						PortSpecifier: &corev3.SocketAddress_PortValue{
+							PortValue: 8053,
+						},
+					},
+				},
+			},
+		},
 	}
 
 	cluster.ConnectTimeout = buildConnectTimeout(args.timeout)
