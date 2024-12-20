@@ -38,6 +38,7 @@ import (
 	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/wasm/ext_proc"
 	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/wasm/manifest"
 	"github.com/apoxy-dev/apoxy-cli/pkg/cmd/utils"
+	"github.com/apoxy-dev/apoxy-cli/pkg/edgefunc/dns"
 	"github.com/apoxy-dev/apoxy-cli/pkg/edgefunc/runc"
 	"github.com/apoxy-dev/apoxy-cli/pkg/log"
 
@@ -82,6 +83,8 @@ var (
 	k8sKVPeerSelector = flag.String("k8s_kv_peer_selector", "app.kubernetes.io/component=backplane", "Label selector for K/V store peers.")
 
 	wsRouterPort = flag.Int("ws_router_port", 8082, "Port for the WebSocket router.")
+
+	dnsPort = flag.Int("dns_port", 8053, "Port for the DNS server.")
 )
 
 func upsertProxyFromPath(ctx context.Context, rC *rest.Config, path string) (string, error) {
@@ -307,6 +310,12 @@ func main() {
 	).SetupWithManager(ctx, mgr, *proxyName); err != nil {
 		log.Fatalf("failed to set up EdgeFunction controller: %v", err)
 	}
+
+	go func() {
+		if err := dns.ListenAndServe(fmt.Sprintf(":%d", *dnsPort), edgeRuntime.Resolver); err != nil {
+			log.Fatalf("failed to start DNS server: %v", err)
+		}
+	}()
 
 	// Setup SIGTERM handler.
 	sig := make(chan os.Signal, 1)

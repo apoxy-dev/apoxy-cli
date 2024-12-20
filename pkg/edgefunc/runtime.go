@@ -4,6 +4,12 @@ import (
 	"context"
 	"errors"
 	"time"
+
+	"github.com/coredns/coredns/plugin"
+)
+
+const (
+	DomainSuffix = "apoxy.local"
 )
 
 var (
@@ -45,4 +51,9 @@ type Runtime interface {
 
 	// ListExecs returns a list of all function executions.
 	ListExecs(ctx context.Context) ([]Status, error)
+
+	// Resolver implements the dns.Plugin interface - returns a dns.Handler
+	// to resolve edge function names. Must call next to continue the DNS
+	// resolution.
+	Resolver(next plugin.Handler) plugin.Handler
 }

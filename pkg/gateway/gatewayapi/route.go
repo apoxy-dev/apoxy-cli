@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/apoxy-dev/apoxy-cli/pkg/edgefunc"
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -1562,7 +1563,7 @@ func (t *Translator) processEdgeFunctionDestinationSetting(
 		Protocol: protocol,
 		Endpoints: []*ir.DestinationEndpoint{
 			{
-				Host: fmt.Sprintf("%s.apoxy.local", rev.Name),
+				Host: fmt.Sprintf("%s.%s", rev.Name, edgefunc.DomainSuffix),
 				Port: uint32(port),
 			},
 		},

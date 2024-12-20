@@ -26,6 +26,10 @@ const (
 	routeTableIndex = 100
 )
 
+var (
+	ErrSandboxNotFound = errors.New("sandbox not found")
+)
+
 type Option func(*Network)
 
 func WithIpamDBPath(path string) Option {
@@ -216,15 +220,168 @@ func nsForCID(cid string) (netns.NsHandle, error) {
 	return netns.NewNamed(cid)
 }
 
-type sandboxRoute struct {
+// SandboxInfo contains information about a network sandbox.
+type SandboxInfo struct {
+	ID     string         `json:"id"`
+	Veth   string         `json:"veth"`
+	Cidr   netip.Prefix   `json:"cidr"`
+	GW     netip.Addr     `json:"gw"`
+	IP     netip.Addr     `json:"ip"`
+	Routes []SandboxRoute `json:"routes"`
+}
+
+// SandboxRoute represents a route in a network sandbox.
+type SandboxRoute struct {
 	Dst   string `json:"dst"`
 	Table int    `json:"table"`
 }
 
-type sandboxInfo struct {
-	Veth   string         `json:"veth"`
-	Cidr   string         `json:"cidr"`
-	Routes []sandboxRoute `json:"routes"`
+func ethName(prefix, cid string) string {
+	h := fnv.New32a()
+	h.Write([]byte(cid))
+	n := prefix + fmt.Sprintf("%x", h.Sum32())
+	if len(n) > netlink.IFNAMSIZ-1 {
+		n = n[:netlink.IFNAMSIZ-1]
+	}
+	return n
+}
+
+func setupContainerVeth(cethName string, h netns.NsHandle, info *SandboxInfo) error {
+	ceth, err := netlink.LinkByName(cethName)
+	if err != nil {
+		return fmt.Errorf("failed to get ceth: %w", err)
+	}
+
+	// Move the container side of the veth pair into the container's netns.
+	if err := netlink.LinkSetNsFd(ceth, int(h)); err != nil {
+		return fmt.Errorf("failed to move ceth into container netns: %w", err)
+	}
+
+	nh, err := netlink.NewHandleAt(h)
+	if err != nil {
+		return fmt.Errorf("failed to create netlink handle: %w", err)
+	}
+	defer nh.Close()
+
+	log.Infof("Setting up container dev %s with IP %s", ceth.Attrs().Name, info.IP)
+
+	// Rename to eth0.
+	if err := nh.LinkSetName(ceth, "eth0"); err != nil {
+		return fmt.Errorf("failed to rename ceth: %w", err)
+	}
+	eth0, err := nh.LinkByName("eth0")
+	if err != nil {
+		return fmt.Errorf("failed to get eth0: %w", err)
+	}
+
+	if err := nh.AddrAdd(eth0, &netlink.Addr{
+		IPNet: &net.IPNet{
+			IP:   info.IP.AsSlice(),
+			Mask: net.CIDRMask(info.Cidr.Bits(), 32),
+		},
+	}); err != nil {
+		return fmt.Errorf("failed to add addr to veth: %w", err)
+	}
+
+	// Bring up the container side of the veth pair.
+	if err := nh.LinkSetUp(eth0); err != nil {
+		return fmt.Errorf("failed to bring up veth: %w", err)
+	}
+
+	// Up the loopback interface while we're at it.
+	lo, err := nh.LinkByName("lo")
+	if err != nil {
+		return fmt.Errorf("failed to get loopback interface: %w", err)
+	}
+	if err := nh.LinkSetUp(lo); err != nil {
+		return fmt.Errorf("failed to bring up loopback interface: %w", err)
+	}
+
+	log.Infof("Adding default route for dev %s via %s", eth0.Attrs().Name, info.GW)
+
+	if err := nh.RouteAdd(&netlink.Route{
+		LinkIndex: eth0.Attrs().Index,
+		Scope:     netlink.SCOPE_UNIVERSE,
+		Gw:        info.GW.AsSlice(),
+	}); err != nil {
+		return fmt.Errorf("failed to add route: %w", err)
+	}
+
+	return nil
+}
+
+func setUpVeth(cid string, h netns.NsHandle, info *SandboxInfo) error {
+	// Create the veth pair.
+	vp := &netlink.Veth{
+		LinkAttrs: netlink.LinkAttrs{
+			Name: ethName("v", cid),
+			MTU:  mtuSize,
+		},
+		PeerName: ethName("c", cid),
+	}
+	log.Infof("Creating veth pair %s <-> %s", vp.Name, vp.PeerName)
+	if err := netlink.LinkAdd(vp); err != nil {
+		return fmt.Errorf("failed to create veth pair: %w", err)
+	}
+
+	// For IPv4 default GW needs to be set to the first IP in the subnet.
+	info.GW = info.Cidr.Addr().Next()
+	if !info.GW.IsValid() {
+		return fmt.Errorf("invalid v4 gw: %s", info.GW)
+	}
+	// Container address is the second IP in the subnet.
+	info.IP = info.GW.Next()
+	if !info.IP.IsValid() {
+		return fmt.Errorf("invalid v4 addr: %s", info.IP)
+	}
+
+	if err := setupContainerVeth(vp.PeerName, h, info); err != nil {
+		return fmt.Errorf("failed to setup container veth: %w", err)
+	}
+
+	veth, err := netlink.LinkByName(vp.Name)
+	if err != nil {
+		return fmt.Errorf("failed to get veth: %w", err)
+	}
+	log.Infof("Bringing up veth %s", vp.Name)
+	// Bring up the host side of the veth pair.
+	if err := netlink.LinkSetUp(veth); err != nil {
+		return fmt.Errorf("failed to bring up veth: %w", err)
+	}
+	info.Veth = vp.Name
+
+	// Set container gateway IP on the host side of the veth pair.
+	log.Infof("Setting veth %s IP to %s", vp.Name, info.GW)
+	if err := netlink.AddrAdd(veth, &netlink.Addr{
+		IPNet: &net.IPNet{
+			IP:   info.GW.AsSlice(),
+			Mask: net.CIDRMask(32, 32),
+		},
+	}); err != nil {
+		return fmt.Errorf("failed to add addr to veth: %w", err)
+	}
+
+	// Add host-scope route - this will direct all packets addressed to the container's
+	// default IP to the veth pair.
+	// TODO(dilyevsky): IPv6.
+	log.Infof("Adding route for dev %s dst %s", vp.Name, info.GW)
+	if err := netlink.RouteAdd(&netlink.Route{
+		LinkIndex: veth.Attrs().Index,
+		Scope:     netlink.SCOPE_HOST,
+		Dst: &net.IPNet{
+			IP:   info.IP.AsSlice(),
+			Mask: net.CIDRMask(32, 32),
+		},
+		Table: routeTableIndex,
+	}); err != nil {
+		return fmt.Errorf("failed to add route: %w", err)
+	}
+	info.Routes = append(info.Routes, SandboxRoute{
+		Dst:   info.IP.String(),
+		Table: routeTableIndex,
+	})
+
+	return nil
 }
 
 // Up sets up the network for the given container.
@@ -257,11 +414,14 @@ func (n *Network) Up(ctx context.Context, cid string) error {
 	if err != nil {
 		return fmt.Errorf("failed to acquire ipv4: %v", err)
 	}
-
-	info := &sandboxInfo{
-		Cidr: v4prefix.String(),
+	v4p, err := netip.ParsePrefix(v4prefix.String())
+	if err != nil {
+		return fmt.Errorf("failed to parse prefix: %w", err)
 	}
 
+	info := &SandboxInfo{
+		Cidr: v4p,
+	}
 	if err := setUpVeth(cid, ns, info); err != nil {
 		return fmt.Errorf("failed to setup veth pair: %v", err)
 	}
@@ -280,209 +440,7 @@ func (n *Network) Up(ctx context.Context, cid string) error {
 	return nil
 }
 
-// Down tears down the network for the given container.
-func (n *Network) Down(ctx context.Context, cid string) error {
-	ns, err := nsForCID(cid)
-	if err != nil {
-		return fmt.Errorf("failed to get netns: %w", err)
-	}
-
-	// Load cid network info from the db
-	info := &sandboxInfo{}
-	if err := n.db.View(func(txn *badger.Txn) error {
-		item, err := txn.Get([]byte(cid))
-		if err != nil {
-			return err
-		}
-		if err := item.Value(func(val []byte) error {
-			if err := json.Unmarshal(val, info); err != nil {
-				return err
-			}
-			return nil
-		}); err != nil {
-			return err
-		}
-		return nil
-	}); err != nil {
-		return fmt.Errorf("failed to get cidr from db: %w", err)
-	}
-
-	if err := tearDownVeth(info); err != nil {
-		return fmt.Errorf("failed to tear down veth pair: %v", err)
-	}
-
-	// Release prefix from the ipam.
-	prefix, err := n.ipamer.PrefixFrom(ctx, info.Cidr)
-	if err != nil {
-		return fmt.Errorf("failed to get prefix: %v", err)
-	}
-	if err := n.ipamer.ReleaseChildPrefix(ctx, prefix); err != nil {
-		return fmt.Errorf("failed to release prefix: %v", err)
-	}
-
-	if err := ns.Close(); err != nil {
-		return fmt.Errorf("failed to close netns: %w", err)
-	}
-
-	// Delete cid network info from the db
-	if err := n.db.Update(func(txn *badger.Txn) error {
-		return txn.Delete([]byte(cid))
-	}); err != nil {
-		return fmt.Errorf("failed to delete cid from db: %w", err)
-	}
-
-	return nil
-}
-
-func ethName(prefix, cid string) string {
-	h := fnv.New32a()
-	h.Write([]byte(cid))
-	n := prefix + fmt.Sprintf("%x", h.Sum32())
-	if len(n) > netlink.IFNAMSIZ-1 {
-		n = n[:netlink.IFNAMSIZ-1]
-	}
-	return n
-}
-
-func setupContainerVeth(cethName string, h netns.NsHandle, v4addr, v4gw netip.Addr, v4prefix netip.Prefix) error {
-	ceth, err := netlink.LinkByName(cethName)
-	if err != nil {
-		return fmt.Errorf("failed to get ceth: %w", err)
-	}
-
-	// Move the container side of the veth pair into the container's netns.
-	if err := netlink.LinkSetNsFd(ceth, int(h)); err != nil {
-		return fmt.Errorf("failed to move ceth into container netns: %w", err)
-	}
-
-	nh, err := netlink.NewHandleAt(h)
-	if err != nil {
-		return fmt.Errorf("failed to create netlink handle: %w", err)
-	}
-	defer nh.Close()
-
-	// Rename to eth0.
-	if err := nh.LinkSetName(ceth, "eth0"); err != nil {
-		return fmt.Errorf("failed to rename ceth: %w", err)
-	}
-	eth0, err := nh.LinkByName("eth0")
-	if err != nil {
-		return fmt.Errorf("failed to get eth0: %w", err)
-	}
-
-	if err := nh.AddrAdd(eth0, &netlink.Addr{
-		IPNet: &net.IPNet{
-			IP:   v4addr.AsSlice(),
-			Mask: net.CIDRMask(v4prefix.Bits(), 32),
-		},
-	}); err != nil {
-		return fmt.Errorf("failed to add addr to veth: %w", err)
-	}
-
-	// Bring up the container side of the veth pair.
-	if err := nh.LinkSetUp(eth0); err != nil {
-		return fmt.Errorf("failed to bring up veth: %w", err)
-	}
-
-	// Up the loopback interface while we're at it.
-	lo, err := nh.LinkByName("lo")
-	if err != nil {
-		return fmt.Errorf("failed to get loopback interface: %w", err)
-	}
-	if err := nh.LinkSetUp(lo); err != nil {
-		return fmt.Errorf("failed to bring up loopback interface: %w", err)
-	}
-
-	if err := nh.RouteAdd(&netlink.Route{
-		LinkIndex: eth0.Attrs().Index,
-		Scope:     netlink.SCOPE_UNIVERSE,
-		Gw:        v4gw.AsSlice(),
-	}); err != nil {
-		return fmt.Errorf("failed to add route: %w", err)
-	}
-
-	return nil
-}
-
-func setUpVeth(cid string, h netns.NsHandle, info *sandboxInfo) error {
-	// Create the veth pair.
-	vp := &netlink.Veth{
-		LinkAttrs: netlink.LinkAttrs{
-			Name: ethName("v", cid),
-			MTU:  mtuSize,
-		},
-		PeerName: ethName("c", cid),
-	}
-	log.Infof("Creating veth pair %s <-> %s", vp.Name, vp.PeerName)
-	if err := netlink.LinkAdd(vp); err != nil {
-		return fmt.Errorf("failed to create veth pair: %w", err)
-	}
-
-	v4prefix, err := netip.ParsePrefix(info.Cidr)
-	if err != nil {
-		return fmt.Errorf("failed to parse prefix: %w", err)
-	}
-	// For IPv4 default GW needs to be set to the first IP in the subnet.
-	v4gw := v4prefix.Addr().Next()
-	if !v4gw.IsValid() {
-		return fmt.Errorf("invalid v4 gw: %s", v4gw)
-	}
-	// Container address is the second IP in the subnet.
-	v4 := v4gw.Next()
-	if !v4.IsValid() {
-		return fmt.Errorf("invalid v4 addr: %s", v4)
-	}
-
-	if err := setupContainerVeth(vp.PeerName, h, v4, v4gw, v4prefix); err != nil {
-		return fmt.Errorf("failed to setup container veth: %w", err)
-	}
-
-	veth, err := netlink.LinkByName(vp.Name)
-	if err != nil {
-		return fmt.Errorf("failed to get veth: %w", err)
-	}
-	log.Infof("Bringing up veth %s", vp.Name)
-	// Bring up the host side of the veth pair.
-	if err := netlink.LinkSetUp(veth); err != nil {
-		return fmt.Errorf("failed to bring up veth: %w", err)
-	}
-	info.Veth = vp.Name
-
-	// Set container gateway IP on the host side of the veth pair.
-	log.Infof("Setting veth %s IP to %s", vp.Name, v4gw)
-	if err := netlink.AddrAdd(veth, &netlink.Addr{
-		IPNet: &net.IPNet{
-			IP:   v4gw.AsSlice(),
-			Mask: net.CIDRMask(32, 32),
-		},
-	}); err != nil {
-		return fmt.Errorf("failed to add addr to veth: %w", err)
-	}
-
-	// Add host-scope route - this will direct all packets addressed to the container's
-	// default IP to the veth pair.
-	// TODO(dilyevsky): IPv6.
-	log.Infof("Adding route for %s via %s", v4gw, vp.Name)
-	if err := netlink.RouteAdd(&netlink.Route{
-		LinkIndex: veth.Attrs().Index,
-		Scope:     netlink.SCOPE_HOST,
-		Dst: &net.IPNet{
-			IP:   v4.AsSlice(),
-			Mask: net.CIDRMask(32, 32),
-		},
-		Table: routeTableIndex,
-	}); err != nil {
-		return fmt.Errorf("failed to add route: %w", err)
-	}
-	info.Routes = append(info.Routes, sandboxRoute{
-		Dst:   v4.String(),
-		Table: routeTableIndex,
-	})
-
-	return nil
-}
-
-func tearDownVeth(info *sandboxInfo) error {
+func tearDownVeth(info *SandboxInfo) error {
 	log.Infof("Removing veth pair for %s", info.Veth)
 	veth, err := netlink.LinkByName(info.Veth)
 	if err == nil {
@@ -508,4 +466,81 @@ func tearDownVeth(info *sandboxInfo) error {
 	}
 
 	return nil
+}
+
+// Down tears down the network for the given container.
+func (n *Network) Down(ctx context.Context, cid string) error {
+	ns, err := nsForCID(cid)
+	if err != nil {
+		return fmt.Errorf("failed to get netns: %w", err)
+	}
+
+	// Load cid network info from the db
+	info := &SandboxInfo{}
+	if err := n.db.View(func(txn *badger.Txn) error {
+		item, err := txn.Get([]byte(cid))
+		if err != nil {
+			return err
+		}
+		if err := item.Value(func(val []byte) error {
+			if err := json.Unmarshal(val, info); err != nil {
+				return err
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		return fmt.Errorf("failed to get cidr from db: %w", err)
+	}
+
+	if err := tearDownVeth(info); err != nil {
+		return fmt.Errorf("failed to tear down veth pair: %v", err)
+	}
+
+	// Release prefix from the ipam.
+	prefix, err := n.ipamer.PrefixFrom(ctx, info.Cidr.String())
+	if err != nil {
+		return fmt.Errorf("failed to get prefix: %v", err)
+	}
+	if err := n.ipamer.ReleaseChildPrefix(ctx, prefix); err != nil {
+		return fmt.Errorf("failed to release prefix: %v", err)
+	}
+
+	if err := ns.Close(); err != nil {
+		return fmt.Errorf("failed to close netns: %w", err)
+	}
+
+	// Delete cid network info from the db
+	if err := n.db.Update(func(txn *badger.Txn) error {
+		return txn.Delete([]byte(cid))
+	}); err != nil {
+		return fmt.Errorf("failed to delete cid from db: %w", err)
+	}
+
+	return nil
+}
+
+func (n *Network) Status(ctx context.Context, cid string) (*SandboxInfo, error) {
+	var info SandboxInfo
+	if err := n.db.View(func(txn *badger.Txn) error {
+		item, err := txn.Get([]byte(cid))
+		if err != nil && err != badger.ErrKeyNotFound {
+			return err
+		}
+		if err == badger.ErrKeyNotFound {
+			return ErrSandboxNotFound
+		}
+		return item.Value(func(val []byte) error {
+			if err := json.Unmarshal(val, &info); err != nil {
+				return err
+			}
+			return nil
+		})
+	}); err != nil {
+		return nil, fmt.Errorf("failed to get cidr from db: %w", err)
+	}
+
+	return &info, nil
 }
