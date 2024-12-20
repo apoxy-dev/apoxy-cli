@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"syscall"
 
 	"github.com/opencontainers/runc/libcontainer"
@@ -200,7 +201,7 @@ func config(id, rootFS, runtimeBinPath, esZipPath string) *configs.Config {
 }
 
 // Exec implements edgefunc.Runtime.Exec.
-func (r *runtime) Exec(ctx context.Context, id string, esZipPath string) error {
+func (r *runtime) Exec(ctx context.Context, id string, esZipPath string, port int) error {
 	status, err := r.ExecStatus(ctx, id)
 	if err == nil && status.State != edgefunc.StateStopped {
 		return edgefunc.ErrAlreadyExists
@@ -233,6 +234,7 @@ func (r *runtime) Exec(ctx context.Context, id string, esZipPath string) error {
 		// mount it from the host.
 		"--disable-module-cache",
 		"--main-service=/bin.eszip",
+		"--port=" + strconv.Itoa(port),
 	}
 	p := &libcontainer.Process{
 		Args:            args,

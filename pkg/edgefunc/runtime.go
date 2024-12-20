@@ -35,7 +35,7 @@ type Status struct {
 
 type Runtime interface {
 	// Exec creates a new function execution.
-	Exec(ctx context.Context, id string, esZipPath string) error
+	Exec(ctx context.Context, id string, esZipPath string, port int) error
 
 	// StopExec stops the execution of the function.
 	// The process may take some time to stop, so this method will return

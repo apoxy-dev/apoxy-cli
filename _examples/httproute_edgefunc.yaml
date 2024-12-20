@@ -54,6 +54,8 @@ metadata:
 spec:
   template:
     mode: backend
+    runtime:
+      port: 8081
     code:
       jsSource:
         entrypoint: "main.ts"

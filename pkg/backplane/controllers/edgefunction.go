@@ -99,7 +99,11 @@ func hasReadyCondition(conditions []metav1.Condition) bool {
 	return false
 }
 
-func (r *EdgeFunctionRevisionReconciler) reconileEdgeRuntime(ctx context.Context, ref string) error {
+func (r *EdgeFunctionRevisionReconciler) reconileEdgeRuntime(
+	ctx context.Context,
+	ref string,
+	runtimeSpec *v1alpha1.EdgeFunctionRuntime,
+) error {
 	log := clog.FromContext(ctx)
 
 	esZipPath := filepath.Join(r.jsStoreDir, ref, "bin.eszip")
@@ -141,7 +145,7 @@ func (r *EdgeFunctionRevisionReconciler) reconileEdgeRuntime(ctx context.Context
 
 	log.Info("Starting Edge Runtime")
 
-	if err := r.edgeRuntime.Exec(ctx, ref, esZipPath); err != nil {
+	if err := r.edgeRuntime.Exec(ctx, ref, esZipPath, int(*runtimeSpec.Port)); err != nil {
 		return fmt.Errorf("failed to start Edge Runtime: %w", err)
 	}
 
@@ -255,7 +259,7 @@ func (r *EdgeFunctionRevisionReconciler) Reconcile(ctx context.Context, request 
 	} else if rev.Spec.Code.JsSource != nil {
 		log.Info("Js source detected")
 
-		if err := r.reconileEdgeRuntime(ctx, ref); err != nil {
+		if err := r.reconileEdgeRuntime(ctx, ref, rev.Spec.Runtime); err != nil {
 			return ctrl.Result{}, fmt.Errorf("failed to reconile Edge Runtime: %w", err)
 		}
 	} else {
