@@ -28,20 +28,21 @@ type Status struct {
 }
 
 type Runtime interface {
-	// Start request the runtime to start the execution of the function.
-	// Cancelling the context will stop the runtime bookkeeping and all
-	// of its children processes.
-	Start(ctx context.Context, id string, esZipPath string) error
+	// Exec creates a new function execution.
+	Exec(ctx context.Context, id string, esZipPath string) error
 
-	// Stop request the runtime to stop the execution of the function.
+	// StopExec stops the execution of the function.
 	// The process may take some time to stop, so this method will return
 	// immediately after sending the stop signal.
 	// No-op if the runtime is already stopped.
-	Stop(ctx context.Context, id string) error
+	StopExec(ctx context.Context, id string) error
 
-	// Status returns the current status of the runtime.
-	Status(ctx context.Context, id string) (Status, error)
+	// DeleteExec deletes the function execution.
+	DeleteExec(ctx context.Context, id string) error
 
-	// List returns a list of all functions running in the runtime.
-	List(ctx context.Context) ([]Status, error)
+	// ExecStatus returns the current status of the runtime.
+	ExecStatus(ctx context.Context, id string) (Status, error)
+
+	// ListExecs returns a list of all function executions.
+	ListExecs(ctx context.Context) ([]Status, error)
 }

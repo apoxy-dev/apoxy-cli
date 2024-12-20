@@ -124,7 +124,7 @@ func (r *EdgeFunctionRevisionReconciler) reconileEdgeRuntime(ctx context.Context
 		}
 	}
 
-	s, err := r.edgeRuntime.Status(ctx, ref)
+	s, err := r.edgeRuntime.ExecStatus(ctx, ref)
 	if err != nil && !errors.Is(err, edgefunc.ErrNotFound) {
 		return fmt.Errorf("failed to get Edge Runtime status: %w", err)
 	}
@@ -141,7 +141,7 @@ func (r *EdgeFunctionRevisionReconciler) reconileEdgeRuntime(ctx context.Context
 
 	log.Info("Starting Edge Runtime")
 
-	if err := r.edgeRuntime.Start(ctx, ref, esZipPath); err != nil {
+	if err := r.edgeRuntime.Exec(ctx, ref, esZipPath); err != nil {
 		return fmt.Errorf("failed to start Edge Runtime: %w", err)
 	}
 

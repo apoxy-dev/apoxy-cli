@@ -212,6 +212,7 @@ func (m *ApoxyCli) BuildBackplane(
 
 	return dag.Container(dagger.ContainerOpts{Platform: p}).
 		From("cgr.dev/chainguard/wolfi-base:latest").
+		WithExec([]string{"apk", "add", "-u", "iptables", "iproute2", "net-tools"}).
 		WithFile("/bin/backplane", builder.File(bpOut)).
 		WithFile("/bin/dial-stdio", builder.File(dsOut)).
 		WithFile("/bin/edge-runtime", runtimeCtr.File("/usr/local/bin/edge-runtime")).

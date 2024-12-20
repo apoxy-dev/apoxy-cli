@@ -6,19 +6,15 @@ package runc
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
-	goruntime "runtime"
 	"syscall"
 
-	"github.com/metal-stack/go-ipam"
 	"github.com/opencontainers/runc/libcontainer"
 	"github.com/opencontainers/runc/libcontainer/configs"
 	"github.com/opencontainers/runc/libcontainer/devices"
 	"github.com/opencontainers/runc/libcontainer/specconv"
-	"github.com/vishvananda/netns"
 	"golang.org/x/sys/unix"
 	"k8s.io/utils/ptr"
 
@@ -36,126 +32,6 @@ func init() {
 		// before main() but after libcontainer/nsenter's nsexec().
 		libcontainer.Init()
 	}
-}
-
-type Option func(*options)
-
-type options struct {
-	runtimeBinPath string
-	baseDir        string
-	hostIPv4CIDR   string
-	hostIPv6CIDR   string
-}
-
-func defaultOptions() *options {
-	return &options{
-		runtimeBinPath: "/bin/edge-runtime",
-		baseDir:        "/run/edgefuncs",
-		hostIPv4CIDR:   "192.168.100.0/24",
-		hostIPv6CIDR:   "fd00::/64",
-	}
-}
-
-func WithRuntimeBinPath(p string) Option {
-	return func(o *options) {
-		o.runtimeBinPath = p
-	}
-}
-
-func WithWorkDir(p string) Option {
-	return func(o *options) {
-		o.baseDir = p
-	}
-}
-
-type runtime struct {
-	ipamer                ipam.Ipamer
-	runtimeBinPath        string
-	stateDir, rootBaseDir string
-	prefixIPv4            *ipam.Prefix
-	prefixIPv6            *ipam.Prefix
-}
-
-func initIPAM(
-	ctx context.Context,
-	ipamer ipam.Ipamer,
-	cidr string,
-) (*ipam.Prefix, error) {
-	log.Infof("Initializing IPAM with cidr %s", cidr)
-	// FYI: IPAM internals reload the storage on each operation.
-	prefixIPv4, err := ipamer.PrefixFrom(ctx, cidr)
-	if err != nil {
-		if !errors.Is(err, ipam.ErrNotFound) {
-			return nil, fmt.Errorf("failed to get prefix from ipam: %w", err)
-		}
-
-		if prefixIPv4, err = ipamer.NewPrefix(ctx, cidr); err != nil {
-			return nil, fmt.Errorf("failed to create prefix in ipam: %w", err)
-		}
-	}
-	// Acquire gateway (first IP + 1)
-	network, err := prefixIPv4.Network()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get network from prefix: %w", err)
-	}
-	gwIP := network.Next()
-	if gwIP.IsUnspecified() {
-		return nil, fmt.Errorf("failed to get gateway IP: network is too small: %v", network)
-	}
-	// If the gateway is already acquired, it will return a nil and no error.
-	_, err = ipamer.AcquireSpecificIP(ctx, prefixIPv4.Cidr, gwIP.String())
-	if err != nil {
-		return nil, fmt.Errorf("failed to acquire gateway IP: %w", err)
-	}
-
-	return prefixIPv4, nil
-}
-
-// NewRuntime returns a new edgefunc.Runtime implementation based on runc.
-func NewRuntime(ctx context.Context, opts ...Option) (edgefunc.Runtime, error) {
-	runtimeOpts := defaultOptions()
-	for _, o := range opts {
-		o(runtimeOpts)
-	}
-
-	log.Infof("Creating edge-runtime container runtime...")
-	log.Infof("Initializing state dirs...")
-
-	if err := os.MkdirAll(runtimeOpts.baseDir, 0755); err != nil {
-		return nil, fmt.Errorf("failed to create work directory: %w", err)
-	}
-	stateDir := filepath.Join(runtimeOpts.baseDir, "state")
-	if err := os.MkdirAll(stateDir, 0755); err != nil {
-		return nil, fmt.Errorf("failed to create state directory: %w", err)
-	}
-	rootBaseDir := filepath.Join(runtimeOpts.baseDir, "rootfs")
-	if err := os.MkdirAll(rootBaseDir, 0755); err != nil {
-		return nil, fmt.Errorf("failed to create rootFS directory: %w", err)
-	}
-
-	if _, err := os.Stat(runtimeOpts.runtimeBinPath); err != nil {
-		fmt.Errorf("edge-runtime binary not found at %s", runtimeOpts.runtimeBinPath)
-	}
-
-	ipamJson := filepath.Join(runtimeOpts.baseDir, "ipam.json")
-	ipamer := ipam.NewWithStorage(ipam.NewLocalFile(ctx, ipamJson))
-	prefixIPv4, err := initIPAM(ctx, ipamer, runtimeOpts.hostIPv4CIDR)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize IPAM: %w", err)
-	}
-	prefixIPv6, err := initIPAM(ctx, ipamer, runtimeOpts.hostIPv6CIDR)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize IPAM: %w", err)
-	}
-
-	return &runtime{
-		ipamer:         ipamer,
-		runtimeBinPath: runtimeOpts.runtimeBinPath,
-		stateDir:       stateDir,
-		rootBaseDir:    rootBaseDir,
-		prefixIPv4:     prefixIPv4,
-		prefixIPv6:     prefixIPv6,
-	}, nil
 }
 
 func config(id, rootFS, runtimeBinPath, esZipPath string) *configs.Config {
@@ -323,39 +199,15 @@ func config(id, rootFS, runtimeBinPath, esZipPath string) *configs.Config {
 	return c
 }
 
-func newNs(rid string) (netns.NsHandle, error) {
-	// Need to lock OS thread bc netns is using thread-local data.
-	goruntime.LockOSThread()
-	defer goruntime.UnlockOSThread()
-
-	origns, err := netns.Get()
-	if err != nil {
-		return netns.None(), fmt.Errorf("failed to get current netns: %v", err)
-	}
-	defer netns.Set(origns)
-
-	return netns.NewNamed(rid)
-}
-
-// Start requests the runtime to start the execution of the function.
-func (r *runtime) Start(ctx context.Context, id string, esZipPath string) error {
-	status, err := r.Status(ctx, id)
+// Exec implements edgefunc.Runtime.Exec.
+func (r *runtime) Exec(ctx context.Context, id string, esZipPath string) error {
+	status, err := r.ExecStatus(ctx, id)
 	if err == nil && status.State != edgefunc.StateStopped {
 		return edgefunc.ErrAlreadyExists
 	}
 
-	h, err := newNs(id)
-	if err != nil {
-		return fmt.Errorf("failed to create netns: %v", err)
-	}
-
-	ipv4, err := r.ipamer.AcquireIP(ctx, r.prefixIPv4.Cidr)
-	if err != nil {
-		return fmt.Errorf("failed to acquire ipv4: %v", err)
-	}
-
-	if err := setupVeth(id, h, ipv4); err != nil {
-		return fmt.Errorf("failed to setup veth pair: %v", err)
+	if err := r.net.Up(ctx, id); err != nil {
+		return fmt.Errorf("failed to bring up network: %v", err)
 	}
 
 	rootFS := filepath.Join(r.rootBaseDir, id)
@@ -410,8 +262,8 @@ func (r *runtime) Start(ctx context.Context, id string, esZipPath string) error 
 	return nil
 }
 
-// Stop requests the runtime to stop the execution of the function.
-func (r *runtime) Stop(ctx context.Context, id string) error {
+// StopExec implements edgefunc.Runtime.StopExec.
+func (r *runtime) StopExec(ctx context.Context, id string) error {
 	ctr, err := libcontainer.Load(r.stateDir, id)
 	if err != nil && err != libcontainer.ErrNotExist {
 		return fmt.Errorf("failed to load container: %v", err)
@@ -441,6 +293,24 @@ func (r *runtime) Stop(ctx context.Context, id string) error {
 			return fmt.Errorf("failed to kill process: %v", err)
 		}
 	}
+
+	return nil
+}
+
+// DeleteExec implements edgefunc.Runtime.DeleteExec.
+func (r *runtime) DeleteExec(ctx context.Context, id string) error {
+	ctr, err := libcontainer.Load(r.stateDir, id)
+	if err != nil && err != libcontainer.ErrNotExist {
+		return fmt.Errorf("failed to load container: %v", err)
+	} else if err == libcontainer.ErrNotExist {
+		return edgefunc.ErrNotFound
+	}
+	if err := ctr.Destroy(); err != nil {
+		return fmt.Errorf("failed to destroy container: %v", err)
+	}
+	if err := r.net.Down(ctx, id); err != nil {
+		return fmt.Errorf("failed to bring down network: %v", err)
+	}
 	return nil
 }
 
@@ -457,8 +327,8 @@ func stateFromStatus(status libcontainer.Status) edgefunc.State {
 	}
 }
 
-// Status returns the status of the function with the given id.
-func (r *runtime) Status(ctx context.Context, id string) (edgefunc.Status, error) {
+// ExecStatus implements edgefunc.Runtime.ExecStatus.
+func (r *runtime) ExecStatus(ctx context.Context, id string) (edgefunc.Status, error) {
 	ctr, err := libcontainer.Load(r.stateDir, id)
 	if err != nil && err != libcontainer.ErrNotExist {
 		return edgefunc.Status{}, fmt.Errorf("failed to load container: %v", err)
@@ -482,8 +352,8 @@ func (r *runtime) Status(ctx context.Context, id string) (edgefunc.Status, error
 	}, nil
 }
 
-// List returns a list of all functions running in the runtime.
-func (r *runtime) List(ctx context.Context) ([]edgefunc.Status, error) {
+// ListExecs implements edgefunc.Runtime.ListExecs.
+func (r *runtime) ListExecs(ctx context.Context) ([]edgefunc.Status, error) {
 	dir, err := os.ReadDir(r.stateDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read state dir: %v", err)
