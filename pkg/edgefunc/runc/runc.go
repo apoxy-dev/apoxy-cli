@@ -82,7 +82,7 @@ func config(id, rootFS, runtimeBinPath, esZipPath string) *configs.Config {
 			},
 		},
 		Cgroups: &configs.Cgroup{
-			Name:   "edge-runtime",
+			Name:   id,
 			Parent: "system",
 			Resources: &configs.Resources{
 				MemorySwappiness: nil,
