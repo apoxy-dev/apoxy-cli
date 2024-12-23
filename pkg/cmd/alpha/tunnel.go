@@ -187,8 +187,8 @@ func runTunnel(ctx context.Context, cfg *configv1alpha.Config, client versioned.
 	tunnelNode.Status.ExternalAddress = tun.ExternalAddress().String()
 	tunnelNode.Status.InternalAddress = tun.InternalAddress().String()
 
-	// Create the TunnelNode object in the API.
-	slog.Debug("Creating TunnelNode", slog.String("name", tunnelNode.Name))
+	// Create/update the TunnelNode object in the API.
+	slog.Debug("Creating/updating TunnelNode", slog.String("name", tunnelNode.Name))
 
 	if err := upsertTunnelNode(ctx, client, tunnelNode); err != nil {
 		return err
@@ -357,7 +357,10 @@ func syncTunnelNode(tunnelNodeLister corev1alphaclient.TunnelNodeLister,
 			AllowedIPs: []string{peerTunnelNode.Status.InternalAddress},
 		}
 
-		slog.Debug("Adding peer", slog.String("name", peerTunnelNode.Name))
+		slog.Debug("Adding peer",
+			slog.String("name", peerTunnelNode.Name),
+			slog.String("publicKey", peerPublicKey),
+			slog.String("endpoint", peerTunnelNode.Status.ExternalAddress))
 
 		if err := tun.AddPeer(peerConf); err != nil {
 			slog.Error("Failed to add peer", slog.String("name", peerTunnelNode.Name), slog.Any("error", err))
@@ -377,28 +380,32 @@ func syncTunnelNode(tunnelNodeLister corev1alphaclient.TunnelNodeLister,
 // upsertTunnelNode creates or updates a TunnelNode object in the API.
 func upsertTunnelNode(ctx context.Context, client versioned.Interface, tunnelNode *corev1alpha.TunnelNode) error {
 	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		_, err := client.CoreV1alpha().TunnelNodes().Create(ctx, tunnelNode, metav1.CreateOptions{})
-		if errors.IsAlreadyExists(err) {
-			existingTunnelNode, err := client.CoreV1alpha().TunnelNodes().Get(ctx, tunnelNode.Name, metav1.GetOptions{})
-			if err != nil {
-				return fmt.Errorf("failed to get existing TunnelNode: %w", err)
-			}
-
+		existingTunnelNode, err := client.CoreV1alpha().TunnelNodes().Get(ctx, tunnelNode.Name, metav1.GetOptions{})
+		if err == nil {
+			// Update the existing TunnelNode.
 			tunnelNode.ResourceVersion = existingTunnelNode.ResourceVersion
 
 			_, err = client.CoreV1alpha().TunnelNodes().Update(ctx, tunnelNode, metav1.UpdateOptions{})
 			if err != nil {
 				return fmt.Errorf("failed to update existing TunnelNode: %w", err)
 			}
-
-			_, err = client.CoreV1alpha().TunnelNodes().UpdateStatus(ctx, tunnelNode, metav1.UpdateOptions{})
-			if err != nil {
-				return fmt.Errorf("failed to update existing TunnelNode status: %w", err)
+		} else {
+			// Create a new TunnelNode.
+			if _, err := client.CoreV1alpha().TunnelNodes().Create(ctx, tunnelNode, metav1.CreateOptions{}); err != nil {
+				return fmt.Errorf("failed to create TunnelNode: %w", err)
 			}
 
-			return nil
-		} else if err != nil {
-			return fmt.Errorf("failed to create TunnelNode: %w", err)
+			existingTunnelNode, err := client.CoreV1alpha().TunnelNodes().Get(ctx, tunnelNode.Name, metav1.GetOptions{})
+			if err != nil {
+				return fmt.Errorf("failed to get newly created TunnelNode: %w", err)
+			}
+
+			tunnelNode.ResourceVersion = existingTunnelNode.ResourceVersion
+		}
+
+		_, err = client.CoreV1alpha().TunnelNodes().UpdateStatus(ctx, tunnelNode, metav1.UpdateOptions{})
+		if err != nil {
+			return fmt.Errorf("failed to update TunnelNode status: %w", err)
 		}
 
 		return nil
