@@ -17,6 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	clog "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -29,6 +30,8 @@ import (
 
 const (
 	edgeFuncRevsOwnerIndex = "edgeFuncRevsOwner"
+
+	backplaneFinalizerPrefix = "controllers.apoxy.dev/backplane-"
 )
 
 var _ reconcile.Reconciler = &EdgeFunctionRevisionReconciler{}
@@ -38,6 +41,7 @@ var _ reconcile.Reconciler = &EdgeFunctionRevisionReconciler{}
 type EdgeFunctionRevisionReconciler struct {
 	client.Client
 
+	replicaName   string
 	apiserverHost string
 	wasmStore     manifest.Store
 	goStoreDir    string
@@ -48,6 +52,7 @@ type EdgeFunctionRevisionReconciler struct {
 // NewEdgeFunctionRevisionReconciler returns a new reconcile.Reconciler.
 func NewEdgeFunctionRevisionReconciler(
 	c client.Client,
+	replicaName string,
 	apiserverHost string,
 	wasmStore manifest.Store,
 	goStoreDir string,
@@ -56,6 +61,7 @@ func NewEdgeFunctionRevisionReconciler(
 ) *EdgeFunctionRevisionReconciler {
 	return &EdgeFunctionRevisionReconciler{
 		Client:        c,
+		replicaName:   replicaName,
 		apiserverHost: apiserverHost,
 		wasmStore:     wasmStore,
 		goStoreDir:    goStoreDir,
@@ -152,6 +158,48 @@ func (r *EdgeFunctionRevisionReconciler) reconileEdgeRuntime(
 	return nil
 }
 
+func (r *EdgeFunctionRevisionReconciler) maybeCleanupEdgeRuntime(ctx context.Context, ref string) (bool, error) {
+	log := clog.FromContext(ctx, "Ref", ref)
+
+	log.Info("Cleaning up Edge Runtime")
+
+	if err := r.edgeRuntime.StopExec(ctx, ref); err != nil {
+		log.Error(err, "Failed to stop Edge Runtime")
+		return false, err
+	}
+	s, err := r.edgeRuntime.ExecStatus(ctx, ref)
+	if err != nil {
+		log.Error(err, "Failed to get Edge Runtime status")
+		return false, err
+	}
+
+	switch s.State {
+	case edgefunc.StateRunning, edgefunc.StateCreated:
+		log.Info("Edge Runtime is still waiting for termination")
+		return false, nil
+	case edgefunc.StateStopped:
+		log.Info("Edge Runtime is stopped, cleaning up")
+	}
+
+	if err := r.edgeRuntime.DeleteExec(ctx, ref); err != nil && !errors.Is(err, edgefunc.ErrNotFound) {
+		log.Error(err, "Failed to delete Edge Runtime")
+	} else if errors.Is(err, edgefunc.ErrNotFound) {
+		log.Info("Edge Runtime not found, nothing to delete")
+		return true, nil
+	}
+
+	log.Info("Edge Runtime deleted, cleaning up data")
+
+	jsBundlePath := filepath.Join(r.jsStoreDir, ref, "data")
+	if err := os.RemoveAll(jsBundlePath); err != nil {
+		log.Error(err, "Failed to delete Js bundle")
+	}
+
+	log.Info("Edge Runtime cleaned up")
+
+	return true, nil
+}
+
 // Reconcile implements reconcile.Reconciler.
 func (r *EdgeFunctionRevisionReconciler) Reconcile(ctx context.Context, request reconcile.Request) (ctrl.Result, error) {
 	log := clog.FromContext(ctx)
@@ -179,30 +227,55 @@ func (r *EdgeFunctionRevisionReconciler) Reconcile(ctx context.Context, request 
 	}
 
 	if !rev.DeletionTimestamp.IsZero() {
-		if ef.Status.LiveRevision == rev.Name { // Do not delete the live revision.
-			log.Info("EdgeFunctionRevision is the live revision, Skipping deletion.")
-			return ctrl.Result{RequeueAfter: time.Second * 10}, nil
-		}
-
-		log.Info("Deleting EdgeFunctionRevision")
-
-		if rev.Spec.Code.WasmSource != nil {
-			log.Info("Deleting Wasm data", "ref", rev.Status.Ref)
-			if err := r.wasmStore.Delete(ctx, rev.Status.Ref); err != nil {
-				return ctrl.Result{}, fmt.Errorf("failed to delete Wasm data: %w", err)
+		finalizer := backplaneFinalizerPrefix + r.replicaName
+		if controllerutil.ContainsFinalizer(rev, finalizer) {
+			if ef.Status.LiveRevision == rev.Name { // Do not delete the live revision.
+				log.Info("EdgeFunctionRevision is the live revision, Skipping deletion.")
+				return ctrl.Result{RequeueAfter: time.Second * 10}, nil
 			}
-		} else if rev.Spec.Code.GoPluginSource != nil {
-			log.Info("Deleting Go plugin data", "ref", rev.Status.Ref)
-			if err := os.RemoveAll(filepath.Join(r.goStoreDir, rev.Status.Ref)); err != nil {
-				return ctrl.Result{}, fmt.Errorf("failed to delete Go plugin data: %w", err)
+
+			log.Info("Deleting EdgeFunctionRevision")
+
+			if rev.Spec.Code.WasmSource != nil {
+				log.Info("Deleting Wasm data", "ref", rev.Status.Ref)
+				if err := r.wasmStore.Delete(ctx, rev.Status.Ref); err != nil {
+					return ctrl.Result{}, fmt.Errorf("failed to delete Wasm data: %w", err)
+				}
+			} else if rev.Spec.Code.GoPluginSource != nil {
+				log.Info("Deleting Go plugin data", "ref", rev.Status.Ref)
+				if err := os.RemoveAll(filepath.Join(r.goStoreDir, rev.Status.Ref)); err != nil {
+					return ctrl.Result{}, fmt.Errorf("failed to delete Go plugin data: %w", err)
+				}
+			} else if rev.Spec.Code.JsSource != nil {
+				log.Info("Deleting Js data", "ref", rev.Status.Ref)
+				if err := os.RemoveAll(filepath.Join(r.jsStoreDir, rev.Status.Ref)); err != nil {
+					return ctrl.Result{}, fmt.Errorf("failed to delete Js data: %w", err)
+				}
+
+				if done, err := r.maybeCleanupEdgeRuntime(ctx, rev.Status.Ref); err != nil {
+					log.Error(err, "Failed to cleanup Edge Runtime")
+					return ctrl.Result{}, err
+				} else if !done {
+					log.Info("Edge Runtime is still running, waiting for termination")
+					return ctrl.Result{RequeueAfter: time.Second * 10}, nil
+				}
 			}
-		} else if rev.Spec.Code.JsSource != nil {
-			log.Info("Deleting Js data", "ref", rev.Status.Ref)
-			if err := os.RemoveAll(filepath.Join(r.jsStoreDir, rev.Status.Ref)); err != nil {
-				return ctrl.Result{}, fmt.Errorf("failed to delete Js data: %w", err)
+
+			controllerutil.RemoveFinalizer(rev, finalizer)
+			if err := r.Update(ctx, rev); err != nil {
+				return ctrl.Result{}, err
 			}
 		}
 		return ctrl.Result{}, nil
+	}
+
+	finalizer := backplaneFinalizerPrefix + r.replicaName
+	if !controllerutil.ContainsFinalizer(rev, finalizer) {
+		log.Info("Adding finalizer", "Finalizer", finalizer)
+		controllerutil.AddFinalizer(rev, finalizer)
+		if err := r.Update(ctx, rev); err != nil {
+			return ctrl.Result{}, err
+		}
 	}
 
 	// Stage the EdgeFunctionRevision that was successfully ingested (has a Ready condition)

@@ -302,6 +302,7 @@ func main() {
 	}
 	if err := bpctrl.NewEdgeFunctionRevisionReconciler(
 		mgr.GetClient(),
+		*replicaName,
 		net.JoinHostPort(apiServerHost, strconv.Itoa(*wasmStorePort)),
 		ms,
 		*goPluginDir,

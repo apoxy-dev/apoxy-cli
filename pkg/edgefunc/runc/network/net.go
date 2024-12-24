@@ -442,28 +442,21 @@ func (n *Network) Up(ctx context.Context, cid string) error {
 
 func tearDownVeth(info *SandboxInfo) error {
 	log.Infof("Removing veth pair for %s", info.Veth)
+
 	veth, err := netlink.LinkByName(info.Veth)
-	if err == nil {
-		// Deleting one end of the veth pair automatically deletes the other end.
-		if err := netlink.LinkDel(veth); err != nil {
-			return fmt.Errorf("failed to delete veth pair: %w", err)
-		}
+	if err != nil && !errors.Is(err, netlink.LinkNotFoundError{}) {
+		return fmt.Errorf("failed to get veth: %w", err)
+	} else if errors.Is(err, netlink.LinkNotFoundError{}) {
+		log.Debugf("veth not found, nothing to delete")
+		return nil
 	}
 
-	log.Infof("Removing routes for %s", info.Veth)
-	for _, r := range info.Routes {
-		if err := netlink.RouteDel(&netlink.Route{
-			LinkIndex: veth.Attrs().Index,
-			Scope:     netlink.SCOPE_UNIVERSE,
-			Dst: &net.IPNet{
-				IP:   net.ParseIP(r.Dst),
-				Mask: net.CIDRMask(32, 32),
-			},
-			Table: r.Table,
-		}); err != nil && !errors.As(err, &netlink.LinkNotFoundError{}) {
-			return fmt.Errorf("failed to delete route: %w", err)
-		}
+	// Deleting one end of the veth pair automatically deletes the other end.
+	if err := netlink.LinkDel(veth); err != nil {
+		return fmt.Errorf("failed to delete veth pair: %w", err)
 	}
+
+	// No need to remove routes - they are delete when the device is removed above.
 
 	return nil
 }
@@ -500,6 +493,7 @@ func (n *Network) Down(ctx context.Context, cid string) error {
 	}
 
 	// Release prefix from the ipam.
+	log.Infof("Releasing prefix %s", info.Cidr)
 	prefix, err := n.ipamer.PrefixFrom(ctx, info.Cidr.String())
 	if err != nil {
 		return fmt.Errorf("failed to get prefix: %v", err)
@@ -510,6 +504,9 @@ func (n *Network) Down(ctx context.Context, cid string) error {
 
 	if err := ns.Close(); err != nil {
 		return fmt.Errorf("failed to close netns: %w", err)
+	}
+	if err := netns.DeleteNamed(cid); err != nil {
+		return fmt.Errorf("failed to delete netns: %w", err)
 	}
 
 	// Delete cid network info from the db
