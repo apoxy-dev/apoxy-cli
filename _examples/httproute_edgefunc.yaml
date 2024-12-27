@@ -47,7 +47,7 @@ spec:
           group: extensions.apoxy.dev
           name: websocket
 ---
-apiVersion: extensions.apoxy.dev/v1alpha1
+apiVersion: extensions.apoxy.dev/v1alpha2
 kind: EdgeFunction
 metadata:
   name: websocket

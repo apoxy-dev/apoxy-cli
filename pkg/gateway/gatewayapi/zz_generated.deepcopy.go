@@ -23,7 +23,7 @@ package gatewayapi
 import (
 	controllersv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
 	v1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
-	extensionsv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1"
+	extensionsv1alpha2 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2"
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	unstructured "k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -193,22 +193,22 @@ func (in *Resources) DeepCopyInto(out *Resources) {
 	}
 	if in.EdgeFunctionBackends != nil {
 		in, out := &in.EdgeFunctionBackends, &out.EdgeFunctionBackends
-		*out = make([]*extensionsv1alpha1.EdgeFunction, len(*in))
+		*out = make([]*extensionsv1alpha2.EdgeFunction, len(*in))
 		for i := range *in {
 			if (*in)[i] != nil {
 				in, out := &(*in)[i], &(*out)[i]
-				*out = new(extensionsv1alpha1.EdgeFunction)
+				*out = new(extensionsv1alpha2.EdgeFunction)
 				(*in).DeepCopyInto(*out)
 			}
 		}
 	}
 	if in.EdgeFunctionRevisions != nil {
 		in, out := &in.EdgeFunctionRevisions, &out.EdgeFunctionRevisions
-		*out = make([]*extensionsv1alpha1.EdgeFunctionRevision, len(*in))
+		*out = make([]*extensionsv1alpha2.EdgeFunctionRevision, len(*in))
 		for i := range *in {
 			if (*in)[i] != nil {
 				in, out := &(*in)[i], &(*out)[i]
-				*out = new(extensionsv1alpha1.EdgeFunctionRevision)
+				*out = new(extensionsv1alpha2.EdgeFunctionRevision)
 				(*in).DeepCopyInto(*out)
 			}
 		}

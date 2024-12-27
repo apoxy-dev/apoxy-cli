@@ -34,7 +34,7 @@ import (
 	"oras.land/oras-go/v2/registry/remote/auth"
 	orasretry "oras.land/oras-go/v2/registry/remote/retry"
 
-	"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1"
+	extensionsv1alpha2 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2"
 	"github.com/apoxy-dev/apoxy-cli/client/versioned"
 	"github.com/apoxy-dev/apoxy-cli/pkg/log"
 )
@@ -48,7 +48,7 @@ const (
 )
 
 type EdgeFunctionIngestParams struct {
-	Obj *v1alpha1.EdgeFunctionRevision
+	Obj *extensionsv1alpha2.EdgeFunctionRevision
 }
 
 type IngestResult struct {
@@ -113,7 +113,7 @@ func EdgeFunctionIngestWorkflow(ctx workflow.Context, in *EdgeFunctionIngestPara
 		err = errors.New("Edge Function must have either WASM or JS source")
 	case 1:
 		switch fSet[0].Interface().(type) {
-		case *v1alpha1.WasmSource:
+		case *extensionsv1alpha2.WasmSource:
 			log.Info("EdgeFunctionRevision ingest started", "Source", "WASM")
 			err = workflow.ExecuteActivity(sessCtx, w.DownloadWasmActivity, in).Get(sessCtx, &res)
 			if err != nil {
@@ -128,7 +128,7 @@ func EdgeFunctionIngestWorkflow(ctx workflow.Context, in *EdgeFunctionIngestPara
 				log.Error("Store activity failed", "Error", err)
 				goto Finalize
 			}
-		case *v1alpha1.JavaScriptSource:
+		case *extensionsv1alpha2.JavaScriptSource:
 			log.Info("EdgeFunctionRevision ingest started", "Source", "JS")
 			if err = workflow.ExecuteActivity(sessCtx, w.DownloadJsActivity, in).Get(sessCtx, &res); err != nil {
 				log.Error("Failed to download JS source", "Error", err)
@@ -146,7 +146,7 @@ func EdgeFunctionIngestWorkflow(ctx workflow.Context, in *EdgeFunctionIngestPara
 				log.Error("Store activity failed", "Error", err)
 				goto Finalize
 			}
-		case *v1alpha1.GoPluginSource:
+		case *extensionsv1alpha2.GoPluginSource:
 			log.Info("EdgeFunctionRevision ingest started", "Source", "GoPlugin")
 			err = workflow.ExecuteActivity(sessCtx, w.DownloadGoPluginActivity, in).Get(sessCtx, &res)
 			if err != nil {
@@ -227,7 +227,7 @@ func (w *worker) AddIngestConditionActivity(
 	log.Info("Adding ingest condition to EdgeFunctionRevision")
 
 	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		rev, err := w.a3y.ExtensionsV1alpha1().EdgeFunctionRevisions().Get(ctx, in.Obj.Name, metav1.GetOptions{})
+		rev, err := w.a3y.ExtensionsV1alpha2().EdgeFunctionRevisions().Get(ctx, in.Obj.Name, metav1.GetOptions{})
 		if err != nil {
 			log.Error("Failed to get EdgeFunctionRevision", "Error", err)
 			return err
@@ -241,7 +241,7 @@ func (w *worker) AddIngestConditionActivity(
 			LastTransitionTime: metav1.NewTime(time.Now()),
 		})
 
-		if _, err := w.a3y.ExtensionsV1alpha1().EdgeFunctionRevisions().UpdateStatus(ctx, rev, metav1.UpdateOptions{}); err != nil {
+		if _, err := w.a3y.ExtensionsV1alpha2().EdgeFunctionRevisions().UpdateStatus(ctx, rev, metav1.UpdateOptions{}); err != nil {
 			log.Error("Failed to update Edge Function status", "Error", err)
 			return err
 		}
@@ -382,7 +382,7 @@ func (w *worker) pullOCIImage(
 	ctx context.Context,
 	log tlog.Logger,
 	targetPath string,
-	ociRef *v1alpha1.OCIImageRef,
+	ociRef *extensionsv1alpha2.OCIImageRef,
 ) (os.FileInfo, error) {
 	log.Info("Pulling OCI image", "Ref", ociRef)
 
@@ -457,7 +457,7 @@ func (w *worker) pullOCIImage(
 			PreCopy: func(ctx context.Context, desc ocispecv1.Descriptor) error {
 				log.Debug("Pre-copy", "MediaType", desc.MediaType)
 				if desc.MediaType == ocispecv1.MediaTypeImageManifest ||
-					desc.MediaType == v1alpha1.ImageLayerMediaType {
+					desc.MediaType == extensionsv1alpha2.ImageLayerMediaType {
 					return nil
 				}
 				return oras.SkipNode
@@ -493,10 +493,10 @@ func (w *worker) pullOCIImage(
 	}
 
 	// See: https://oras.land/docs/concepts/artifact#determining-the-artifact-type
-	if imgManifest.ArtifactType != v1alpha1.ImageConfigMediaType ||
-		imgManifest.Config.MediaType != v1alpha1.ImageConfigMediaType {
+	if imgManifest.ArtifactType != extensionsv1alpha2.ImageConfigMediaType ||
+		imgManifest.Config.MediaType != extensionsv1alpha2.ImageConfigMediaType {
 		for _, layer := range imgManifest.Layers {
-			if layer.MediaType == v1alpha1.ImageLayerMediaType {
+			if layer.MediaType == extensionsv1alpha2.ImageLayerMediaType {
 				log.Info("Found image layer", "Digest", layer.Digest.String())
 				tar, err := content.FetchAll(ctx, fs, layer)
 				if err != nil {
@@ -740,7 +740,7 @@ func (w *worker) FinalizeActivity(
 	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		log.Info("Updating EdgeFunctionRevision status")
 
-		rev, err := w.a3y.ExtensionsV1alpha1().EdgeFunctionRevisions().Get(ctx, in.Obj.Name, metav1.GetOptions{})
+		rev, err := w.a3y.ExtensionsV1alpha2().EdgeFunctionRevisions().Get(ctx, in.Obj.Name, metav1.GetOptions{})
 		if err != nil {
 			log.Error("Failed to get EdgeFunctionRevision", "Error", err)
 			return err
@@ -766,7 +766,7 @@ func (w *worker) FinalizeActivity(
 			rev.Status.Ref = in.Obj.Name
 		}
 
-		if _, err := w.a3y.ExtensionsV1alpha1().EdgeFunctionRevisions().UpdateStatus(ctx, rev, metav1.UpdateOptions{}); err != nil {
+		if _, err := w.a3y.ExtensionsV1alpha2().EdgeFunctionRevisions().UpdateStatus(ctx, rev, metav1.UpdateOptions{}); err != nil {
 			log.Error("Failed to update Edge Function status", "Error", err)
 			return err
 		}
@@ -781,13 +781,13 @@ func (w *worker) FinalizeActivity(
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		log.Info("Updating EdgeFunction status")
 
-		var fun *v1alpha1.EdgeFunction
+		var fun *extensionsv1alpha2.EdgeFunction
 		for _, ref := range in.Obj.OwnerReferences {
 			if ref.Kind != "EdgeFunction" {
 				continue
 			}
 			var err error
-			fun, err = w.a3y.ExtensionsV1alpha1().EdgeFunctions().Get(ctx, ref.Name, metav1.GetOptions{})
+			fun, err = w.a3y.ExtensionsV1alpha2().EdgeFunctions().Get(ctx, ref.Name, metav1.GetOptions{})
 			if err != nil {
 				return fmt.Errorf("failed to get owner EdgeFunction: %w", err)
 			}

@@ -20,7 +20,7 @@ import (
 
 	"github.com/apoxy-dev/apoxy-cli/pkg/apiserver/ingest"
 
-	"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1"
+	extensionsv1alpha2 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2"
 )
 
 var _ reconcile.Reconciler = &EdgeFunctionReconciler{}
@@ -45,7 +45,7 @@ func NewEdgeFunctionReconciler(
 	}
 }
 
-func hasIngestCondition(obj *v1alpha1.EdgeFunctionRevision) bool {
+func hasIngestCondition(obj *extensionsv1alpha2.EdgeFunctionRevision) bool {
 	for _, c := range obj.Status.Conditions {
 		if c.Type == "Ingest" && c.Status == metav1.ConditionTrue {
 			return true
@@ -56,20 +56,20 @@ func hasIngestCondition(obj *v1alpha1.EdgeFunctionRevision) bool {
 
 func (r *EdgeFunctionReconciler) startIngest(
 	ctx context.Context,
-	obj *v1alpha1.EdgeFunction,
-) (*v1alpha1.EdgeFunctionRevision, error) {
+	obj *extensionsv1alpha2.EdgeFunction,
+) (*extensionsv1alpha2.EdgeFunctionRevision, error) {
 	tmplHash := EdgeFunctionHash(obj.Spec.Template)
 
 	log := clog.FromContext(ctx, "Hash", tmplHash)
 
 	revName := fmt.Sprintf("%s-%s", obj.Name, tmplHash)
-	rev := &v1alpha1.EdgeFunctionRevision{}
+	rev := &extensionsv1alpha2.EdgeFunctionRevision{}
 	if err := r.Get(ctx, client.ObjectKey{Name: revName}, rev); err != nil && !errors.IsNotFound(err) {
 		return nil, fmt.Errorf("failed to get EdgeFunctionRevision: %w", err)
 	} else if errors.IsNotFound(err) {
 		log.Info("EdgeFunctionRevision not found, starting ingest workflow")
 
-		rev = &v1alpha1.EdgeFunctionRevision{
+		rev = &extensionsv1alpha2.EdgeFunctionRevision{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:        revName,
 				Labels:      map[string]string{},
@@ -110,7 +110,7 @@ func (r *EdgeFunctionReconciler) startIngest(
 	return rev, nil
 }
 
-func (r *EdgeFunctionReconciler) cancelIngest(ctx context.Context, obj *v1alpha1.EdgeFunction) error {
+func (r *EdgeFunctionReconciler) cancelIngest(ctx context.Context, obj *extensionsv1alpha2.EdgeFunction) error {
 	tmplHash := EdgeFunctionHash(obj.Spec.Template)
 	revName := fmt.Sprintf("%s-%s", obj.Name, tmplHash)
 	log := clog.FromContext(ctx, "Revision", revName)
@@ -128,7 +128,7 @@ func (r *EdgeFunctionReconciler) cancelIngest(ctx context.Context, obj *v1alpha1
 	return nil
 }
 
-func hasReadyCondition(rev *v1alpha1.EdgeFunctionRevision) bool {
+func hasReadyCondition(rev *extensionsv1alpha2.EdgeFunctionRevision) bool {
 	for _, c := range rev.Status.Conditions {
 		if c.Type == "Ready" && c.Status == metav1.ConditionTrue {
 			return true
@@ -139,7 +139,7 @@ func hasReadyCondition(rev *v1alpha1.EdgeFunctionRevision) bool {
 
 // Reconcile implements reconcile.Reconciler.
 func (r *EdgeFunctionReconciler) Reconcile(ctx context.Context, request reconcile.Request) (ctrl.Result, error) {
-	f := &v1alpha1.EdgeFunction{}
+	f := &extensionsv1alpha2.EdgeFunction{}
 	err := r.Get(ctx, request.NamespacedName, f)
 	if errors.IsNotFound(err) {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
@@ -181,7 +181,7 @@ func (r *EdgeFunctionReconciler) Reconcile(ctx context.Context, request reconcil
 // SetupWithManager sets up the controller with the Controller Manager.
 func (r *EdgeFunctionReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1alpha1.EdgeFunction{}).
-		Owns(&v1alpha1.EdgeFunctionRevision{}).
+		For(&extensionsv1alpha2.EdgeFunction{}).
+		Owns(&extensionsv1alpha2.EdgeFunctionRevision{}).
 		Complete(r)
 }

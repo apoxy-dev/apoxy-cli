@@ -48,7 +48,7 @@ import (
 	"github.com/apoxy-dev/apoxy-cli/config"
 	"github.com/apoxy-dev/apoxy-cli/pkg/apiserver/auth"
 	"github.com/apoxy-dev/apoxy-cli/pkg/apiserver/controllers"
-	"github.com/apoxy-dev/apoxy-cli/pkg/apiserver/extensions"
+	extensionscontroller "github.com/apoxy-dev/apoxy-cli/pkg/apiserver/extensions"
 	"github.com/apoxy-dev/apoxy-cli/pkg/apiserver/gateway"
 	gw "github.com/apoxy-dev/apoxy-cli/pkg/gateway"
 	"github.com/apoxy-dev/apoxy-cli/pkg/log"
@@ -56,6 +56,7 @@ import (
 	ctrlv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
 	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
 	extensionsv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1"
+	extensionsv1alpha2 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2"
 	gatewayv1 "github.com/apoxy-dev/apoxy-cli/api/gateway/v1"
 	apoxyopenapi "github.com/apoxy-dev/apoxy-cli/api/generated"
 	policyv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/policy/v1alpha1"
@@ -73,6 +74,7 @@ func init() {
 	utilruntime.Must(ctrlv1alpha1.Install(scheme))
 	utilruntime.Must(policyv1alpha1.Install(scheme))
 	utilruntime.Must(extensionsv1alpha1.Install(scheme))
+	utilruntime.Must(extensionsv1alpha2.Install(scheme))
 	utilruntime.Must(gatewayv1.Install(scheme))
 
 	gateway.Install(scheme)
@@ -407,14 +409,14 @@ func (m *Manager) Start(
 	}
 
 	log.Infof("Registering EdgeFunction controller")
-	if err := extensions.NewEdgeFunctionReconciler(
+	if err := extensionscontroller.NewEdgeFunctionReconciler(
 		m.manager.GetClient(),
 		m.manager.GetScheme(),
 		tc,
 	).SetupWithManager(ctx, m.manager); err != nil {
 		return fmt.Errorf("failed to set up Project controller: %v", err)
 	}
-	if err := extensions.NewEdgeFunctionRevisionGCReconciler(
+	if err := extensionscontroller.NewEdgeFunctionRevisionGCReconciler(
 		m.manager.GetClient(),
 		m.manager.GetScheme(),
 		dOpts.gcInterval,
@@ -561,6 +563,10 @@ func start(
 			WithResourceAndStorage(&corev1alpha.Domain{}, kineStore).
 			WithResourceAndStorage(&ctrlv1alpha1.Proxy{}, kineStore).
 			WithResourceAndStorage(&policyv1alpha1.RateLimit{}, kineStore).
+			// extensionsv1alpha2 is storage version so needs to be registered first.
+			WithResourceAndStorage(&extensionsv1alpha2.EdgeFunction{}, kineStore).
+			WithResourceAndStorage(&extensionsv1alpha2.EdgeFunctionRevision{}, kineStore).
+			// extensionsv1alpha1 will be converted to extensionsv1alpha2 when it is stored.
 			WithResourceAndStorage(&extensionsv1alpha1.EdgeFunction{}, kineStore).
 			WithResourceAndStorage(&extensionsv1alpha1.EdgeFunctionRevision{}, kineStore).
 			WithResourceAndStorage(&gatewayv1.GatewayClass{}, kineStore).
@@ -637,7 +643,7 @@ func start(
 		}
 	}()
 	go func() {
-		if err := waitForReadyz("https://localhost:8443", 30*time.Second); err != nil {
+		if err := waitForReadyz("https://localhost:8443", 300*time.Second); err != nil {
 			log.Fatalf("Failed to wait for APIServer: %v", err)
 		}
 		log.Infof("APIServer is ready")

@@ -5,9 +5,10 @@ import (
 	"hash"
 	"hash/fnv"
 
-	"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1"
 	"k8s.io/apimachinery/pkg/util/dump"
 	"k8s.io/apimachinery/pkg/util/rand"
+
+	extensionsv1alpha2 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2"
 )
 
 // DeepHashObject hashes an object following the pointer values of
@@ -19,7 +20,7 @@ func DeepHashObject(hasher hash.Hash, objectToWrite interface{}) {
 }
 
 // EdgeFunctionHash hashes an EdgeFunctionRevisionTemplate.
-func EdgeFunctionHash(spec v1alpha1.EdgeFunctionRevisionSpec) string {
+func EdgeFunctionHash(spec extensionsv1alpha2.EdgeFunctionRevisionSpec) string {
 	h := fnv.New32a()
 	DeepHashObject(h, spec)
 

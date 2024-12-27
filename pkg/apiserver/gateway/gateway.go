@@ -30,7 +30,7 @@ import (
 
 	ctrlv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
 	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
-	extensionsv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1"
+	extensionsv1alpha2 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2"
 	gatewayv1 "github.com/apoxy-dev/apoxy-cli/api/gateway/v1"
 )
 
@@ -160,7 +160,7 @@ func (r *GatewayReconciler) getExtensionRefs(
 		edgeFuncs = make(map[string]bool)
 	)
 
-	funls := extensionsv1alpha1.EdgeFunctionList{}
+	funls := extensionsv1alpha2.EdgeFunctionList{}
 	if err := r.List(ctx, &funls, client.MatchingFields{edgeFunctionLiveIndex: "true"}); err != nil {
 		return nil, fmt.Errorf("failed to list EdgeFunctions: %w", err)
 	}
@@ -176,7 +176,7 @@ func (r *GatewayReconciler) getExtensionRefs(
 		}
 
 		// Collect live revisions.
-		rev := &extensionsv1alpha1.EdgeFunctionRevision{}
+		rev := &extensionsv1alpha2.EdgeFunctionRevision{}
 		if err := r.Get(ctx, types.NamespacedName{Name: fun.Status.LiveRevision}, rev); err != nil {
 			return nil, fmt.Errorf("failed to get EdgeFunctionRevision: %w", err)
 		}
@@ -351,7 +351,7 @@ func (r *GatewayReconciler) reconcileHTTPRoutes(
 					if ref, ok := extRefs[key]; ok {
 						log.Info("Found extension backend reference",
 							"name", ref.GetName(), "gvk", ref.GroupVersionKind())
-						var fun extensionsv1alpha1.EdgeFunction
+						var fun extensionsv1alpha2.EdgeFunction
 						if err := conv.FromUnstructured(ref.UnstructuredContent(), &fun); err != nil {
 							log.Error(err, "Failed to convert extension reference to EdgeFunction", "name", ref.GetName())
 						}
@@ -508,8 +508,8 @@ func (r *GatewayReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manag
 		}
 	}
 	// Index EdgeFunction objects that are ready.
-	if err := mgr.GetFieldIndexer().IndexField(ctx, &extensionsv1alpha1.EdgeFunction{}, edgeFunctionLiveIndex, func(obj client.Object) []string {
-		if obj.(*extensionsv1alpha1.EdgeFunction).Status.LiveRevision != "" {
+	if err := mgr.GetFieldIndexer().IndexField(ctx, &extensionsv1alpha2.EdgeFunction{}, edgeFunctionLiveIndex, func(obj client.Object) []string {
+		if obj.(*extensionsv1alpha2.EdgeFunction).Status.LiveRevision != "" {
 			return []string{"true"}
 		}
 		return nil
@@ -540,7 +540,7 @@ func (r *GatewayReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manag
 			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
 		).
 		Watches(
-			&extensionsv1alpha1.EdgeFunction{},
+			&extensionsv1alpha2.EdgeFunction{},
 			handler.EnqueueRequestsFromMapFunc(r.enqueueClass),
 			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
 		)

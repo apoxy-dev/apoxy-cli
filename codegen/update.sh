@@ -11,7 +11,7 @@ export GOTOOLCHAIN=go1.23.3 # Should match the go version in go.mod
 CODEGEN_VERSION=v0.30.1 # Should match the k8s.io/apimachinery version in go.mod
 BOILERPLATE_FILE="${ROOT_DIR}/codegen/boilerplate.go.txt"
 
-echo "Generating helper code..."
+echo "Generating deepcopy helpers..."
 
 go run "k8s.io/code-generator/cmd/deepcopy-gen@${CODEGEN_VERSION}" \
   --output-file zz_generated.deepcopy.go \
@@ -20,10 +20,12 @@ go run "k8s.io/code-generator/cmd/deepcopy-gen@${CODEGEN_VERSION}" \
   ./api/controllers/v1alpha1 \
   ./api/core/v1alpha \
   ./api/extensions/v1alpha1 \
+  ./api/extensions/v1alpha2 \
   ./api/gateway/v1 \
-  ./api/policy/v1alpha1 \
   ./pkg/gateway/gatewayapi \
   ./pkg/gateway/ir
+
+echo "Generating register helpers..."
 
 go run "k8s.io/code-generator/cmd/register-gen@${CODEGEN_VERSION}" \
   --output-file zz_generated.register.go \
@@ -32,8 +34,8 @@ go run "k8s.io/code-generator/cmd/register-gen@${CODEGEN_VERSION}" \
   ./api/controllers/v1alpha1 \
   ./api/core/v1alpha \
   ./api/extensions/v1alpha1 \
+  ./api/extensions/v1alpha2 \
   ./api/gateway/v1 \
-  ./api/policy/v1alpha1 \
   ./pkg/gateway/gatewayapi \
   ./pkg/gateway/ir
 
@@ -48,6 +50,7 @@ go run "k8s.io/code-generator/cmd/client-gen@${CODEGEN_VERSION}" \
   --input "./api/controllers/v1alpha1" \
   --input "./api/core/v1alpha" \
   --input "./api/extensions/v1alpha1" \
+  --input "./api/extensions/v1alpha2" \
   --input "./api/gateway/v1" \
   --input "./api/policy/v1alpha1"
 
@@ -60,6 +63,7 @@ go run "k8s.io/code-generator/cmd/lister-gen@${CODEGEN_VERSION}" \
   ./api/controllers/v1alpha1 \
   ./api/core/v1alpha \
   ./api/extensions/v1alpha1 \
+  ./api/extensions/v1alpha2 \
   ./api/gateway/v1 \
   ./api/policy/v1alpha1
 
@@ -73,6 +77,7 @@ go run "k8s.io/code-generator/cmd/informer-gen@${CODEGEN_VERSION}" \
   ./api/controllers/v1alpha1 \
   ./api/core/v1alpha \
   ./api/extensions/v1alpha1 \
+  ./api/extensions/v1alpha2 \
   ./api/gateway/v1 \
   ./api/policy/v1alpha1
 
@@ -95,5 +100,6 @@ go run "k8s.io/kube-openapi/cmd/openapi-gen@master" \
   ./api/controllers/v1alpha1 \
   ./api/core/v1alpha \
   ./api/extensions/v1alpha1 \
+  ./api/extensions/v1alpha2 \
   ./api/gateway/v1 \
   ./api/policy/v1alpha1

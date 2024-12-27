@@ -23,7 +23,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	ctrlv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
-	"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1"
+	extensionsv1alpha2 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2"
 	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/wasm/manifest"
 	"github.com/apoxy-dev/apoxy-cli/pkg/edgefunc"
 )
@@ -108,7 +108,7 @@ func hasReadyCondition(conditions []metav1.Condition) bool {
 func (r *EdgeFunctionRevisionReconciler) reconileEdgeRuntime(
 	ctx context.Context,
 	ref string,
-	runtimeSpec *v1alpha1.EdgeFunctionRuntime,
+	runtimeSpec *extensionsv1alpha2.EdgeFunctionRuntime,
 ) error {
 	log := clog.FromContext(ctx)
 
@@ -205,7 +205,7 @@ func (r *EdgeFunctionRevisionReconciler) Reconcile(ctx context.Context, request 
 	log := clog.FromContext(ctx)
 	log.Info("Reconciling EdgeFunctionRevision")
 
-	rev := &v1alpha1.EdgeFunctionRevision{}
+	rev := &extensionsv1alpha2.EdgeFunctionRevision{}
 	if err := r.Get(ctx, request.NamespacedName, rev); err != nil {
 		log.Error(err, "Failed to get EdgeFunctionRevision")
 		return ctrl.Result{}, client.IgnoreNotFound(err)
@@ -216,11 +216,11 @@ func (r *EdgeFunctionRevisionReconciler) Reconcile(ctx context.Context, request 
 		log.Info("EdgeFunctionRevision is not controlled by an EdgeFunction, Skipping reconciliation.")
 		return ctrl.Result{}, nil // Do not requeue for this version.
 	}
-	if owner.APIVersion != v1alpha1.GroupVersion.String() || owner.Kind != "EdgeFunction" {
+	if owner.APIVersion != extensionsv1alpha2.GroupVersion.String() || owner.Kind != "EdgeFunction" {
 		log.Info("EdgeFunctionRevision is not controlled by an EdgeFunction, Skipping reconciliation.", "owner", owner)
 		return ctrl.Result{}, nil // Do not requeue for this version.
 	}
-	ef := &v1alpha1.EdgeFunction{}
+	ef := &extensionsv1alpha2.EdgeFunction{}
 	if err := r.Get(ctx, types.NamespacedName{Name: owner.Name}, ef); err != nil {
 		log.Error(err, "Failed to get EdgeFunction owner")
 		return ctrl.Result{}, client.IgnoreNotFound(err)
@@ -349,7 +349,7 @@ func targetRefPredicate(proxyName string) predicate.Funcs {
 			return false
 		}
 
-		rev, ok := obj.(*v1alpha1.EdgeFunctionRevision)
+		rev, ok := obj.(*extensionsv1alpha2.EdgeFunctionRevision)
 		if !ok {
 			return false
 		}
@@ -382,7 +382,7 @@ func (r *EdgeFunctionRevisionReconciler) SetupWithManager(
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1alpha1.EdgeFunctionRevision{},
+		For(&extensionsv1alpha2.EdgeFunctionRevision{},
 			builder.WithPredicates(
 				&predicate.ResourceVersionChangedPredicate{},
 				targetRefPredicate(proxyName),

@@ -1,16 +1,13 @@
-package v1alpha1
+package v1alpha2
 
 import (
-	"errors"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apiserver/pkg/registry/rest"
 	"sigs.k8s.io/apiserver-runtime/pkg/builder/resource"
 
-	v1alpha2 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2"
-	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
+	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
 )
 
 type SourceFile struct {
@@ -76,15 +73,17 @@ type WasmSource struct {
 
 type OCICredentialsObjectReference struct {
 	// Group is the group of the target resource.
-	// Currently only controllers.apoxy.dev/v1alpha1 is supported.
-	Group gwapiv1.Group `json:"group"`
+	Group corev1alpha.Group `json:"group"`
 
 	// Kind is kind of the target resource.
-	// Supports Secret with on-prem deploys and
-	Kind gwapiv1.Kind `json:"kind"`
+	// Supports Secret with on-prem deploys.
+	Kind corev1alpha.Kind `json:"kind"`
 
 	// Name is the name of the target resource.
-	Name gwapiv1.ObjectName `json:"name"`
+	Name corev1alpha.ObjectName `json:"name"`
+
+	// Namespace is the namespace of the target resource.
+	Namespace corev1alpha.Namespace `json:"namespace"`
 }
 
 type OCICredentials struct {
@@ -200,19 +199,6 @@ type EdgeFunctionRuntime struct {
 	Port *int32 `json:"port,omitempty"`
 }
 
-type EdgeFunctionTargetReference struct {
-	// Group is the group of the target resource.
-	// Currently only controllers.apoxy.dev/v1alpha1 is supported.
-	Group gwapiv1.Group `json:"group"`
-
-	// Kind is kind of the target resource.
-	// Currently only Proxy is supported.
-	Kind gwapiv1.Kind `json:"kind"`
-
-	// Name is the name of the target resource.
-	Name gwapiv1.ObjectName `json:"name"`
-}
-
 type EdgeFunctionMode string
 
 const (
@@ -226,6 +212,16 @@ const (
 )
 
 type EdgeFunctionSpec struct {
+	// Template is the template of the function.
+	Template EdgeFunctionRevisionSpec `json:"template"`
+
+	// RevisionHistoryLimit is the number of old revisions to keep.
+	// Defaults to 10.
+	// +optional
+	RevisionHistoryLimit *int32 `json:"revisionHistoryLimit,omitempty"`
+}
+
+type EdgeFunctionRevisionSpec struct {
 	// Mode is runtime mode of the function.
 	Mode EdgeFunctionMode `json:"mode"`
 
@@ -312,7 +308,7 @@ func (p *EdgeFunction) GetGroupVersionResource() schema.GroupVersionResource {
 }
 
 func (p *EdgeFunction) IsStorageVersion() bool {
-	return false
+	return true
 }
 
 func (p *EdgeFunction) GetSingularName() string {
@@ -321,48 +317,6 @@ func (p *EdgeFunction) GetSingularName() string {
 
 func (p *EdgeFunction) GetStatus() resource.StatusSubResource {
 	return &p.Status
-}
-
-var _ resource.MultiVersionObject = &EdgeFunction{}
-
-func (p *EdgeFunction) NewStorageVersionObject() runtime.Object {
-	return &v1alpha2.EdgeFunction{}
-}
-
-func (p *EdgeFunction) ConvertToStorageVersion(storageObj runtime.Object) error {
-	obj, ok := storageObj.(*v1alpha2.EdgeFunction)
-	if !ok {
-		return errors.New("failed to convert to v1alpha2 EdgeFunction")
-	}
-
-	obj.ObjectMeta = *p.ObjectMeta.DeepCopy()
-	tmpl, err := convertSpecFromV1Alpha1ToV1Alpha2(&p.Spec)
-	if err != nil {
-		return err
-	}
-	obj.Spec.Template = *tmpl
-
-	obj.Status = *convertEdgeFunctionStatusFromV1Alpha1ToV1Alpha2(&p.Status)
-
-	return nil
-}
-
-func (p *EdgeFunction) ConvertFromStorageVersion(storageObj runtime.Object) error {
-	obj, ok := storageObj.(*v1alpha2.EdgeFunction)
-	if !ok {
-		return errors.New("failed to convert from v1alpha2 EdgeFunction")
-	}
-
-	p.ObjectMeta = *obj.ObjectMeta.DeepCopy()
-	spec, err := convertSpecFromV1Alpha2ToV1Alpha1(&obj.Spec.Template)
-	if err != nil {
-		return err
-	}
-	p.Spec = *spec
-
-	p.Status = *convertEdgeFunctionStatusFromV1Alpha2ToV1Alpha1(&obj.Status)
-
-	return nil
 }
 
 // +kubebuilder:object:root=true

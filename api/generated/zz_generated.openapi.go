@@ -79,11 +79,11 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionList":              schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionList(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRevision":          schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionRevision(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRevisionList":      schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionRevisionList(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRevisionSpec":      schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionRevisionSpec(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRevisionStatus":    schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionRevisionStatus(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRuntime":           schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionRuntime(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionSpec":              schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionSpec(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionStatus":            schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionStatus(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionTargetReference":   schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionTargetReference(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EnvVar":                        schema_apoxy_cli_api_extensions_v1alpha1_EnvVar(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.GoPluginSource":                schema_apoxy_cli_api_extensions_v1alpha1_GoPluginSource(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.JavaScriptAssetsSource":        schema_apoxy_cli_api_extensions_v1alpha1_JavaScriptAssetsSource(ref),
@@ -96,6 +96,28 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.RuntimeCapabilities":           schema_apoxy_cli_api_extensions_v1alpha1_RuntimeCapabilities(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.SourceFile":                    schema_apoxy_cli_api_extensions_v1alpha1_SourceFile(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.WasmSource":                    schema_apoxy_cli_api_extensions_v1alpha1_WasmSource(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunction":                  schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunction(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunctionCodeSource":        schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunctionCodeSource(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunctionList":              schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunctionList(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunctionRevision":          schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunctionRevision(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunctionRevisionList":      schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunctionRevisionList(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunctionRevisionSpec":      schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunctionRevisionSpec(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunctionRevisionStatus":    schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunctionRevisionStatus(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunctionRuntime":           schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunctionRuntime(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunctionSpec":              schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunctionSpec(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunctionStatus":            schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunctionStatus(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EnvVar":                        schema_apoxy_cli_api_extensions_v1alpha2_EnvVar(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.GoPluginSource":                schema_apoxy_cli_api_extensions_v1alpha2_GoPluginSource(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.JavaScriptAssetsSource":        schema_apoxy_cli_api_extensions_v1alpha2_JavaScriptAssetsSource(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.JavaScriptGitSource":           schema_apoxy_cli_api_extensions_v1alpha2_JavaScriptGitSource(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.JavaScriptNpmSource":           schema_apoxy_cli_api_extensions_v1alpha2_JavaScriptNpmSource(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.JavaScriptSource":              schema_apoxy_cli_api_extensions_v1alpha2_JavaScriptSource(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.OCICredentials":                schema_apoxy_cli_api_extensions_v1alpha2_OCICredentials(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.OCICredentialsObjectReference": schema_apoxy_cli_api_extensions_v1alpha2_OCICredentialsObjectReference(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.OCIImageRef":                   schema_apoxy_cli_api_extensions_v1alpha2_OCIImageRef(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.RuntimeCapabilities":           schema_apoxy_cli_api_extensions_v1alpha2_RuntimeCapabilities(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.SourceFile":                    schema_apoxy_cli_api_extensions_v1alpha2_SourceFile(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.WasmSource":                    schema_apoxy_cli_api_extensions_v1alpha2_WasmSource(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/gateway/v1.GRPCRoute":                              schema_apoxy_cli_api_gateway_v1_GRPCRoute(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/gateway/v1.GRPCRouteList":                          schema_apoxy_cli_api_gateway_v1_GRPCRouteList(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/gateway/v1.Gateway":                                schema_apoxy_cli_api_gateway_v1_Gateway(ref),
@@ -2533,7 +2555,7 @@ func schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionRevision(ref common.Re
 					"spec": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRevisionSpec"),
+							Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionSpec"),
 						},
 					},
 					"status": {
@@ -2546,7 +2568,7 @@ func schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionRevision(ref common.Re
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRevisionSpec", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRevisionStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRevisionStatus", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionSpec", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
 	}
 }
 
@@ -2595,56 +2617,6 @@ func schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionRevisionList(ref commo
 		},
 		Dependencies: []string{
 			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRevision", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
-	}
-}
-
-func schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionRevisionSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
-				Properties: map[string]spec.Schema{
-					"mode": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Mode is runtime mode of the function.",
-							Default:     "",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"code": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Code is the source of the function code/binary.",
-							Default:     map[string]interface{}{},
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionCodeSource"),
-						},
-					},
-					"env": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Env is a list of environment variables to set in the function runtime. These will be available via WASIp1 environ* routines as well as Apoxy Runtime SDK APIs.",
-							Type:        []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EnvVar"),
-									},
-								},
-							},
-						},
-					},
-					"runtime": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Configuration for the function runtime.",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRuntime"),
-						},
-					},
-				},
-				Required: []string{"mode", "code"},
-			},
-		},
-		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionCodeSource", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRuntime", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EnvVar"},
 	}
 }
 
@@ -2725,26 +2697,47 @@ func schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionSpec(ref common.Refere
 			SchemaProps: spec.SchemaProps{
 				Type: []string{"object"},
 				Properties: map[string]spec.Schema{
-					"template": {
+					"mode": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Template is the template of the function.",
-							Default:     map[string]interface{}{},
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRevisionSpec"),
+							Description: "Mode is runtime mode of the function.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
 						},
 					},
-					"revisionHistoryLimit": {
+					"code": {
 						SchemaProps: spec.SchemaProps{
-							Description: "RevisionHistoryLimit is the number of old revisions to keep. Defaults to 10.",
-							Type:        []string{"integer"},
-							Format:      "int32",
+							Description: "Code is the source of the function code/binary.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionCodeSource"),
+						},
+					},
+					"env": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Env is a list of environment variables to set in the function runtime. These will be available via WASIp1 environ* routines as well as Apoxy Runtime SDK APIs.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EnvVar"),
+									},
+								},
+							},
+						},
+					},
+					"runtime": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Configuration for the function runtime.",
+							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRuntime"),
 						},
 					},
 				},
-				Required: []string{"template"},
+				Required: []string{"mode", "code"},
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRevisionSpec"},
+			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionCodeSource", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRuntime", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EnvVar"},
 	}
 }
 
@@ -2780,6 +2773,43 @@ func schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionStatus(ref common.Refe
 		},
 		Dependencies: []string{
 			"k8s.io/apimachinery/pkg/apis/meta/v1.Condition"},
+	}
+}
+
+func schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionTargetReference(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"group": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Group is the group of the target resource. Currently only controllers.apoxy.dev/v1alpha1 is supported.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is kind of the target resource. Currently only Proxy is supported.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Name is the name of the target resource.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+				Required: []string{"group", "kind", "name"},
+			},
+		},
 	}
 }
 
@@ -3020,7 +3050,7 @@ func schema_apoxy_cli_api_extensions_v1alpha1_OCICredentialsObjectReference(ref 
 				Properties: map[string]spec.Schema{
 					"group": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Group is the group of the target resource.",
+							Description: "Group is the group of the target resource. Currently only controllers.apoxy.dev/v1alpha1 is supported.",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -3028,7 +3058,7 @@ func schema_apoxy_cli_api_extensions_v1alpha1_OCICredentialsObjectReference(ref 
 					},
 					"kind": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Kind is kind of the target resource. Supports Secret with on-prem deploys.",
+							Description: "Kind is kind of the target resource. Supports Secret with on-prem deploys and",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -3042,16 +3072,8 @@ func schema_apoxy_cli_api_extensions_v1alpha1_OCICredentialsObjectReference(ref 
 							Format:      "",
 						},
 					},
-					"namespace": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Namespace is the namespace of the target resource.",
-							Default:     "",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
 				},
-				Required: []string{"group", "kind", "name", "namespace"},
+				Required: []string{"group", "kind", "name"},
 			},
 		},
 	}
@@ -3156,6 +3178,812 @@ func schema_apoxy_cli_api_extensions_v1alpha1_SourceFile(ref common.ReferenceCal
 }
 
 func schema_apoxy_cli_api_extensions_v1alpha1_WasmSource(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"url": {
+						SchemaProps: spec.SchemaProps{
+							Description: "URL is the URL to the WebAssembly binary.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+				Required: []string{"url"},
+			},
+		},
+	}
+}
+
+func schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunction(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
+						},
+					},
+					"spec": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunctionSpec"),
+						},
+					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunctionStatus"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunctionSpec", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunctionStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+	}
+}
+
+func schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunctionCodeSource(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Metadata of the function source.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
+						},
+					},
+					"jsSource": {
+						SchemaProps: spec.SchemaProps{
+							Description: "JsSource specifies sources for the JavaScript function runtime. If set/modified, a function will undergo a build step to compile the JavaScript source into a WebAssembly binary before it is deployed.",
+							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.JavaScriptSource"),
+						},
+					},
+					"wasmSource": {
+						SchemaProps: spec.SchemaProps{
+							Description: "WasmSource specifies sources for the WebAssembly function runtime.",
+							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.WasmSource"),
+						},
+					},
+					"goPluginSource": {
+						SchemaProps: spec.SchemaProps{
+							Description: "GoSource specifies sources for the Go filter plugin. This option is only available for non-cloud (kubernets, unmanaged, etc) Proxy providers.",
+							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.GoPluginSource"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.GoPluginSource", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.JavaScriptSource", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.WasmSource", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+	}
+}
+
+func schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunctionList(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
+						},
+					},
+					"items": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunction"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"items"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunction", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+	}
+}
+
+func schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunctionRevision(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "EdgeFunctionRevision is a single revision of an EdgeFunction",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
+						},
+					},
+					"spec": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunctionRevisionSpec"),
+						},
+					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunctionRevisionStatus"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunctionRevisionSpec", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunctionRevisionStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+	}
+}
+
+func schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunctionRevisionList(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
+						},
+					},
+					"items": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunctionRevision"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"items"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunctionRevision", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+	}
+}
+
+func schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunctionRevisionSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"mode": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Mode is runtime mode of the function.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"code": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Code is the source of the function code/binary.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunctionCodeSource"),
+						},
+					},
+					"env": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Env is a list of environment variables to set in the function runtime. These will be available via WASIp1 environ* routines as well as Apoxy Runtime SDK APIs.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EnvVar"),
+									},
+								},
+							},
+						},
+					},
+					"runtime": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Configuration for the function runtime.",
+							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunctionRuntime"),
+						},
+					},
+				},
+				Required: []string{"mode", "code"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunctionCodeSource", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunctionRuntime", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EnvVar"},
+	}
+}
+
+func schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunctionRevisionStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "EdgeFunctionRevisionStatus defines the observed state of EdgeFunctionRevision",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"ref": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Ref is the functions' uniquely identifying reference.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"conditions": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Conditions represent the latest available observations of an EdgeFunctionRevision's current state.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.Condition"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"ref"},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/apimachinery/pkg/apis/meta/v1.Condition"},
+	}
+}
+
+func schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunctionRuntime(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"timeout": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Timeout is the maximum time the function is allowed to run. Defaults to 30 seconds but can be increased depending on your plan.",
+							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Duration"),
+						},
+					},
+					"capabilities": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Capabilities is the list of capabilities granted to the function.",
+							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.RuntimeCapabilities"),
+						},
+					},
+					"port": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Port is the port the function listens on. Defaults to 8080.",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.RuntimeCapabilities", "k8s.io/apimachinery/pkg/apis/meta/v1.Duration"},
+	}
+}
+
+func schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunctionSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"template": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Template is the template of the function.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunctionRevisionSpec"),
+						},
+					},
+					"revisionHistoryLimit": {
+						SchemaProps: spec.SchemaProps{
+							Description: "RevisionHistoryLimit is the number of old revisions to keep. Defaults to 10.",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+				},
+				Required: []string{"template"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunctionRevisionSpec"},
+	}
+}
+
+func schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunctionStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"liveRevision": {
+						SchemaProps: spec.SchemaProps{
+							Description: "LiveRevision is the revision of the function that is currently being served referenced by EdgeFunctionRevision object name.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"conditions": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Conditions describe the current conditions of the EdgeFunction.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.Condition"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/apimachinery/pkg/apis/meta/v1.Condition"},
+	}
+}
+
+func schema_apoxy_cli_api_extensions_v1alpha2_EnvVar(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Name of the environment variable.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"value": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Value of the environment variable.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+				Required: []string{"name", "value"},
+			},
+		},
+	}
+}
+
+func schema_apoxy_cli_api_extensions_v1alpha2_GoPluginSource(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"url": {
+						SchemaProps: spec.SchemaProps{
+							Description: "URL is the URL to the Go plugin .so",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"oci": {
+						SchemaProps: spec.SchemaProps{
+							Description: "OCI is the OCI image reference to the Go plugin.",
+							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.OCIImageRef"),
+						},
+					},
+					"pluginConfig": {
+						SchemaProps: spec.SchemaProps{
+							Description: "PluginConfig is the configuration passed to the Go plugin as JSON-encoded structpb.Struct message. Plugin will receive it as anypb.Any message.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.OCIImageRef"},
+	}
+}
+
+func schema_apoxy_cli_api_extensions_v1alpha2_JavaScriptAssetsSource(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"files": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.SourceFile"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"files"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.SourceFile"},
+	}
+}
+
+func schema_apoxy_cli_api_extensions_v1alpha2_JavaScriptGitSource(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"repository": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Repository is the git repository URL.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"branch": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Branch is the git branch.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"commit": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Commit is the git commit.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+				Required: []string{"repository"},
+			},
+		},
+	}
+}
+
+func schema_apoxy_cli_api_extensions_v1alpha2_JavaScriptNpmSource(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"package": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Package is the npm package name.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"version": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Version is the npm package version.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+				Required: []string{"package"},
+			},
+		},
+	}
+}
+
+func schema_apoxy_cli_api_extensions_v1alpha2_JavaScriptSource(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "JavaScriptSource provides sources for the JavaScript function runtime. Only one of the fields may be specified.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"entrypoint": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Entrypoint is the entrypoint path to the function.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"assets": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Asset accepts a list of source files to be included in the function. Only one of Assets, Git, or Npm may be specified.",
+							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.JavaScriptAssetsSource"),
+						},
+					},
+					"git": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Git is the git source for the function. Only one of Assets, Git, or Npm may be specified.",
+							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.JavaScriptGitSource"),
+						},
+					},
+					"npm": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Npm is the npm source for the function. Only one of Assets, Git, or Npm may be specified.",
+							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.JavaScriptNpmSource"),
+						},
+					},
+				},
+				Required: []string{"entrypoint"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.JavaScriptAssetsSource", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.JavaScriptGitSource", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.JavaScriptNpmSource"},
+	}
+}
+
+func schema_apoxy_cli_api_extensions_v1alpha2_OCICredentials(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"username": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Username is the username for the OCI registry.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"password": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Password is the password for the OCI registry. This field is write-only and is not returned in the response.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"passwordData": {
+						SchemaProps: spec.SchemaProps{
+							Description: "PasswordData is the base64 encoded password for the OCI registry.",
+							Type:        []string{"string"},
+							Format:      "byte",
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func schema_apoxy_cli_api_extensions_v1alpha2_OCICredentialsObjectReference(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"group": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Group is the group of the target resource.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is kind of the target resource. Supports Secret with on-prem deploys.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Name is the name of the target resource.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"namespace": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Namespace is the namespace of the target resource.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+				Required: []string{"group", "kind", "name", "namespace"},
+			},
+		},
+	}
+}
+
+func schema_apoxy_cli_api_extensions_v1alpha2_OCIImageRef(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"repo": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Repo is the repository of the OCI image.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"tag": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Tag is the tag of the OCI image.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"credentials": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Credentials is the credentials for pulling the OCI image. Only one of Credentials or CredentialsRef may be specified.",
+							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.OCICredentials"),
+						},
+					},
+					"credentialsRef": {
+						SchemaProps: spec.SchemaProps{
+							Description: "CredentialsRef is the reference to the secret containing the credentials for pulling the OCI image. Only one of Credentials or CredentialsRef may be specified.",
+							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.OCICredentialsObjectReference"),
+						},
+					},
+				},
+				Required: []string{"repo"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.OCICredentials", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.OCICredentialsObjectReference"},
+	}
+}
+
+func schema_apoxy_cli_api_extensions_v1alpha2_RuntimeCapabilities(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"fetchAPI": {
+						SchemaProps: spec.SchemaProps{
+							Description: "FetchAPI is the capability to fetch data from the internet. Defaults to true.",
+							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
+					"kv": {
+						SchemaProps: spec.SchemaProps{
+							Description: "K/V is the capability to access the key/value store. Defaults to true.",
+							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func schema_apoxy_cli_api_extensions_v1alpha2_SourceFile(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"path": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Path is the path to the source file.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"content": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Content is the content of the source file.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+				Required: []string{"path", "content"},
+			},
+		},
+	}
+}
+
+func schema_apoxy_cli_api_extensions_v1alpha2_WasmSource(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{

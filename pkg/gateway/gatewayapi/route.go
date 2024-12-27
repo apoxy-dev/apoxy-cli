@@ -23,7 +23,7 @@ import (
 	mcsapi "sigs.k8s.io/mcs-api/pkg/apis/v1alpha1"
 
 	"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
-	extensionsv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1"
+	extensionsv1alpha2 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2"
 	agwapiv1a1 "github.com/apoxy-dev/apoxy-cli/api/gateway/v1"
 	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/gatewayapi/status"
 	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/ir"
@@ -1540,7 +1540,7 @@ func (t *Translator) processEdgeFunctionDestinationSetting(
 	if fun == nil {
 		return nil, fmt.Errorf("EdgeFunction %s not found", backendRef.Name)
 	}
-	var rev *extensionsv1alpha1.EdgeFunctionRevision
+	var rev *extensionsv1alpha2.EdgeFunctionRevision
 	for _, r := range resources.EdgeFunctionRevisions {
 		if r.Name == fun.Status.LiveRevision {
 			rev = r

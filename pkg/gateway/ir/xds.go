@@ -19,7 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation"
 	"sigs.k8s.io/yaml"
 
-	extensionsv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1"
+	extensionsv1alpha2 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2"
 	egv1a1 "github.com/envoyproxy/gateway/api/v1alpha1"
 )
 
@@ -228,7 +228,7 @@ type HTTPListener struct {
 	// ClientTimeout sets the timeout configuration for downstream connections
 	Timeout *ClientTimeout `json:"timeout,omitempty" yaml:"clientTimeout,omitempty"`
 	// EdgeFunctionRevisions stores the EdgeFunctionRevisions associated with the listener
-	EdgeFunctionRevisions []*extensionsv1alpha1.EdgeFunctionRevision `json:"edgeFunctionRevisions,omitempty" yaml:"edgeFunctionRevisions,omitempty"`
+	EdgeFunctionRevisions []*extensionsv1alpha2.EdgeFunctionRevision `json:"edgeFunctionRevisions,omitempty" yaml:"edgeFunctionRevisions,omitempty"`
 }
 
 // Validate the fields within the HTTPListener structure

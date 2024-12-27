@@ -16,7 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/yaml"
 
-	extensionsv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1"
+	extensionsv1alpha2 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2"
 	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/ir"
 )
 
@@ -49,7 +49,7 @@ func (*edgeFunc) patchHCM(mgr *hcmv3.HttpConnectionManager, irListener *ir.HTTPL
 	var errs error
 	for _, route := range irListener.Routes {
 		for _, er := range route.ExtensionRefs {
-			if er.Object.GroupVersionKind().Group != extensionsv1alpha1.GroupVersion.Group ||
+			if er.Object.GroupVersionKind().Group != extensionsv1alpha2.GroupVersion.Group ||
 				er.Object.GroupVersionKind().Kind != "EdgeFunction" {
 				continue
 			}
@@ -75,11 +75,11 @@ func (*edgeFunc) patchHCM(mgr *hcmv3.HttpConnectionManager, irListener *ir.HTTPL
 
 // buildHCMEdgeFuncFilter returns an HCM HttpFilter for the associated EdgeFunction.
 func buildHCMEdgeFuncFilter(un *unstructured.Unstructured, irListener *ir.HTTPListener) (*hcmv3.HttpFilter, error) {
-	fun := &extensionsv1alpha1.EdgeFunction{}
+	fun := &extensionsv1alpha2.EdgeFunction{}
 	if err := conv.FromUnstructured(un.UnstructuredContent(), fun); err != nil {
 		return nil, err
 	}
-	var rev *extensionsv1alpha1.EdgeFunctionRevision
+	var rev *extensionsv1alpha2.EdgeFunctionRevision
 	for _, r := range irListener.EdgeFunctionRevisions {
 		if r.Name == fun.Status.LiveRevision {
 			rev = r
@@ -167,7 +167,7 @@ func (*edgeFunc) patchRoute(route *routev3.Route, irRoute *ir.HTTPRoute) error {
 	}
 
 	for _, er := range irRoute.ExtensionRefs {
-		if er.Object.GroupVersionKind().Group != extensionsv1alpha1.GroupVersion.Group ||
+		if er.Object.GroupVersionKind().Group != extensionsv1alpha2.GroupVersion.Group ||
 			er.Object.GroupVersionKind().Kind != "EdgeFunction" {
 			continue
 		}

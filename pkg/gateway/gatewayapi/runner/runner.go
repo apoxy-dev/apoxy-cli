@@ -14,7 +14,7 @@ import (
 	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/utils"
 	"github.com/apoxy-dev/apoxy-cli/pkg/log"
 
-	extensionsv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1"
+	extensions "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2"
 )
 
 const (
@@ -23,7 +23,7 @@ const (
 
 var (
 	extensionsGroupKinds = []schema.GroupKind{
-		{Group: extensionsv1alpha1.GroupVersion.Group, Kind: "EdgeFunction"},
+		{Group: extensions.GroupVersion.Group, Kind: "EdgeFunction"},
 	}
 )
 

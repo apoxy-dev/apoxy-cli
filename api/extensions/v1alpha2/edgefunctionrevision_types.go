@@ -1,9 +1,6 @@
-package v1alpha1
+package v1alpha2
 
 import (
-	"errors"
-
-	"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -24,7 +21,7 @@ type EdgeFunctionRevision struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec EdgeFunctionSpec `json:"spec,omitempty"`
+	Spec EdgeFunctionRevisionSpec `json:"spec,omitempty"`
 
 	Status EdgeFunctionRevisionStatus `json:"status,omitempty"`
 }
@@ -67,7 +64,7 @@ func (e *EdgeFunctionRevision) GetGroupVersionResource() schema.GroupVersionReso
 
 // IsStorageVersion implements resource.Object
 func (e *EdgeFunctionRevision) IsStorageVersion() bool {
-	return false
+	return true
 }
 
 // GetStatus implements resource.ObjectWithStatusSubResource
@@ -97,48 +94,6 @@ func (ps *EdgeFunctionRevisionStatus) SubResourceName() string {
 
 func (ps *EdgeFunctionRevisionStatus) CopyTo(parent resource.ObjectWithStatusSubResource) {
 	parent.(*EdgeFunctionRevision).Status = *ps
-}
-
-var _ resource.MultiVersionObject = &EdgeFunctionRevision{}
-
-func (p *EdgeFunctionRevision) NewStorageVersionObject() runtime.Object {
-	return &v1alpha2.EdgeFunctionRevision{}
-}
-
-func (p *EdgeFunctionRevision) ConvertToStorageVersion(storageObj runtime.Object) error {
-	obj, ok := storageObj.(*v1alpha2.EdgeFunctionRevision)
-	if !ok {
-		return errors.New("failed to convert to EdgeFunctionRevision")
-	}
-
-	obj.ObjectMeta = *p.ObjectMeta.DeepCopy()
-	v1alpha2Spec, err := convertSpecFromV1Alpha1ToV1Alpha2(&p.Spec)
-	if err != nil {
-		return err
-	}
-	obj.Spec = *v1alpha2Spec
-
-	obj.Status = *convertEdgeFunctionRevisionStatusFromV1Alpha1ToV1Alpha2(&p.Status)
-
-	return nil
-}
-
-func (p *EdgeFunctionRevision) ConvertFromStorageVersion(storageObj runtime.Object) error {
-	obj, ok := storageObj.(*v1alpha2.EdgeFunctionRevision)
-	if !ok {
-		return errors.New("failed to convert from EdgeFunctionRevision")
-	}
-
-	p.ObjectMeta = *obj.ObjectMeta.DeepCopy()
-	spec, err := convertSpecFromV1Alpha2ToV1Alpha1(&obj.Spec)
-	if err != nil {
-		return err
-	}
-	p.Spec = *spec
-
-	p.Status = *convertEdgeFunctionRevisionStatusFromV1Alpha2ToV1Alpha1(&obj.Status)
-
-	return nil
 }
 
 // +kubebuilder:object:root=true

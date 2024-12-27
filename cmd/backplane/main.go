@@ -43,14 +43,14 @@ import (
 	"github.com/apoxy-dev/apoxy-cli/pkg/log"
 
 	ctrlv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
-	extensionv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1"
+	extensionv1alpha2 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2"
 )
 
 var scheme = runtime.NewScheme()
 
 func init() {
 	utilruntime.Must(ctrlv1alpha1.AddToScheme(scheme))
-	utilruntime.Must(extensionv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(extensionv1alpha2.AddToScheme(scheme))
 }
 
 var (

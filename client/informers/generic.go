@@ -23,6 +23,7 @@ import (
 	v1alpha1 "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
 	v1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
 	extensionsv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1"
+	v1alpha2 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2"
 	v1 "github.com/apoxy-dev/apoxy-cli/api/gateway/v1"
 	policyv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/policy/v1alpha1"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -78,6 +79,12 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Extensions().V1alpha1().EdgeFunctions().Informer()}, nil
 	case extensionsv1alpha1.SchemeGroupVersion.WithResource("edgefunctionrevisions"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Extensions().V1alpha1().EdgeFunctionRevisions().Informer()}, nil
+
+		// Group=extensions.apoxy.dev, Version=v1alpha2
+	case v1alpha2.SchemeGroupVersion.WithResource("edgefunctions"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Extensions().V1alpha2().EdgeFunctions().Informer()}, nil
+	case v1alpha2.SchemeGroupVersion.WithResource("edgefunctionrevisions"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Extensions().V1alpha2().EdgeFunctionRevisions().Informer()}, nil
 
 		// Group=gateway.apoxy.dev, Version=v1
 	case v1.SchemeGroupVersion.WithResource("grpcroutes"):

@@ -13,7 +13,7 @@ import (
 	clog "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1"
+	extensionsv1alpha2 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2"
 )
 
 const (
@@ -49,7 +49,7 @@ func (r *EdgeFunctionRevisionGCReconciler) Reconcile(ctx context.Context, req re
 	log := clog.FromContext(ctx).WithValues("EdgeFunction", req.NamespacedName)
 	log.Info("Garbage collecting EdgeFunctionRevisions")
 
-	var ef v1alpha1.EdgeFunction
+	var ef extensionsv1alpha2.EdgeFunction
 	if err := r.Get(ctx, req.NamespacedName, &ef); err != nil {
 		if errors.IsNotFound(err) {
 			return reconcile.Result{}, nil
@@ -57,7 +57,7 @@ func (r *EdgeFunctionRevisionGCReconciler) Reconcile(ctx context.Context, req re
 		return reconcile.Result{}, err
 	}
 
-	var revs v1alpha1.EdgeFunctionRevisionList
+	var revs extensionsv1alpha2.EdgeFunctionRevisionList
 	if err := r.List(ctx, &revs, client.MatchingFields{controllerKey: ef.Name}); err != nil {
 		return reconcile.Result{}, err
 	}
@@ -95,8 +95,8 @@ func (r *EdgeFunctionRevisionGCReconciler) SetupWithManager(
 	mgr ctrl.Manager,
 ) error {
 	// Set up a field indexer for EdgeFunctionRevision's metadata.controller field.
-	if err := mgr.GetFieldIndexer().IndexField(ctx, &v1alpha1.EdgeFunctionRevision{}, controllerKey, func(rawObj client.Object) []string {
-		efr := rawObj.(*v1alpha1.EdgeFunctionRevision)
+	if err := mgr.GetFieldIndexer().IndexField(ctx, &extensionsv1alpha2.EdgeFunctionRevision{}, controllerKey, func(rawObj client.Object) []string {
+		efr := rawObj.(*extensionsv1alpha2.EdgeFunctionRevision)
 		owner := metav1.GetControllerOf(efr)
 		if owner == nil {
 			return nil
@@ -106,6 +106,6 @@ func (r *EdgeFunctionRevisionGCReconciler) SetupWithManager(
 		return err
 	}
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1alpha1.EdgeFunction{}).
+		For(&extensionsv1alpha2.EdgeFunction{}).
 		Complete(r)
 }

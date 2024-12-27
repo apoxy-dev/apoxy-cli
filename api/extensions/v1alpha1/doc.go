@@ -1,5 +1,4 @@
 // +k8s:openapi-gen=true
-// +kubebuilder:object:generate=true
 // +groupName=extensions.apoxy.dev
 // +k8s:deepcopy-gen=package,register
 

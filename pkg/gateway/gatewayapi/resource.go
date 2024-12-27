@@ -22,7 +22,7 @@ import (
 
 	ctrlv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
 	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
-	extensionsv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1"
+	extensionsv1alpha2 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2"
 )
 
 type XdsIRMap map[string]*ir.Xds
@@ -48,8 +48,8 @@ type Resources struct {
 	Secrets               []*v1.Secret                               `json:"secrets,omitempty" yaml:"secrets,omitempty"`
 	ConfigMaps            []*v1.ConfigMap                            `json:"configMaps,omitempty" yaml:"configMaps,omitempty"`
 	ExtensionRefFilters   []unstructured.Unstructured                `json:"extensionRefFilters,omitempty" yaml:"extensionRefFilters,omitempty"`
-	EdgeFunctionBackends  []*extensionsv1alpha1.EdgeFunction         `json:"edgeFunctionBackends,omitempty" yaml:"edgeFunctionBackends,omitempty"`
-	EdgeFunctionRevisions []*extensionsv1alpha1.EdgeFunctionRevision `json:"edgeFunctionFilters,omitempty" yaml:"edgeFunctionFilters,omitempty"`
+	EdgeFunctionBackends  []*extensionsv1alpha2.EdgeFunction         `json:"edgeFunctionBackends,omitempty" yaml:"edgeFunctionBackends,omitempty"`
+	EdgeFunctionRevisions []*extensionsv1alpha2.EdgeFunctionRevision `json:"edgeFunctionFilters,omitempty" yaml:"edgeFunctionFilters,omitempty"`
 	Backends              []*corev1alpha.Backend                     `json:"backends,omitempty" yaml:"backends,omitempty"`
 	Proxies               []*ctrlv1alpha1.Proxy                      `json:"proxies,omitempty" yaml:"proxies,omitempty"`
 }
@@ -138,7 +138,7 @@ func (r *Resources) GetEndpointSlicesForBackend(svcNamespace, svcName string, ba
 	return endpointSlices
 }
 
-func (r *Resources) GetEdgeFunctionBackend(name string) *extensionsv1alpha1.EdgeFunction {
+func (r *Resources) GetEdgeFunctionBackend(name string) *extensionsv1alpha2.EdgeFunction {
 	for _, edgeFunc := range r.EdgeFunctionBackends {
 		if edgeFunc.Name == name {
 			return edgeFunc
