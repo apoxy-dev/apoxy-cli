@@ -20,7 +20,11 @@ func (r *EdgeFunction) Default() {
 	}
 
 	if r.Spec.Template.Mode == "" {
-		r.Spec.Template.Mode = BackendEdgeFunctionMode
+		if r.Spec.Template.Code.GoPluginSource != nil {
+			r.Spec.Template.Mode = FilterEdgeFunctionMode
+		} else {
+			r.Spec.Template.Mode = BackendEdgeFunctionMode
+		}
 	}
 
 	if r.Spec.Template.Runtime == nil {
