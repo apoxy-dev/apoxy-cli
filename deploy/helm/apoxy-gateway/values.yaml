@@ -63,7 +63,11 @@ backplane:
 
   podSecurityContext: {}
 
-  securityContext: {}
+  securityContext:
+    capabilities:
+      add:
+        - NET_BIND_SERVICE
+        - NET_ADMIN
 
   service:
     type: ClusterIP
