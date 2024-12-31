@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"log/slog"
 	"os"
 	goruntime "runtime"
 
@@ -63,6 +64,7 @@ func main() {
 		FrontendPort:           7223,
 		Namespaces:             []string{"default"},
 		Logger:                 log.DefaultLogger,
+		LogLevel:               slog.LevelError, // Too noisy otherwise.
 		ClusterID:              uuid.NewString(),
 		MasterClusterName:      "active",
 		CurrentClusterName:     "active",
@@ -77,7 +79,7 @@ func main() {
 	tc, err := tclient.NewLazyClient(tclient.Options{
 		HostPort:  "localhost:7223",
 		Namespace: "default",
-		Logger:    log.DefaultLogger,
+		Logger:    nil, // No logging.
 	})
 	if err != nil {
 		log.Fatalf("failed creating Temporal client: %w", err)

@@ -392,7 +392,7 @@ func (m *Manager) Start(
 	if err := controllers.NewProxyReconciler(
 		m.manager.GetClient(),
 	).SetupWithManager(ctx, m.manager); err != nil {
-		return fmt.Errorf("failed to set up Project controller: %v", err)
+		return fmt.Errorf("failed to set up Proxy controller: %v", err)
 	}
 
 	log.Infof("Registering Gateway controller")
@@ -405,7 +405,7 @@ func (m *Manager) Start(
 		gwSrv.Resources,
 		gwOpts...,
 	).SetupWithManager(ctx, m.manager); err != nil {
-		return fmt.Errorf("failed to set up Project controller: %v", err)
+		return fmt.Errorf("failed to set up Gateway controller: %v", err)
 	}
 
 	log.Infof("Registering EdgeFunction controller")
@@ -414,7 +414,7 @@ func (m *Manager) Start(
 		m.manager.GetScheme(),
 		tc,
 	).SetupWithManager(ctx, m.manager); err != nil {
-		return fmt.Errorf("failed to set up Project controller: %v", err)
+		return fmt.Errorf("failed to set up EdgeFunction controller: %v", err)
 	}
 	if err := extensionscontroller.NewEdgeFunctionRevisionGCReconciler(
 		m.manager.GetClient(),

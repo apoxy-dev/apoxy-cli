@@ -4,6 +4,7 @@ import (
 	"context"
 	goerrors "errors"
 	"fmt"
+	"log/slog"
 	"os"
 	goruntime "runtime"
 	"strings"
@@ -20,7 +21,6 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/discovery"
 	memory "k8s.io/client-go/discovery/cached"
 	"k8s.io/client-go/dynamic"
@@ -34,11 +34,6 @@ import (
 	chdrivers "github.com/apoxy-dev/apoxy-cli/pkg/clickhouse/drivers"
 	"github.com/apoxy-dev/apoxy-cli/pkg/gateway"
 	"github.com/apoxy-dev/apoxy-cli/pkg/log"
-
-	ctrlv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
-	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
-	extensionsv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1"
-	policyv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/policy/v1alpha1"
 )
 
 var (
@@ -46,13 +41,6 @@ var (
 	codecFactory = serializer.NewCodecFactory(scheme)
 	decodeFn     = codecFactory.UniversalDeserializer().Decode
 )
-
-func init() {
-	utilruntime.Must(corev1alpha.Install(scheme))
-	utilruntime.Must(ctrlv1alpha1.Install(scheme))
-	utilruntime.Must(policyv1alpha1.Install(scheme))
-	utilruntime.Must(extensionsv1alpha1.Install(scheme))
-}
 
 func maybeNamespaced(un *unstructured.Unstructured) string {
 	ns := un.GetNamespace()
@@ -247,6 +235,7 @@ allowing you to test and develop your proxy infrastructure.`,
 			FrontendPort:           7223,
 			Namespaces:             []string{"default"},
 			Logger:                 log.DefaultLogger,
+			LogLevel:               slog.LevelError, // Too noisy otherwise.
 			ClusterID:              uuid.NewString(),
 			MasterClusterName:      "active",
 			CurrentClusterName:     "active",
@@ -260,7 +249,7 @@ allowing you to test and develop your proxy infrastructure.`,
 		tc, err := tclient.NewLazyClient(tclient.Options{
 			HostPort:  "localhost:7223",
 			Namespace: "default",
-			Logger:    log.DefaultLogger,
+			Logger:    nil, // No logging.
 		})
 		if err != nil {
 			return fmt.Errorf("failed creating Temporal client: %w", err)
