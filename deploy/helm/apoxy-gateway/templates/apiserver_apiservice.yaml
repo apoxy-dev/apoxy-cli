@@ -29,6 +29,20 @@ spec:
 apiVersion: apiregistration.k8s.io/v1
 kind: APIService
 metadata:
+  name: v1alpha2.extensions.apoxy.dev
+spec:
+  group: extensions.apoxy.dev
+  version: v1alpha2
+  groupPriorityMinimum: 1000
+  versionPriority: 16
+  insecureSkipTLSVerify: true
+  service:
+    name: {{ include "apoxy-gateway.fullname" . }}-apiserver
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: apiregistration.k8s.io/v1
+kind: APIService
+metadata:
   name: v1.gateway.apoxy.dev
 spec:
   group: gateway.apoxy.dev
