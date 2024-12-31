@@ -42,6 +42,10 @@ spec:
       containers:
         - name: backplane
           securityContext:
+            capabilities:
+              add:
+                - NET_BIND_SERVICE
+                - NET_ADMIN
             {{- toYaml .Values.backplane.securityContext | nindent 12 }}
           image: "{{ .Values.backplane.image.repository }}:{{ .Values.backplane.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.backplane.image.pullPolicy }}
