@@ -27,6 +27,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/retry"
+	"k8s.io/kubernetes/pkg/credentialprovider"
 	"oras.land/oras-go/v2"
 	"oras.land/oras-go/v2/content"
 	"oras.land/oras-go/v2/content/file"
@@ -420,6 +421,8 @@ func (w *worker) pullOCIImage(
 				return nil, errors.New("k8s environment is not set")
 			}
 
+			log.Info("Getting OCI credentials from secret", "SecretNamespace", secretRef.Namespace, "SecretName", secretRef.Name)
+
 			secret, err := w.k8s.CoreV1().Secrets(string(secretRef.Namespace)).Get(ctx, string(secretRef.Name), metav1.GetOptions{})
 			if err != nil {
 				return nil, fmt.Errorf("failed to get secret: %w", err)
@@ -428,15 +431,25 @@ func (w *worker) pullOCIImage(
 				return nil, fmt.Errorf("invalid secret type %q, expected %q", secret.Type, "kubernetes.io/dockerconfigjson")
 			}
 			encodedToken := secret.Data[".dockerconfigjson"]
-			var dockerConfig struct {
-				Auths map[string]auth.Credential `json:"auths"`
+			if len(encodedToken) == 0 {
+				return nil, fmt.Errorf("no .dockerconfigjson data found in secret")
 			}
+			var dockerConfig credentialprovider.DockerConfigJSON
 			if err := json.Unmarshal(encodedToken, &dockerConfig); err != nil {
 				return nil, fmt.Errorf("failed to parse dockerconfigjson: %w", err)
 			}
 
 			credsFunc = func(_ context.Context, _ string) (auth.Credential, error) {
-				return dockerConfig.Auths[repo.Reference.Registry], nil
+				authKey := filepath.Join(repo.Reference.Registry, repo.Reference.Repository)
+				r, ok := dockerConfig.Auths[authKey]
+				if !ok {
+					return auth.EmptyCredential, fmt.Errorf("no credentials found for registry %s", authKey)
+				}
+				log.Info("Found credentials for registry", "registry", authKey, "username", r.Username)
+				return auth.Credential{
+					Username: r.Username,
+					Password: r.Password,
+				}, nil
 			}
 		} else {
 			// TODO(dilyevsky): Support other kinds of secrets for non-k8s environments.

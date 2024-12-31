@@ -374,6 +374,7 @@ require (
 	k8s.io/apiextensions-apiserver v0.30.1 // indirect
 	k8s.io/component-base v0.30.1 // indirect
 	k8s.io/kms v0.30.1 // indirect
+	k8s.io/kubernetes v1.30.1 // indirect
 	lukechampine.com/uint128 v1.3.0 // indirect
 	modernc.org/cc/v3 v3.41.0 // indirect
 	modernc.org/ccgo/v3 v3.17.0 // indirect
