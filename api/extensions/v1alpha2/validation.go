@@ -58,7 +58,7 @@ func (r *EdgeFunction) validate() field.ErrorList {
 	errs := field.ErrorList{}
 	spec := r.Spec
 
-	if spec.Template.Mode != FilterEdgeFunctionMode && spec.Template.Mode != BackendEdgeFunctionMode {
+	if spec.Template.Mode != "" && spec.Template.Mode != FilterEdgeFunctionMode && spec.Template.Mode != BackendEdgeFunctionMode {
 		errs = append(errs, field.Invalid(field.NewPath("spec").Child("template").Child("mode"), r, "mode must be either 'filter' or 'backend'"))
 	}
 
