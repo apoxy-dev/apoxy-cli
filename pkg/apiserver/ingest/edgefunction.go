@@ -430,25 +430,30 @@ func (w *worker) pullOCIImage(
 			if secret.Type != k8scorev1.SecretTypeDockerConfigJson {
 				return nil, fmt.Errorf("invalid secret type %q, expected %q", secret.Type, "kubernetes.io/dockerconfigjson")
 			}
-			encodedToken := secret.Data[".dockerconfigjson"]
-			if len(encodedToken) == 0 {
+			confJson := secret.Data[".dockerconfigjson"]
+			if len(confJson) == 0 {
 				return nil, fmt.Errorf("no .dockerconfigjson data found in secret")
 			}
 			var dockerConfig credentialprovider.DockerConfigJSON
-			if err := json.Unmarshal(encodedToken, &dockerConfig); err != nil {
+			if err := json.Unmarshal(confJson, &dockerConfig); err != nil {
 				return nil, fmt.Errorf("failed to parse dockerconfigjson: %w", err)
 			}
+			keyring := &credentialprovider.BasicDockerKeyring{}
+			keyring.Add(dockerConfig.Auths)
 
 			credsFunc = func(_ context.Context, _ string) (auth.Credential, error) {
-				authKey := filepath.Join(repo.Reference.Registry, repo.Reference.Repository)
-				r, ok := dockerConfig.Auths[authKey]
+				authConfs, ok := keyring.Lookup(ociRef.Repo)
 				if !ok {
-					return auth.EmptyCredential, fmt.Errorf("no credentials found for registry %s", authKey)
+					return auth.EmptyCredential, fmt.Errorf("no credentials found for repository %s", ociRef.Repo)
 				}
-				log.Info("Found credentials for registry", "registry", authKey, "username", r.Username)
+				if len(authConfs) == 0 {
+					return auth.EmptyCredential, fmt.Errorf("no credentials found for repository %s", ociRef.Repo)
+				}
+				authConf := authConfs[0]
+				log.Info("Found credentials for registry", "repository", ociRef.Repo, "username", authConf.Username)
 				return auth.Credential{
-					Username: r.Username,
-					Password: r.Password,
+					Username: authConf.Username,
+					Password: authConf.Password,
 				}, nil
 			}
 		} else {
