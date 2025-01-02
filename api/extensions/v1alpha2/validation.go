@@ -62,7 +62,7 @@ func (r *EdgeFunction) validate() field.ErrorList {
 		errs = append(errs, field.Invalid(field.NewPath("spec").Child("template").Child("mode"), r, "mode must be either 'filter' or 'backend'"))
 	}
 
-	if spec.Template.Code.GoPluginSource != nil && (spec.Template.Mode != FilterEdgeFunctionMode || spec.Template.Mode != "") {
+	if spec.Template.Code.GoPluginSource != nil && (spec.Template.Mode != FilterEdgeFunctionMode && spec.Template.Mode != "") {
 		errs = append(errs, field.Invalid(field.NewPath("spec").Child("template").Child("code").Child("goPluginSource"), r, "goPluginSource can only be specified when mode is 'filter'"))
 	}
 
