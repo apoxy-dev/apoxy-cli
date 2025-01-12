@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	goruntime "runtime"
+	"syscall"
 
 	"github.com/dgraph-io/badger/v4"
 	"github.com/metal-stack/go-ipam"
@@ -185,7 +186,7 @@ func (n *Network) Init(ctx context.Context) error {
 		IP:   net.ParseIP("0.0.0.0"),
 		Mask: net.CIDRMask(0, 32),
 	}
-	if err := netlink.RuleAdd(rule); err != nil {
+	if err := netlink.RuleAdd(rule); err != nil && !errors.Is(err, syscall.EEXIST) {
 		return fmt.Errorf("failed to add routing rule: %w", err)
 	}
 
