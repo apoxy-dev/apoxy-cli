@@ -12,9 +12,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/pkg/browser"
 	"golang.org/x/exp/slog"
+	"k8s.io/client-go/rest"
 
 	configv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/config/v1alpha1"
-	"github.com/apoxy-dev/apoxy-cli/rest"
 	"github.com/apoxy-dev/apoxy-cli/web"
 )
 
@@ -35,35 +35,40 @@ func NewAuthenticator(cfg *configv1alpha1.Config) *Authenticator {
 }
 
 func (a *Authenticator) Check() (bool, error) {
-	if a.cfg.CurrentProject == uuid.Nil {
-		return false, fmt.Errorf("project ID not set")
+	c, err := DefaultAPIClient()
+	if err != nil {
+		return true, err
 	}
 
-	var project *configv1alpha1.Project
-	for i, p := range a.cfg.Projects {
-		if p.ID == a.cfg.CurrentProject {
-			project = &a.cfg.Projects[i]
-			break
+	if c.BaseHost != "" {
+		resp, err := c.SendRequest(http.MethodPost, "/v1/terra/check", nil)
+		if err != nil {
+			return true, err
+		}
+
+		slog.Debug("/v1/terra/check returned", "status", resp.StatusCode)
+		if resp.StatusCode != 200 {
+			return false, nil
 		}
 	}
-	if project == nil {
-		return false, fmt.Errorf("project not found: %s", a.cfg.CurrentProject)
-	}
 
-	slog.Debug("Checking API Key", "APIKey", project.APIKey)
-	c, err := rest.NewAPIClient(project.APIBaseURL, project.APIBaseHost, project.APIKey, project.ID)
-	if err != nil {
-		return true, err
-	}
-
-	resp, err := c.SendRequest(http.MethodPost, "/v1/terra/check", nil)
-	if err != nil {
-		return true, err
-	}
-
-	slog.Debug("/v1/terra/check returned", "status", resp.StatusCode)
-	if resp.StatusCode != 200 {
-		return false, nil
+	if c.RESTConfig != nil {
+		httpC, err := rest.HTTPClientFor(c.RESTConfig)
+		if err != nil {
+			return true, err
+		}
+		req, err := http.NewRequest("HEAD", c.RESTConfig.Host, nil)
+		if err != nil {
+			return true, err
+		}
+		resp, err := httpC.Do(req)
+		if err != nil {
+			return true, err
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			return false, nil
+		}
 	}
 
 	return true, nil

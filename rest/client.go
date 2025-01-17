@@ -21,38 +21,85 @@ type APIClient struct {
 	BaseHost   string
 	APIKey     string
 	ProjectID  uuid.UUID
-	HTTPClient *http.Client
 	RESTConfig *rest.Config
+
+	HTTPClient *http.Client
+}
+
+// Option defines a configuration option for the APIClient.
+type Option func(*APIClient)
+
+// WithBaseURL sets the base URL for the APIClient.
+func WithBaseURL(baseURL string) Option {
+	return func(c *APIClient) {
+		c.BaseURL = baseURL
+	}
+}
+
+// WithBaseHost sets the base host for the APIClient.
+func WithBaseHost(baseHost string) Option {
+	return func(c *APIClient) {
+		c.BaseHost = baseHost
+	}
+}
+
+// WithAPIKey sets the API key for the APIClient.
+func WithAPIKey(apiKey string) Option {
+	return func(c *APIClient) {
+		c.APIKey = apiKey
+	}
+}
+
+// WithProjectID sets the project ID for the APIClient.
+func WithProjectID(projectID uuid.UUID) Option {
+	return func(c *APIClient) {
+		c.ProjectID = projectID
+	}
+}
+
+// WithK8sConfig sets the Kubernetes configuration for the APIClient.
+// If set, overriedes baseURL, baseHost, APIKey, and ProjectID.
+func WithK8sConfig(cfg *rest.Config) Option {
+	return func(c *APIClient) {
+		c.RESTConfig = cfg
+	}
 }
 
 // NewAPIClient creates a new instance of the APIClient.
-func NewAPIClient(baseURL, baseHost, apiKey string, projectID uuid.UUID) (*APIClient, error) {
+func NewAPIClient(opts ...Option) (*APIClient, error) {
+	client := &APIClient{}
+
+	for _, opt := range opts {
+		opt(client)
+	}
+
 	tlsCfg := &tls.Config{}
-	if baseHost != "" {
+	if client.BaseHost != "" {
 		tlsCfg.InsecureSkipVerify = true
-		tlsCfg.ServerName = baseHost
+		tlsCfg.ServerName = client.BaseHost
 	}
-	a3yConfig, err := newA3YRESTConfig(baseURL, baseHost, apiKey, projectID)
-	if err != nil {
-		return nil, fmt.Errorf("unable to create A3Y REST config: %w", err)
+
+	if client.RESTConfig == nil {
+		var err error
+		client.RESTConfig, err = newA3YRESTConfig(client.BaseURL, client.BaseHost, client.APIKey, client.ProjectID)
+		if err != nil {
+			return nil, fmt.Errorf("unable to create A3Y REST config: %w", err)
+		}
 	}
-	a3yClient, err := versioned.NewForConfig(a3yConfig)
+
+	a3yClient, err := versioned.NewForConfig(client.RESTConfig)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create A3Y client: %w", err)
 	}
-	return &APIClient{
-		Interface: a3yClient,
-		BaseURL:   baseURL,
-		BaseHost:  baseHost,
-		APIKey:    apiKey,
-		ProjectID: projectID,
-		HTTPClient: &http.Client{
-			Transport: &http.Transport{
-				TLSClientConfig: tlsCfg,
-			},
+
+	client.Interface = a3yClient
+	client.HTTPClient = &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: tlsCfg,
 		},
-		RESTConfig: a3yConfig,
-	}, nil
+	}
+
+	return client, nil
 }
 
 // SendRequest sends an HTTP request with the configured headers.

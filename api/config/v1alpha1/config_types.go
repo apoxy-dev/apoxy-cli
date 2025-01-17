@@ -42,6 +42,21 @@ type Project struct {
 	APIBaseHost string `json:"apiBaseHost,omitempty"`
 	// APIKey is the API key for the project.
 	APIKey string `json:"apiKey"`
+	// Kubernetes configuration for the project.
+	// If set, overrides APIBaseURL, APIBaseHost, and APIKey.
+	// +optional
+	KubernetesConfig *KubernetesConfig `json:"kubernetesConfig,omitempty"`
+}
+
+// KubernetesConfig is the configuration for the Kubernetes API.
+type KubernetesConfig struct {
+	// The name of the kubeconfig context to use.
+	// +optional
+	Context string `json:"context,omitempty"`
+	// The path to a kubeconfig file. If not specified, the standard kubeconfig
+	// file paths will be used.
+	// +optional
+	KubeconfigPath string `json:"kubeconfigPath,omitempty"`
 }
 
 // TunnelConfig is the configuration for the tunnel.

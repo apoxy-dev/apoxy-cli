@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/google/uuid"
 	"google.golang.org/grpc/grpclog"
@@ -13,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/runtime/serializer/json"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2"
 
 	configv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/config/v1alpha1"
@@ -194,7 +196,11 @@ func Store(cfg *configv1alpha1.Config) error {
 // DefaultAPIClient returns a new Apoxy API client.
 func DefaultAPIClient() (*rest.APIClient, error) {
 	if LocalMode {
-		return rest.NewAPIClient("https://localhost:8443", "localhost", "", uuid.New())
+		return rest.NewAPIClient(
+			rest.WithBaseURL("https://localhost:8443"),
+			rest.WithBaseHost("localhost"),
+			rest.WithProjectID(uuid.New()),
+		)
 	}
 
 	cfg, err := Load()
@@ -206,16 +212,46 @@ func DefaultAPIClient() (*rest.APIClient, error) {
 		return nil, fmt.Errorf("project ID not set")
 	}
 
-	var project *configv1alpha1.Project
-	for i, p := range cfg.Projects {
-		if p.ID == cfg.CurrentProject {
-			project = &cfg.Projects[i]
-			break
-		}
-	}
-	if project == nil {
+	idx := slices.IndexFunc(cfg.Projects, func(p configv1alpha1.Project) bool {
+		return p.ID == cfg.CurrentProject
+	})
+	if idx == -1 {
 		return nil, fmt.Errorf("project not found: %s", cfg.CurrentProject)
 	}
+	project := cfg.Projects[idx]
 
-	return rest.NewAPIClient(project.APIBaseURL, project.APIBaseHost, project.APIKey, project.ID)
+	if project.KubernetesConfig != nil {
+		kcPath := filepath.Join(os.Getenv("HOME"), ".kube", "config")
+		if project.KubernetesConfig.KubeconfigPath != "" {
+			kcPath = project.KubernetesConfig.KubeconfigPath
+		}
+		config, err := clientcmd.LoadFromFile(kcPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load kubeconfig: %w", err)
+		}
+
+		curContext := config.CurrentContext
+		if project.KubernetesConfig.Context != "" {
+			curContext = project.KubernetesConfig.Context
+		}
+
+		restConfig, err := clientcmd.NewNonInteractiveClientConfig(
+			*config,
+			curContext,
+			&clientcmd.ConfigOverrides{},
+			nil,
+		).ClientConfig()
+		if err != nil {
+			return nil, fmt.Errorf("failed to create client config: %w", err)
+		}
+
+		return rest.NewAPIClient(rest.WithK8sConfig(restConfig))
+	}
+
+	return rest.NewAPIClient(
+		rest.WithBaseURL(project.APIBaseURL),
+		rest.WithBaseHost(project.APIBaseHost),
+		rest.WithAPIKey(project.APIKey),
+		rest.WithProjectID(project.ID),
+	)
 }
