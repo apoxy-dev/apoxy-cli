@@ -21,6 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/discovery"
 	memory "k8s.io/client-go/discovery/cached"
 	"k8s.io/client-go/dynamic"
@@ -34,6 +35,8 @@ import (
 	chdrivers "github.com/apoxy-dev/apoxy-cli/pkg/clickhouse/drivers"
 	"github.com/apoxy-dev/apoxy-cli/pkg/gateway"
 	"github.com/apoxy-dev/apoxy-cli/pkg/log"
+
+	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
 )
 
 var (
@@ -41,6 +44,10 @@ var (
 	codecFactory = serializer.NewCodecFactory(scheme)
 	decodeFn     = codecFactory.UniversalDeserializer().Decode
 )
+
+func init() {
+	utilruntime.Must(corev1alpha.Install(scheme))
+}
 
 func maybeNamespaced(un *unstructured.Unstructured) string {
 	ns := un.GetNamespace()
