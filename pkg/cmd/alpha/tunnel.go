@@ -56,6 +56,9 @@ var createCmd = &cobra.Command{
 		} else {
 			return fmt.Errorf("either --file or stdin must be specified")
 		}
+		if err != nil {
+			return fmt.Errorf("failed to load TunnelNode: %w", err)
+		}
 
 		_, err = client.CoreV1alpha().TunnelNodes().Create(ctx, tunnelNode, metav1.CreateOptions{})
 		if err != nil {

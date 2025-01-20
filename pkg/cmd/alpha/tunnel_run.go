@@ -322,9 +322,10 @@ func syncTunnelNode(tunnelNodeLister corev1alphaclient.TunnelNodeLister,
 		peerTunnelNode := peerTunnelNodes[peerPublicKey]
 
 		peerConf := &wireguard.PeerConfig{
-			PublicKey:  ptr.To(peerTunnelNode.Status.PublicKey),
-			Endpoint:   ptr.To(peerTunnelNode.Status.ExternalAddress),
-			AllowedIPs: []string{peerTunnelNode.Status.InternalAddress},
+			PublicKey:                      ptr.To(peerTunnelNode.Status.PublicKey),
+			Endpoint:                       ptr.To(peerTunnelNode.Status.ExternalAddress),
+			AllowedIPs:                     []string{peerTunnelNode.Status.InternalAddress},
+			PersistentKeepaliveIntervalSec: ptr.To(uint16(5)),
 		}
 
 		slog.Debug("Adding peer",
