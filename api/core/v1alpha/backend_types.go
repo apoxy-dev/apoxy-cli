@@ -45,9 +45,6 @@ type BackendSpec struct {
 	// List of endpoints to connect to.
 	Endpoints []BackendEndpoint `json:"endpoints"`
 
-	// Connect tunnels for this backend.
-	TunnelNodes []TunnelRefs `json:"tunnelNodes"`
-
 	// Specifies whether the backend should be dynamically proxied.
 	// If specified, Envoy's HTTP Dynamic Forward Proxy will be used to proxy requests to the backend.
 	// See: https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/http/http_proxy#arch-overview-http-dynamic-forward-proxy
@@ -71,6 +68,10 @@ type BackendEndpoint struct {
 	// +kubebuilder:validation:Format=ipv6
 	// +optional
 	IP string `json:"ip,omitempty"`
+
+	// Connect tunnels for this backend.
+	// +optional
+	Tunnel *TunnelRef `json:"tunnel"`
 }
 
 type DynamicProxySpec struct {

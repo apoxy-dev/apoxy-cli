@@ -26,10 +26,10 @@ type TunnelNode struct {
 }
 
 type TunnelNodeSpec struct {
-	Peers []TunnelRefs `json:"peers,omitempty"`
+	Peers []TunnelRef `json:"peers,omitempty"`
 }
 
-type TunnelRefs struct {
+type TunnelRef struct {
 	// TunnelNodeRef is a reference to an individual TunnelNode.
 	TunnelNodeRef *TunnelNodeRef `json:"tunnelNodeRef,omitempty"`
 	// LabelSelector is a label selector to dynamically select multiple TunnelNode objects.
