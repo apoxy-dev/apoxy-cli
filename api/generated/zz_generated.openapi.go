@@ -70,10 +70,10 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.ProxyStatus":                          schema_apoxy_cli_api_core_v1alpha_ProxyStatus(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNode":                           schema_apoxy_cli_api_core_v1alpha_TunnelNode(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNodeList":                       schema_apoxy_cli_api_core_v1alpha_TunnelNodeList(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNodePeer":                       schema_apoxy_cli_api_core_v1alpha_TunnelNodePeer(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNodeRef":                        schema_apoxy_cli_api_core_v1alpha_TunnelNodeRef(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNodeSpec":                       schema_apoxy_cli_api_core_v1alpha_TunnelNodeSpec(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNodeStatus":                     schema_apoxy_cli_api_core_v1alpha_TunnelNodeStatus(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelRefs":                           schema_apoxy_cli_api_core_v1alpha_TunnelRefs(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunction":                  schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunction(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionCodeSource":        schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionCodeSource(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionList":              schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionList(ref),
@@ -1098,6 +1098,20 @@ func schema_apoxy_cli_api_core_v1alpha_BackendSpec(ref common.ReferenceCallback)
 							},
 						},
 					},
+					"tunnelNodes": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Connect tunnels for this backend.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelRefs"),
+									},
+								},
+							},
+						},
+					},
 					"dynamicProxy": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Specifies whether the backend should be dynamically proxied. If specified, Envoy's HTTP Dynamic Forward Proxy will be used to proxy requests to the backend. See: https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/http/http_proxy#arch-overview-http-dynamic-forward-proxy",
@@ -1113,11 +1127,11 @@ func schema_apoxy_cli_api_core_v1alpha_BackendSpec(ref common.ReferenceCallback)
 						},
 					},
 				},
-				Required: []string{"endpoints", "protocol"},
+				Required: []string{"endpoints", "tunnelNodes", "protocol"},
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.BackendEndpoint", "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DynamicProxySpec"},
+			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.BackendEndpoint", "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DynamicProxySpec", "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelRefs"},
 	}
 }
 
@@ -2280,32 +2294,6 @@ func schema_apoxy_cli_api_core_v1alpha_TunnelNodeList(ref common.ReferenceCallba
 	}
 }
 
-func schema_apoxy_cli_api_core_v1alpha_TunnelNodePeer(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
-				Properties: map[string]spec.Schema{
-					"tunnelNodeRef": {
-						SchemaProps: spec.SchemaProps{
-							Description: "TunnelNodeRef is a reference to a TunnelNode that this node should peer with.",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNodeRef"),
-						},
-					},
-					"labelSelector": {
-						SchemaProps: spec.SchemaProps{
-							Description: "LabelSelector is a label selector that selects the peers to peer with.",
-							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector"),
-						},
-					},
-				},
-			},
-		},
-		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNodeRef", "k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector"},
-	}
-}
-
 func schema_apoxy_cli_api_core_v1alpha_TunnelNodeRef(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -2338,7 +2326,7 @@ func schema_apoxy_cli_api_core_v1alpha_TunnelNodeSpec(ref common.ReferenceCallba
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNodePeer"),
+										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelRefs"),
 									},
 								},
 							},
@@ -2348,7 +2336,7 @@ func schema_apoxy_cli_api_core_v1alpha_TunnelNodeSpec(ref common.ReferenceCallba
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNodePeer"},
+			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelRefs"},
 	}
 }
 
@@ -2389,6 +2377,32 @@ func schema_apoxy_cli_api_core_v1alpha_TunnelNodeStatus(ref common.ReferenceCall
 				},
 			},
 		},
+	}
+}
+
+func schema_apoxy_cli_api_core_v1alpha_TunnelRefs(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"tunnelNodeRef": {
+						SchemaProps: spec.SchemaProps{
+							Description: "TunnelNodeRef is a reference to an individual TunnelNode.",
+							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNodeRef"),
+						},
+					},
+					"labelSelector": {
+						SchemaProps: spec.SchemaProps{
+							Description: "LabelSelector is a label selector to dynamically select multiple TunnelNode objects.",
+							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNodeRef", "k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector"},
 	}
 }
 
