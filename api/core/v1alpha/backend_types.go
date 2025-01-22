@@ -68,6 +68,10 @@ type BackendEndpoint struct {
 	// +kubebuilder:validation:Format=ipv6
 	// +optional
 	IP string `json:"ip,omitempty"`
+
+	// Connect tunnels for this backend.
+	// +optional
+	Tunnel *TunnelRef `json:"tunnel,omitempty"`
 }
 
 type DynamicProxySpec struct {

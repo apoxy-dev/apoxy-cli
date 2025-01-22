@@ -26,13 +26,13 @@ type TunnelNode struct {
 }
 
 type TunnelNodeSpec struct {
-	Peers []TunnelNodePeer `json:"peers,omitempty"`
+	Peers []TunnelRef `json:"peers,omitempty"`
 }
 
-type TunnelNodePeer struct {
-	// TunnelNodeRef is a reference to a TunnelNode that this node should peer with.
+type TunnelRef struct {
+	// TunnelNodeRef is a reference to an individual TunnelNode.
 	TunnelNodeRef *TunnelNodeRef `json:"tunnelNodeRef,omitempty"`
-	// LabelSelector is a label selector that selects the peers to peer with.
+	// LabelSelector is a label selector to dynamically select multiple TunnelNode objects.
 	LabelSelector *metav1.LabelSelector `json:"labelSelector,omitempty"`
 }
 
