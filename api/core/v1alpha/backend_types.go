@@ -71,7 +71,7 @@ type BackendEndpoint struct {
 
 	// Connect tunnels for this backend.
 	// +optional
-	Tunnel *TunnelRef `json:"tunnel"`
+	Tunnel *TunnelRef `json:"tunnel,omitempty"`
 }
 
 type DynamicProxySpec struct {
