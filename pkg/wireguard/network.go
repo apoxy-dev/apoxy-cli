@@ -55,14 +55,9 @@ func Network(conf *DeviceConfig) (*WireGuardNetwork, error) {
 		return nil, fmt.Errorf("failed to create netstack device: %w", err)
 	}
 
-	bind := conn.NewDefaultBind()
-
-	var endpoint netip.AddrPort
-	if len(conf.STUNServers) > 0 {
-		endpoint, err = TryStun(context.Background(), bind, *conf.ListenPort, conf.STUNServers...)
-		if err != nil {
-			return nil, err
-		}
+	bind := conf.Bind
+	if bind == nil {
+		bind = conn.NewStdNetBind()
 	}
 
 	dev := device.NewDevice(tun, bind, &device.Logger{
@@ -94,7 +89,8 @@ func Network(conf *DeviceConfig) (*WireGuardNetwork, error) {
 		dev:        dev,
 		tnet:       tnet,
 		privateKey: privateKey,
-		endpoint:   endpoint,
+		// TODO(dsky): Support endpoint?
+		// endpoint:   ...
 	}, nil
 }
 

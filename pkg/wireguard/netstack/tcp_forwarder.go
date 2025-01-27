@@ -58,6 +58,8 @@ func TCPForwarder(ctx context.Context, conf *TCPForwarderConfig) func(ipstack *s
 			slog.String("src", srcAddrPort.String()),
 			slog.String("dst", dstAddrPort.String()))
 
+		logger.Info("Forwarding TCP session", "src", srcAddrPort.String(), "dst", dstAddrPort.String())
+
 		if !allowedDestination(dstAddrPort.Addr()) {
 			logger.Warn("Dropping TCP session, destination is not allowed")
 			req.Complete(true) // send RST

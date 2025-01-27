@@ -184,7 +184,8 @@ func TryStun(ctx context.Context, bind conn.Bind, srcPort uint16, stunServers ..
 	if len(addrPorts) > 1 {
 		for _, ap := range addrPorts {
 			if ap != addrPort {
-				return netip.AddrPort{}, errors.New("public address is not stable")
+				slog.Error("STUN resolution failed: public address is not stable", slog.Any("address", addrPort), slog.Any("other_address", ap))
+				return netip.AddrPort{}, errors.New("STUN resolution failed: public address is not stable")
 			}
 		}
 	}
