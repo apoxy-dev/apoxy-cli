@@ -59,7 +59,6 @@ func (b *IceBind) Close() error {
 	b.epMu.Lock()
 	defer b.epMu.Unlock()
 	for _, ep := range b.eps {
-		ep.c.Close()
 		ep.agent.Close()
 	}
 	clear(b.eps)
@@ -78,6 +77,7 @@ func (b *IceBind) Open(port uint16) (fns []conn.ReceiveFunc, actualPort uint16, 
 		case <-b.ctx.Done():
 			return 0, net.ErrClosed
 		case msg := <-b.recvCh:
+			log.Debugf("Received message from %v", msg.ep)
 			copy(pkts[0], msg.buf)
 			sizes[0] = len(msg.buf)
 			eps[0] = msg.ep
@@ -129,6 +129,9 @@ type IcePeer struct {
 	bind  *IceBind
 	agent *ice.Agent
 	c     *ice.Conn
+
+	candMu     sync.RWMutex
+	candidates []ice.Candidate
 }
 
 func (b *IceBind) NewPeer(ctx context.Context, isControlling bool) (*IcePeer, error) {
@@ -139,9 +142,6 @@ func (b *IceBind) NewPeer(ctx context.Context, isControlling bool) (*IcePeer, er
 	ufrag, pwd, err := agent.GetLocalUserCredentials()
 	if err != nil {
 		return nil, fmt.Errorf("could not get local user credentials: %w", err)
-	}
-	if err := agent.GatherCandidates(); err != nil {
-		return nil, fmt.Errorf("could not gather ICE candidates: %w", err)
 	}
 
 	b.epMu.Lock()
@@ -156,18 +156,34 @@ func (b *IceBind) NewPeer(ctx context.Context, isControlling bool) (*IcePeer, er
 	return b.eps[ufrag], nil
 }
 
+func (p *IcePeer) Init(ctx context.Context) error {
+	p.candMu.Lock()
+	defer p.candMu.Unlock()
+	if err := p.agent.OnCandidate(func(c ice.Candidate) {
+		if c == nil {
+			return
+		}
+		log.Debugf("ICE candidate: %v", c)
+		p.candidates = append(p.candidates, c)
+	}); err != nil {
+		return fmt.Errorf("could not set ICE candidate handler: %w", err)
+	}
+	if err := p.agent.GatherCandidates(); err != nil {
+		return fmt.Errorf("could not gather ICE candidates: %w", err)
+	}
+	return nil
+}
+
 func (p *IcePeer) LocalUserCredentials() (ufrag, pwd string) {
 	return p.ufrag, p.password
 }
 
 func (p *IcePeer) LocalCandidates() ([]string, error) {
-	cs, err := p.agent.GetLocalCandidates()
-	if err != nil {
-		return nil, fmt.Errorf("could not get local candidates: %w", err)
-	}
+	p.candMu.RLock()
+	defer p.candMu.RUnlock()
 	var ss []string
-	for _, c := range cs {
-		ss = append(ss, c.String())
+	for _, c := range p.candidates {
+		ss = append(ss, c.Marshal())
 	}
 	return ss, nil
 }
@@ -179,6 +195,7 @@ func (p *IcePeer) Connect(
 ) error {
 	connCh := make(chan struct{})
 	if err := p.agent.OnConnectionStateChange(func(c ice.ConnectionState) {
+		log.Debugf("ICE connection state: %v", c)
 		if c == ice.ConnectionStateConnected {
 			close(connCh)
 		}
@@ -194,21 +211,26 @@ func (p *IcePeer) Connect(
 			return fmt.Errorf("could not add remote candidate: %w", err)
 		}
 	}
+
+	var err error
+	if p.isControlling {
+		log.Debugf("Accepting conneciton from ICE remote peer %s", ufrag)
+		p.c, err = p.agent.Accept(ctx, ufrag, pwd)
+	} else {
+		log.Debugf("Dialing to ICE remote peer %s", ufrag)
+		p.c, err = p.agent.Dial(ctx, ufrag, pwd)
+	}
+	if err != nil {
+		return err
+	}
+
+	log.Debugf("ICE connection established for peer %v", p)
+
 	select {
 	case <-connCh:
 		log.Infof("ICE connection established for peer %v", p)
 	case <-ctx.Done():
 		return ctx.Err()
-	}
-
-	var err error
-	if p.isControlling {
-		p.c, err = p.agent.Accept(ctx, p.ufrag, p.password)
-	} else {
-		p.c, err = p.agent.Dial(ctx, p.ufrag, p.password)
-	}
-	if err != nil {
-		return err
 	}
 
 	go func() {

@@ -82,22 +82,22 @@ var tunnelRunCmd = &cobra.Command{
 					Host:   "stun.l.google.com",
 					Port:   19302,
 				},
-				{
-					Scheme:   stun.SchemeTypeTURN,
-					Host:     "turn.cloudflare.com",
-					Port:     3478,
-					Username: "g06a58ffa5a7334919604e8b014e9b94369c74d38259612c7ebe9acd6a7953a6",
-					Password: "c1279ef392a52b63667758cb544c6f1d02f1d64c752712a973a16e51069c8d30",
-					Proto:    stun.ProtoTypeUDP,
-				},
-				{
-					Scheme:   stun.SchemeTypeTURN,
-					Host:     "turn.cloudflare.com",
-					Port:     3478,
-					Username: "g06a58ffa5a7334919604e8b014e9b94369c74d38259612c7ebe9acd6a7953a6",
-					Password: "c1279ef392a52b63667758cb544c6f1d02f1d64c752712a973a16e51069c8d30",
-					Proto:    stun.ProtoTypeTCP,
-				},
+				//{
+				//	Scheme:   stun.SchemeTypeTURN,
+				//	Host:     "turn.cloudflare.com",
+				//	Port:     3478,
+				//	Username: "g06a58ffa5a7334919604e8b014e9b94369c74d38259612c7ebe9acd6a7953a6",
+				//	Password: "c1279ef392a52b63667758cb544c6f1d02f1d64c752712a973a16e51069c8d30",
+				//	Proto:    stun.ProtoTypeUDP,
+				//},
+				//{
+				//	Scheme:   stun.SchemeTypeTURN,
+				//	Host:     "turn.cloudflare.com",
+				//	Port:     3478,
+				//	Username: "g06a58ffa5a7334919604e8b014e9b94369c74d38259612c7ebe9acd6a7953a6",
+				//	Password: "c1279ef392a52b63667758cb544c6f1d02f1d64c752712a973a16e51069c8d30",
+				//	Proto:    stun.ProtoTypeTCP,
+				//},
 			},
 			NetworkTypes:  []ice.NetworkType{ice.NetworkTypeUDP4},
 			CheckInterval: ptr.To(20 * time.Millisecond),
@@ -229,8 +229,12 @@ func (t *tunnelNode) run(ctx context.Context) error {
 }
 
 // handleTunnelNodeUpdate is called every time a TunnelNode object is added or updated.
-func (t *tunnelNode) handleTunnelNodeUpdate(tunnelNodeLister corev1alphaclient.TunnelNodeLister,
-	tunnelNodeName string, tun tunnel.Tunnel, updatedTunnelNode *corev1alpha.TunnelNode) {
+func (t *tunnelNode) handleTunnelNodeUpdate(
+	tunnelNodeLister corev1alphaclient.TunnelNodeLister,
+	tunnelNodeName string,
+	tun tunnel.Tunnel,
+	updatedTunnelNode *corev1alpha.TunnelNode,
+) {
 	var tunnelNode *corev1alpha.TunnelNode
 	if updatedTunnelNode.Name == tunnelNodeName {
 		// The updated object is the one we are managing.
@@ -287,8 +291,11 @@ func (t *tunnelNode) handleTunnelNodeUpdate(tunnelNodeLister corev1alphaclient.T
 }
 
 // syncTunnelNode reconciles the state of our TunnelNode object with the state of the tunnel.
-func (t *tunnelNode) syncTunnelNode(tunnelNodeLister corev1alphaclient.TunnelNodeLister,
-	tunnelNode *corev1alpha.TunnelNode, tun tunnel.Tunnel) {
+func (t *tunnelNode) syncTunnelNode(
+	tunnelNodeLister corev1alphaclient.TunnelNodeLister,
+	tunnelNode *corev1alpha.TunnelNode,
+	tun tunnel.Tunnel,
+) {
 	peerPublicKeys := set.New[string]()
 	peerTunnelNodes := map[string]*corev1alpha.TunnelNode{}
 
@@ -376,9 +383,9 @@ func (t *tunnelNode) syncTunnelNode(tunnelNodeLister corev1alphaclient.TunnelNod
 	for peerPublicKey := range peerPublicKeys.Difference(knownPeerPublicKeys) {
 		peerTunnelNode := peerTunnelNodes[peerPublicKey]
 
-		remoteUfrag, err := t.offerExchange(context.Background(), t.TunnelNode, peerTunnelNode)
+		remoteUfrag, err := t.offerExchange(context.Background(), tunnelNode, peerTunnelNode)
 		if err != nil {
-			slog.Error("Failed to get ICE config", slog.String("name", peerTunnelNode.Name), slog.Any("error", err))
+			slog.Error("Failed to exchange ICE offer", slog.String("name", peerTunnelNode.Name), slog.Any("error", err))
 			continue
 		}
 
@@ -414,18 +421,28 @@ func (t *tunnelNode) syncTunnelNode(tunnelNodeLister corev1alphaclient.TunnelNod
 func (t *tunnelNode) offerExchange(ctx context.Context, local, remote *corev1alpha.TunnelNode) (string, error) {
 	// Whichever TunnelNode has larger uuid sum is the controlling node
 	isOfferCreator := local.UID > remote.UID
+	log.Debugf("Local peer UUID: %s, Remote peer UUID: %s, Offer creator: %t", local.UID, remote.UID, isOfferCreator)
+	offerName := fmt.Sprintf("%s-%s", local.Name, remote.Name)
+	if !isOfferCreator {
+		offerName = fmt.Sprintf("%s-%s", remote.Name, local.Name)
+	}
+
 	peer, err := t.bind.NewPeer(ctx, isOfferCreator)
 	if err != nil {
 		return "", fmt.Errorf("failed to create ICE peer: %w", err)
 	}
+	if err := peer.Init(ctx); err != nil {
+		return "", fmt.Errorf("failed to initialize ICE peer: %w", err)
+	}
+	time.Sleep(5 * time.Second) // Wait for ICE candidates
+	ufrag, pwd := peer.LocalUserCredentials()
+	candidates, err := peer.LocalCandidates()
+	if err != nil {
+		return "", fmt.Errorf("failed to get local candidates: %w", err)
+	}
 
-	offerName := fmt.Sprintf("%s-%s", local.Name, remote.Name)
 	if isOfferCreator { // If we are controlling node, create offer.
-		ufrag, pwd := peer.LocalUserCredentials()
-		candidates, err := peer.LocalCandidates()
-		if err != nil {
-			return "", fmt.Errorf("failed to get local candidates: %w", err)
-		}
+		log.Debugf("Exchanging ICE offer with %s as offer creator (offerName: %s)", remote.Name, offerName)
 		if _, err := t.a3y.CoreV1alpha().TunnelPeerOffers().Create(ctx, &corev1alpha.TunnelPeerOffer{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: offerName,
@@ -438,8 +455,27 @@ func (t *tunnelNode) offerExchange(ctx context.Context, local, remote *corev1alp
 				},
 			},
 		}, metav1.CreateOptions{}); err != nil {
-			return "", fmt.Errorf("failed to create TunnelPeerOffer: %w", err)
+			if errors.IsAlreadyExists(err) {
+				// Update existing offer
+				existingOffer, err := t.a3y.CoreV1alpha().TunnelPeerOffers().Get(ctx, offerName, metav1.GetOptions{})
+				if err != nil {
+					return "", fmt.Errorf("failed to get existing TunnelPeerOffer: %w", err)
+				}
+				existingOffer.Spec.ICEOffer = corev1alpha.ICEOffer{
+					Ufrag:      ufrag,
+					Password:   pwd,
+					Candidates: candidates,
+				}
+				existingOffer.Status.PeerOffer = nil
+				if _, err = t.a3y.CoreV1alpha().TunnelPeerOffers().Update(ctx, existingOffer, metav1.UpdateOptions{}); err != nil {
+					return "", fmt.Errorf("failed to update TunnelPeerOffer: %w", err)
+				}
+			} else {
+				return "", fmt.Errorf("failed to create TunnelPeerOffer: %w", err)
+			}
 		}
+	} else {
+		log.Debugf("Exchanging ICE offer with %s as offer receiver", local.Name)
 	}
 
 	w, err := t.a3y.CoreV1alpha().TunnelPeerOffers().Watch(ctx, metav1.ListOptions{
@@ -460,22 +496,47 @@ func (t *tunnelNode) offerExchange(ctx context.Context, local, remote *corev1alp
 				return "", fmt.Errorf("watch channel closed")
 			}
 
-			var iceOffer *corev1alpha.ICEOffer
+			log.Debugf("Received event %s", e.Type)
+
+			var remoteOffer *corev1alpha.ICEOffer
 			if isOfferCreator { // If we are controlling node, get peer offer from status
 				remote := e.Object.(*corev1alpha.TunnelPeerOffer)
 				if remote.Status.PeerOffer == nil {
+					log.Debugf("Offer not yet created, waiting...")
 					continue // Offer not yet created
 				}
-				iceOffer = remote.Status.PeerOffer
+				remoteOffer = remote.Status.PeerOffer
 			} else {
-				iceOffer = &e.Object.(*corev1alpha.TunnelPeerOffer).Spec.ICEOffer
+				remoteOffer = &e.Object.(*corev1alpha.TunnelPeerOffer).Spec.ICEOffer
+
+				// If we are not controlling node, update the offer status with the local peer's offer.
+				log.Debugf("Updating offer status with local peer's offer")
+				if err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+					tn, err := t.a3y.CoreV1alpha().TunnelPeerOffers().Get(ctx, offerName, metav1.GetOptions{})
+					if err != nil {
+						return fmt.Errorf("failed to get TunnelPeerOffer: %w", err)
+					}
+					tn.Status.PeerOffer = &corev1alpha.ICEOffer{
+						Ufrag:      ufrag,
+						Password:   pwd,
+						Candidates: candidates,
+					}
+					if _, err = t.a3y.CoreV1alpha().TunnelPeerOffers().UpdateStatus(ctx, tn, metav1.UpdateOptions{}); err != nil {
+						return fmt.Errorf("failed to update TunnelPeerOffer status: %w", err)
+					}
+					return nil
+				}); err != nil {
+					return "", fmt.Errorf("failed to update TunnelPeerOffer status: %w", err)
+				}
 			}
 
-			if err := peer.Connect(ctx, iceOffer.Ufrag, iceOffer.Password, iceOffer.Candidates); err != nil {
+			log.Debugf("Received remote ICE offer: %v", remoteOffer)
+
+			if err := peer.Connect(ctx, remoteOffer.Ufrag, remoteOffer.Password, remoteOffer.Candidates); err != nil {
 				return "", fmt.Errorf("failed to dial peer: %w", err)
 			}
 
-			return iceOffer.Ufrag, nil
+			return remoteOffer.Ufrag, nil
 		}
 	}
 }

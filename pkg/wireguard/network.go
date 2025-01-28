@@ -85,12 +85,12 @@ func Network(conf *DeviceConfig) (*WireGuardNetwork, error) {
 		return nil, err
 	}
 
+	ep, _ := netip.ParseAddrPort("0.0.0.0:0")
 	return &WireGuardNetwork{
 		dev:        dev,
 		tnet:       tnet,
 		privateKey: privateKey,
-		// TODO(dsky): Support endpoint?
-		// endpoint:   ...
+		endpoint:   ep,
 	}, nil
 }
 
@@ -141,23 +141,23 @@ func (n *WireGuardNetwork) Peers() ([]PeerConfig, error) {
 
 // AddPeer adds, or updates, a peer to the WireGuard network.
 func (n *WireGuardNetwork) AddPeer(peerConf *PeerConfig) error {
-	if peerConf.Endpoint != nil {
-		host, port, err := net.SplitHostPort(*peerConf.Endpoint)
-		if err != nil {
-			return fmt.Errorf("failed to parse peer endpoint: %w", err)
-		}
+	//if peerConf.Endpoint != nil {
+	//	host, port, err := net.SplitHostPort(*peerConf.Endpoint)
+	//	if err != nil {
+	//		return fmt.Errorf("failed to parse peer endpoint: %w", err)
+	//	}
 
-		if _, err := netip.ParseAddr(host); err != nil {
-			// If the endpoint is a hostname, resolve it.
-			ips, err := net.LookupHost(host)
-			if err != nil {
-				return fmt.Errorf("failed to resolve endpoint: %w", err)
-			}
+	//	if _, err := netip.ParseAddr(host); err != nil {
+	//		// If the endpoint is a hostname, resolve it.
+	//		ips, err := net.LookupHost(host)
+	//		if err != nil {
+	//			return fmt.Errorf("failed to resolve endpoint: %w", err)
+	//		}
 
-			// TODO: Use a proper IP address selection algorithm.
-			peerConf.Endpoint = ptr.To(net.JoinHostPort(ips[0], port))
-		}
-	}
+	//		// TODO: Use a proper IP address selection algorithm.
+	//		peerConf.Endpoint = ptr.To(net.JoinHostPort(ips[0], port))
+	//	}
+	//}
 
 	uapiPeerConf, err := uapi.Marshal(peerConf)
 	if err != nil {

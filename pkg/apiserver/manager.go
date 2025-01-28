@@ -559,6 +559,7 @@ func start(
 		if err := builder.APIServer.
 			WithOpenAPIDefinitions("apoxy", "0.1.0", apoxyopenapi.GetOpenAPIDefinitions).
 			WithResourceAndStorage(&corev1alpha.TunnelNode{}, kineStore).
+			WithResourceAndStorage(&corev1alpha.TunnelPeerOffer{}, kineStore).
 			WithResourceAndStorage(&corev1alpha.Backend{}, kineStore).
 			WithResourceAndStorage(&corev1alpha.Domain{}, kineStore).
 			WithResourceAndStorage(&ctrlv1alpha1.Proxy{}, kineStore).
