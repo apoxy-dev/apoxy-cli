@@ -33,6 +33,7 @@ func CreateUserspaceTunnel(
 	endpoint string,
 	socksPort uint16,
 	stunServers []string,
+	packetCapturePath string,
 	verbose bool,
 ) (*userspaceTunnel, error) {
 	privateKey, err := wgtypes.GeneratePrivateKey()
@@ -50,11 +51,12 @@ func CreateUserspaceTunnel(
 	ip6to4 := NewApoxy4To6Prefix(projectID, endpoint)
 
 	wgNet, err := wireguard.Network(&wireguard.DeviceConfig{
-		PrivateKey:  ptr.To(privateKey.String()),
-		ListenPort:  ptr.To(listenPort),
-		Verbose:     ptr.To(verbose),
-		Address:     []string{ip6to4.String()},
-		STUNServers: stunServers,
+		PrivateKey:        ptr.To(privateKey.String()),
+		ListenPort:        ptr.To(listenPort),
+		Verbose:           ptr.To(verbose),
+		Address:           []string{ip6to4.String()},
+		STUNServers:       stunServers,
+		PacketCapturePath: packetCapturePath,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("could not create WireGuard network: %w", err)

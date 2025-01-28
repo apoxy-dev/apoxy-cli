@@ -63,6 +63,8 @@ type TunnelNodeStatus struct {
 	ExternalAddress string `json:"externalAddress,omitempty"`
 	// Internal address of the node. Always a /96 IPv6 address.
 	InternalAddress string `json:"internalAddress,omitempty"`
+	// Last time the tunnel node configuration was synced.
+	LastSynced metav1.Time `json:"lastSynced,omitempty"`
 }
 
 var _ resource.StatusSubResource = &TunnelNodeStatus{}

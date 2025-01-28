@@ -31,6 +31,8 @@ type DeviceConfig struct {
 	PostDown []string `ini:"PostDown"`
 
 	// Apoxy specific fields.
+	// Packet capture file to write to.
+	PacketCapturePath string
 	// STUN servers to use for endpoint resolution.
 	STUNServers []string
 	// Verbose logging.
