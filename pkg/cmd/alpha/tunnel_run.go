@@ -148,7 +148,7 @@ func (t *tunnelNode) run(ctx context.Context) error {
 	}
 	defer tun.Close()
 
-	slog.Debug("Tunnel created",
+	slog.Debug("Running TunnelNode controller",
 		slog.String("name", t.TunnelNode.Name), slog.String("publicKey", tun.PublicKey()),
 		slog.String("internalAddress", tun.InternalAddress().String()))
 
@@ -340,6 +340,8 @@ func (t *tunnelNode) syncTunnelNode(
 		slog.Error("Failed to get known peers", slog.String("name", tunnelNode.Name), slog.Any("error", err))
 		return
 	}
+
+	log.Debugf("Known peers: %v", knownPeers)
 
 	knownPeerPublicKeys := set.New[string]()
 	for _, peerConf := range knownPeers {

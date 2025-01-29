@@ -21,8 +21,8 @@ type IceBind struct {
 
 	recvCh chan *message
 
-	epMu sync.RWMutex
-	eps  map[string]*IcePeer
+	peerMu sync.RWMutex
+	peers  map[string]*IcePeer
 
 	bufPool sync.Pool
 	msgPool sync.Pool
@@ -39,7 +39,7 @@ func NewIceBind(ctx context.Context, conf *ice.AgentConfig) *IceBind {
 
 		recvCh: make(chan *message),
 
-		eps: make(map[string]*IcePeer),
+		peers: make(map[string]*IcePeer),
 
 		bufPool: sync.Pool{
 			New: func() interface{} {
@@ -56,12 +56,12 @@ func NewIceBind(ctx context.Context, conf *ice.AgentConfig) *IceBind {
 }
 
 func (b *IceBind) Close() error {
-	b.epMu.Lock()
-	defer b.epMu.Unlock()
-	for _, ep := range b.eps {
+	b.peerMu.Lock()
+	defer b.peerMu.Unlock()
+	for _, ep := range b.peers {
 		ep.agent.Close()
 	}
-	clear(b.eps)
+	clear(b.peers)
 	b.ctxCancel()
 	return nil
 }
@@ -101,13 +101,13 @@ func (b *IceBind) Send(bufs [][]byte, ep conn.Endpoint) error {
 	if !ok {
 		return fmt.Errorf("invalid endpoint type: %T", ep)
 	}
-	b.epMu.RLock()
-	peer, ok := b.eps[iceEp.ufrag]
+	b.peerMu.RLock()
+	peer, ok := b.peers[iceEp.ufrag]
 	if !ok {
-		b.epMu.RUnlock()
+		b.peerMu.RUnlock()
 		return fmt.Errorf("endpoint with ufrag %q not connected", iceEp.ufrag)
 	}
-	b.epMu.RUnlock()
+	b.peerMu.RUnlock()
 	for _, buf := range bufs {
 		if _, err := peer.c.Write(buf); err != nil {
 			return err
@@ -144,16 +144,13 @@ func (b *IceBind) NewPeer(ctx context.Context, isControlling bool) (*IcePeer, er
 		return nil, fmt.Errorf("could not get local user credentials: %w", err)
 	}
 
-	b.epMu.Lock()
-	defer b.epMu.Unlock()
-	b.eps[ufrag] = &IcePeer{
+	return &IcePeer{
 		ufrag:         ufrag,
 		password:      pwd,
 		isControlling: isControlling,
 		bind:          b,
 		agent:         agent,
-	}
-	return b.eps[ufrag], nil
+	}, nil
 }
 
 func (p *IcePeer) Init(ctx context.Context) error {
@@ -233,6 +230,10 @@ func (p *IcePeer) Connect(
 		return ctx.Err()
 	}
 
+	p.bind.peerMu.Lock()
+	p.bind.peers[ufrag] = p
+	p.bind.peerMu.Unlock()
+
 	go func() {
 		defer p.c.Close()
 		for {
@@ -247,6 +248,8 @@ func (p *IcePeer) Connect(
 			if n == 0 {
 				continue
 			}
+
+			log.Debugf("Received %d bytes from ICE connection", n)
 
 			msg := p.bind.msgPool.Get().(*message)
 			msg.buf = (*buf)[:n]
@@ -268,9 +271,9 @@ func (p *IcePeer) Connect(
 func (p *IcePeer) Close() error {
 	p.c.Close()
 	p.agent.Close()
-	p.bind.epMu.Lock()
-	delete(p.bind.eps, p.ufrag)
-	p.bind.epMu.Unlock()
+	p.bind.peerMu.Lock()
+	delete(p.bind.peers, p.ufrag)
+	p.bind.peerMu.Unlock()
 	return nil
 }
 
