@@ -1,4 +1,4 @@
-package alpha
+package tunnel
 
 import (
 	"context"
@@ -14,20 +14,36 @@ import (
 	"k8s.io/utils/ptr"
 	"k8s.io/utils/set"
 
-	configv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/config/v1alpha1"
-	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
+	"github.com/pion/ice/v4"
+	icelogging "github.com/pion/logging"
+	"github.com/pion/stun/v3"
+	"github.com/spf13/cobra"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+
 	"github.com/apoxy-dev/apoxy-cli/client/informers"
-	corev1alphaclient "github.com/apoxy-dev/apoxy-cli/client/listers/core/v1alpha"
 	"github.com/apoxy-dev/apoxy-cli/client/versioned"
 	"github.com/apoxy-dev/apoxy-cli/config"
 	"github.com/apoxy-dev/apoxy-cli/pkg/log"
 	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel"
 	"github.com/apoxy-dev/apoxy-cli/pkg/wireguard"
-	"github.com/pion/ice/v4"
-	icelogging "github.com/pion/logging"
-	"github.com/pion/stun/v3"
-	"github.com/spf13/cobra"
+
+	corev1alphaclient "github.com/apoxy-dev/apoxy-cli/client/listers/core/v1alpha"
+
+	configv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/config/v1alpha1"
+	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
 )
+
+var (
+	scheme       = runtime.NewScheme()
+	codecFactory = serializer.NewCodecFactory(scheme)
+	decodeFn     = codecFactory.UniversalDeserializer().Decode
+)
+
+func init() {
+	utilruntime.Must(corev1alpha.Install(scheme))
+}
 
 var tunnelNodeName string
 

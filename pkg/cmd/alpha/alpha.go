@@ -1,6 +1,10 @@
 package alpha
 
-import "github.com/spf13/cobra"
+import (
+	"github.com/spf13/cobra"
+
+	alphatunnel "github.com/apoxy-dev/apoxy-cli/pkg/cmd/alpha/tunnel"
+)
 
 var alphaCmd = &cobra.Command{
 	Use:   "alpha",
@@ -13,4 +17,11 @@ var alphaCmd = &cobra.Command{
 // Cmd returns the alpha command.
 func Cmd() *cobra.Command {
 	return alphaCmd
+}
+
+func init() {
+	alphaCmd.AddCommand(alphatunnel.Cmd())
+	alphaCmd.AddCommand(alphaProxyCmd)
+	alphaCmd.AddCommand(runCmd)
+	alphaCmd.AddCommand(stunServerCmd)
 }
