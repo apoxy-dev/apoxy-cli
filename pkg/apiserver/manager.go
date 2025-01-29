@@ -395,6 +395,13 @@ func (m *Manager) Start(
 		return fmt.Errorf("failed to set up Proxy controller: %v", err)
 	}
 
+	log.Infof("Registering TunnelNode controller")
+	if err := controllers.NewTunnelNodeReconciler(
+		m.manager.GetClient(),
+	).SetupWithManager(ctx, m.manager); err != nil {
+		return fmt.Errorf("failed to set up TunnelNode controller: %v", err)
+	}
+
 	log.Infof("Registering Gateway controller")
 	gwOpts := []gateway.Option{}
 	if dOpts.enableKubeAPI {
