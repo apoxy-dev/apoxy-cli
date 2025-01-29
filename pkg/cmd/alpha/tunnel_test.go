@@ -68,27 +68,41 @@ func TestRunTunnel(t *testing.T) {
 	g.Go(func() error {
 		cfg := &configv1alpha1.Config{
 			CurrentProject: projectID,
+			// Verbose:        true,
 			Tunnel: &configv1alpha1.TunnelConfig{
 				Mode:        configv1alpha1.TunnelModeUserspace,
 				SocksPort:   ptr.To(1080),
 				STUNServers: []string{"localhost:3478"},
+				// PacketCapturePath: "tunnelnode1.pcap",
 			},
 		}
 
-		return runTunnel(egCtx, cfg, client, "testdata/tunnelnode1.yaml", "")
+		tunnelNode, err := loadTunnelNodeFromPath("testdata/tunnelnode1.yaml")
+		if err != nil {
+			return fmt.Errorf("failed to load TunnelNode: %w", err)
+		}
+
+		return runTunnel(egCtx, cfg, client, tunnelNode)
 	})
 
 	g.Go(func() error {
 		cfg := &configv1alpha1.Config{
 			CurrentProject: projectID,
+			// Verbose:        true,
 			Tunnel: &configv1alpha1.TunnelConfig{
 				Mode:        configv1alpha1.TunnelModeUserspace,
 				SocksPort:   ptr.To(1081),
 				STUNServers: []string{"localhost:3478"},
+				//PacketCapturePath: "tunnelnode2.pcap",
 			},
 		}
 
-		return runTunnel(egCtx, cfg, client, "testdata/tunnelnode2.yaml", "")
+		tunnelNode, err := loadTunnelNodeFromPath("testdata/tunnelnode2.yaml")
+		if err != nil {
+			return fmt.Errorf("failed to load TunnelNode: %w", err)
+		}
+
+		return runTunnel(egCtx, cfg, client, tunnelNode)
 	})
 
 	go func() {

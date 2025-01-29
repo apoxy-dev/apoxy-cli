@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/netip"
 	"strings"
+	"time"
 
 	"golang.zx2c4.com/wireguard/conn"
 	"golang.zx2c4.com/wireguard/device"
@@ -50,7 +51,7 @@ func Network(conf *DeviceConfig) (*WireGuardNetwork, error) {
 		return nil, fmt.Errorf("failed to parse DNS servers: %w", err)
 	}
 
-	tun, tnet, err := netstack.CreateNetTUN(localAddresses, dnsServers, conf.MTU)
+	tun, tnet, err := netstack.CreateNetTUN(localAddresses, dnsServers, conf.MTU, conf.PacketCapturePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create netstack device: %w", err)
 	}
@@ -163,6 +164,13 @@ func (n *WireGuardNetwork) AddPeer(peerConf *PeerConfig) error {
 		}
 	}
 
+	// Don't set the persistent keep-alive interval immediately.
+	var persistentKeepaliveIntervalSec *uint16
+	if peerConf.PersistentKeepaliveIntervalSec != nil {
+		persistentKeepaliveIntervalSec = ptr.To(*peerConf.PersistentKeepaliveIntervalSec)
+	}
+	peerConf.PersistentKeepaliveIntervalSec = nil
+
 	uapiPeerConf, err := uapi.Marshal(peerConf)
 	if err != nil {
 		return fmt.Errorf("failed to marshal peer config: %w", err)
@@ -170,6 +178,30 @@ func (n *WireGuardNetwork) AddPeer(peerConf *PeerConfig) error {
 
 	if err := n.dev.IpcSet(uapiPeerConf); err != nil {
 		return fmt.Errorf("failed to add peer: %w", err)
+	}
+
+	// Workarround a mysterious race condition in wireguard-go where immediately
+	// setting a persistent keep-alive interval after adding a peer will cause
+	// handshake failures.
+	if persistentKeepaliveIntervalSec != nil {
+		peerConf.PersistentKeepaliveIntervalSec = persistentKeepaliveIntervalSec
+
+		go func() {
+			time.Sleep(time.Second)
+
+			uapiPeerConf, err := uapi.Marshal(&PeerConfig{
+				PublicKey:                      peerConf.PublicKey,
+				PersistentKeepaliveIntervalSec: peerConf.PersistentKeepaliveIntervalSec,
+				UpdateOnly:                     ptr.To(true),
+			})
+			if err != nil {
+				slog.Warn("failed to marshal peer config", slog.Any("error", err))
+			}
+
+			if err := n.dev.IpcSet(uapiPeerConf); err != nil {
+				slog.Warn("failed to set persistent keep-alive interval", slog.Any("error", err))
+			}
+		}()
 	}
 
 	return nil

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"time"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -76,6 +77,9 @@ var tunnelRunCmd = &cobra.Command{
 }
 
 func runTunnel(ctx context.Context, cfg *configv1alpha1.Config, client versioned.Interface, tunnelNode *corev1alpha.TunnelNode) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	stunServers := tunnel.DefaultSTUNServers
 	if cfg.Tunnel != nil && len(cfg.Tunnel.STUNServers) > 0 {
 		stunServers = cfg.Tunnel.STUNServers
@@ -89,7 +93,7 @@ func runTunnel(ctx context.Context, cfg *configv1alpha1.Config, client versioned
 			socksPort = uint16(*cfg.Tunnel.SocksPort)
 		}
 
-		tun, err = tunnel.CreateUserspaceTunnel(ctx, cfg.CurrentProject, tunnelNode.Name, socksPort, stunServers, cfg.Verbose)
+		tun, err = tunnel.CreateUserspaceTunnel(ctx, cfg.CurrentProject, tunnelNode.Name, socksPort, stunServers, "", cfg.Verbose)
 	} else {
 		tun, err = tunnel.CreateKernelTunnel(ctx, cfg.CurrentProject, tunnelNode.Name, stunServers)
 	}
@@ -107,6 +111,8 @@ func runTunnel(ctx context.Context, cfg *configv1alpha1.Config, client versioned
 		resyncPeriod,
 	)
 
+	var lastSynced metav1.Time
+
 	tunnelNodeInformer := factory.Core().V1alpha().TunnelNodes().Informer()
 	tunnelNodeLister := factory.Core().V1alpha().TunnelNodes().Lister()
 
@@ -118,7 +124,7 @@ func runTunnel(ctx context.Context, cfg *configv1alpha1.Config, client versioned
 				return
 			}
 
-			handleTunnelNodeUpdate(tunnelNodeLister, tunnelNode.Name, tun, updatedTunnelNode)
+			handleTunnelNodeUpdate(tunnelNodeLister, tunnelNode.Name, tun, updatedTunnelNode, &lastSynced)
 		},
 		UpdateFunc: func(_, newObj any) {
 			updatedTunnelNode, ok := newObj.(*corev1alpha.TunnelNode)
@@ -126,7 +132,7 @@ func runTunnel(ctx context.Context, cfg *configv1alpha1.Config, client versioned
 				return
 			}
 
-			handleTunnelNodeUpdate(tunnelNodeLister, tunnelNode.Name, tun, updatedTunnelNode)
+			handleTunnelNodeUpdate(tunnelNodeLister, tunnelNode.Name, tun, updatedTunnelNode, &lastSynced)
 		},
 		DeleteFunc: func(obj any) {
 			deletedTunnelNode, ok := obj.(*corev1alpha.TunnelNode)
@@ -164,6 +170,23 @@ func runTunnel(ctx context.Context, cfg *configv1alpha1.Config, client versioned
 		return err
 	}
 
+	// Periodically update the status of the TunnelNode object (heartbeat).
+	go func() {
+		ticker := time.NewTicker(resyncPeriod)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				updateTunnelNodeStatus(ctx, client, tunnelNode, func(status *corev1alpha.TunnelNodeStatus) {
+					status.LastSynced = lastSynced
+				})
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
 	// Wait for the TunnelNode object to be deleted, or for the command to be cancelled.
 	select {
 	case <-doneCh:
@@ -175,7 +198,8 @@ func runTunnel(ctx context.Context, cfg *configv1alpha1.Config, client versioned
 
 // handleTunnelNodeUpdate is called every time a TunnelNode object is added or updated.
 func handleTunnelNodeUpdate(tunnelNodeLister corev1alphaclient.TunnelNodeLister,
-	tunnelNodeName string, tun tunnel.Tunnel, updatedTunnelNode *corev1alpha.TunnelNode) {
+	tunnelNodeName string, tun tunnel.Tunnel, updatedTunnelNode *corev1alpha.TunnelNode,
+	lastSynced *metav1.Time) {
 	var tunnelNode *corev1alpha.TunnelNode
 	if updatedTunnelNode.Name == tunnelNodeName {
 		// The updated object is the one we are managing.
@@ -229,6 +253,7 @@ func handleTunnelNodeUpdate(tunnelNodeLister corev1alphaclient.TunnelNodeLister,
 	}
 
 	syncTunnelNode(tunnelNodeLister, tunnelNode, tun)
+	*lastSynced = metav1.Now()
 }
 
 // syncTunnelNode reconciles the state of our TunnelNode object with the state of the tunnel.
@@ -373,6 +398,27 @@ func upsertTunnelNode(ctx context.Context, client versioned.Interface, tunnelNod
 
 			tunnelNode.ResourceVersion = existingTunnelNode.ResourceVersion
 		}
+
+		_, err = client.CoreV1alpha().TunnelNodes().UpdateStatus(ctx, tunnelNode, metav1.UpdateOptions{})
+		if err != nil {
+			return fmt.Errorf("failed to update TunnelNode status: %w", err)
+		}
+
+		return nil
+	})
+}
+
+func updateTunnelNodeStatus(ctx context.Context, client versioned.Interface, tunnelNode *corev1alpha.TunnelNode,
+	updateFn func(*corev1alpha.TunnelNodeStatus)) error {
+	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		existingTunnelNode, err := client.CoreV1alpha().TunnelNodes().Get(ctx, tunnelNode.Name, metav1.GetOptions{})
+		if err != nil {
+			return fmt.Errorf("failed to get TunnelNode: %w", err)
+		}
+
+		tunnelNode.ResourceVersion = existingTunnelNode.ResourceVersion
+
+		updateFn(&tunnelNode.Status)
 
 		_, err = client.CoreV1alpha().TunnelNodes().UpdateStatus(ctx, tunnelNode, metav1.UpdateOptions{})
 		if err != nil {

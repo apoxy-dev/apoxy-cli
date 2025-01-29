@@ -18,6 +18,7 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
 	"gvisor.dev/gvisor/pkg/tcpip/link/channel"
+	"gvisor.dev/gvisor/pkg/tcpip/link/sniffer"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv6"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
@@ -32,13 +33,14 @@ type NetTun struct {
 	ep             *channel.Endpoint
 	stack          *stack.Stack
 	nicID          tcpip.NICID
+	pcapFile       *os.File
 	events         chan tun.Event
 	incomingPacket chan *buffer.View
 	mtu            int
 	dnsServers     []netip.Addr
 }
 
-func CreateNetTUN(localAddresses, dnsServers []netip.Addr, mtu *int) (tun.Device, *NetTun, error) {
+func CreateNetTUN(localAddresses, dnsServers []netip.Addr, mtu *int, pcapPath string) (tun.Device, *NetTun, error) {
 	opts := stack.Options{
 		NetworkProtocols: []stack.NetworkProtocolFactory{
 			ipv4.NewProtocol,
@@ -72,7 +74,23 @@ func CreateNetTUN(localAddresses, dnsServers []netip.Addr, mtu *int) (tun.Device
 
 	nicID := ipstack.NextNICID()
 	linkEP := channel.New(4096, uint32(*mtu), "")
-	if tcpipErr := ipstack.CreateNIC(nicID, linkEP); tcpipErr != nil {
+	var nicEP stack.LinkEndpoint = linkEP
+
+	var pcapFile *os.File
+	if pcapPath != "" {
+		var err error
+		pcapFile, err = os.Create(pcapPath)
+		if err != nil {
+			return nil, nil, fmt.Errorf("could not create pcap file: %w", err)
+		}
+
+		nicEP, err = sniffer.NewWithWriter(linkEP, pcapFile, uint32(*mtu))
+		if err != nil {
+			return nil, nil, fmt.Errorf("could not create packet sniffer: %w", err)
+		}
+	}
+
+	if tcpipErr := ipstack.CreateNIC(nicID, nicEP); tcpipErr != nil {
 		return nil, nil, fmt.Errorf("could not create NIC: %v", tcpipErr)
 	}
 
@@ -109,6 +127,7 @@ func CreateNetTUN(localAddresses, dnsServers []netip.Addr, mtu *int) (tun.Device
 		ep:             linkEP,
 		stack:          ipstack,
 		nicID:          nicID,
+		pcapFile:       pcapFile,
 		events:         make(chan tun.Event, 1),
 		incomingPacket: make(chan *buffer.View),
 		dnsServers:     dnsServers,
@@ -187,6 +206,10 @@ func (tun *NetTun) Close() error {
 
 	if tun.incomingPacket != nil {
 		close(tun.incomingPacket)
+	}
+
+	if tun.pcapFile != nil {
+		_ = tun.pcapFile.Close()
 	}
 
 	return nil

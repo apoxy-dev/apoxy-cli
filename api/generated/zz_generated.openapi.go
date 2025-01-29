@@ -2368,9 +2368,17 @@ func schema_apoxy_cli_api_core_v1alpha_TunnelNodeStatus(ref common.ReferenceCall
 							Format:      "",
 						},
 					},
+					"lastSynced": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Last time the tunnel node configuration was synced.",
+							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+						},
+					},
 				},
 			},
 		},
+		Dependencies: []string{
+			"k8s.io/apimachinery/pkg/apis/meta/v1.Time"},
 	}
 }
 

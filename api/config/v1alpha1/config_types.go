@@ -70,6 +70,10 @@ type TunnelConfig struct {
 	// external address of the tunnel node. If not specified it will default to
 	// Google and Cloudflare's public STUN servers.
 	STUNServers []string `json:"stunServers,omitempty"`
+	// PacketCapturePath is an optional path to write packet captures to.
+	// If not specified, packet sniffing will be disabled.
+	// This is only available in userspace mode and intended for debugging purposes.
+	PacketCapturePath string `json:"packetCapturePath,omitempty"`
 }
 
 // TunnelMode is the mode of the tunnel.
