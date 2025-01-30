@@ -116,7 +116,7 @@ var tunnelRunCmd = &cobra.Command{
 				//},
 			},
 			NetworkTypes:  []ice.NetworkType{ice.NetworkTypeUDP4},
-			CheckInterval: ptr.To(20 * time.Millisecond),
+			CheckInterval: ptr.To(10 * time.Millisecond),
 			CandidateTypes: []ice.CandidateType{
 				ice.CandidateTypeHost,
 				ice.CandidateTypeServerReflexive,
@@ -214,15 +214,6 @@ func (t *tunnelNode) run(ctx context.Context) error {
 		},
 	})
 
-	factory.Start(ctx.Done())
-	synced := factory.WaitForCacheSync(ctx.Done())
-	for v, s := range synced {
-		if !s {
-			return fmt.Errorf("informer %s failed to sync", v)
-		}
-	}
-
-	// Set the initial status of the TunnelNode object.
 	t.TunnelNode.Status.Phase = corev1alpha.NodePhaseReady
 	t.TunnelNode.Status.PublicKey = tun.PublicKey()
 	t.TunnelNode.Status.ExternalAddress = tun.ExternalAddress().String()
@@ -235,6 +226,15 @@ func (t *tunnelNode) run(ctx context.Context) error {
 		return err
 	}
 
+	factory.Start(ctx.Done())
+	synced := factory.WaitForCacheSync(ctx.Done())
+	for v, s := range synced {
+		if !s {
+			return fmt.Errorf("informer %s failed to sync", v)
+		}
+	}
+
+	// Set the initial status of the TunnelNode object.
 	// Wait for the TunnelNode object to be deleted, or for the command to be cancelled.
 	select {
 	case <-doneCh:
@@ -325,7 +325,7 @@ func (t *tunnelNode) syncTunnelNode(
 				continue
 			}
 
-			if peerTunnelNode.Status.PublicKey != "" {
+			if peerTunnelNode.Status.PublicKey != "" && peerTunnelNode.Status.Phase == corev1alpha.NodePhaseReady {
 				peerPublicKeys.Insert(peerTunnelNode.Status.PublicKey)
 				peerTunnelNodes[peerTunnelNode.Status.PublicKey] = peerTunnelNode
 			}
@@ -343,7 +343,7 @@ func (t *tunnelNode) syncTunnelNode(
 			}
 
 			for _, peerTunnelNode := range peerTunnelNodeList {
-				if peerTunnelNode.Status.PublicKey != "" {
+				if peerTunnelNode.Status.PublicKey != "" && peerTunnelNode.Status.Phase == corev1alpha.NodePhaseReady {
 					peerPublicKeys.Insert(peerTunnelNode.Status.PublicKey)
 					peerTunnelNodes[peerTunnelNode.Status.PublicKey] = peerTunnelNode
 				}
@@ -376,10 +376,10 @@ func (t *tunnelNode) syncTunnelNode(
 		if *peerConf.PublicKey != peerTunnelNode.Status.PublicKey {
 			peerConfChanged = true
 		}
-		if (peerConf.Endpoint == nil && peerTunnelNode.Status.ExternalAddress != "") ||
-			(peerConf.Endpoint != nil && *peerConf.Endpoint != peerTunnelNode.Status.ExternalAddress) {
-			peerConfChanged = true
-		}
+		//if (peerConf.Endpoint == nil && peerTunnelNode.Status.ExternalAddress != "") ||
+		//	(peerConf.Endpoint != nil && *peerConf.Endpoint != peerTunnelNode.Status.ExternalAddress) {
+		//	peerConfChanged = true
+		//}
 		if (len(peerConf.AllowedIPs) == 0 && peerTunnelNode.Status.InternalAddress != "") ||
 			(len(peerConf.AllowedIPs) > 0 && peerConf.AllowedIPs[0] != peerTunnelNode.Status.InternalAddress) {
 			peerConfChanged = true
@@ -401,23 +401,23 @@ func (t *tunnelNode) syncTunnelNode(
 	for peerPublicKey := range peerPublicKeys.Difference(knownPeerPublicKeys) {
 		peerTunnelNode := peerTunnelNodes[peerPublicKey]
 
+		slog.Debug("Adding peer",
+			slog.String("name", peerTunnelNode.Name),
+			slog.String("publicKey", peerPublicKey))
+
 		remoteUfrag, err := t.offerExchange(context.Background(), tunnelNode, peerTunnelNode)
 		if err != nil {
 			slog.Error("Failed to exchange ICE offer", slog.String("name", peerTunnelNode.Name), slog.Any("error", err))
 			continue
 		}
 
-		peerConf := &wireguard.PeerConfig{
-			PublicKey:                      ptr.To(peerTunnelNode.Status.PublicKey),
-			AllowedIPs:                     []string{peerTunnelNode.Status.InternalAddress},
-			Endpoint:                       ptr.To(remoteUfrag),
-			PersistentKeepaliveIntervalSec: ptr.To(uint16(5)),
-		}
+		log.Debugf("Remote ufrag: %s", remoteUfrag)
 
-		slog.Debug("Adding peer",
-			slog.String("name", peerTunnelNode.Name),
-			slog.String("publicKey", peerPublicKey),
-			slog.String("endpoint", remoteUfrag))
+		peerConf := &wireguard.PeerConfig{
+			PublicKey:  ptr.To(peerTunnelNode.Status.PublicKey),
+			AllowedIPs: []string{peerTunnelNode.Status.InternalAddress},
+			Endpoint:   ptr.To(remoteUfrag),
+		}
 
 		if err := tun.AddPeer(peerConf); err != nil {
 			slog.Error("Failed to add peer", slog.String("name", peerTunnelNode.Name), slog.Any("error", err))
@@ -425,15 +425,15 @@ func (t *tunnelNode) syncTunnelNode(
 	}
 
 	// Peers to remove.
-	for peerPublicKey := range knownPeerPublicKeys.Difference(peerPublicKeys) {
-		slog.Debug("Removing peer", slog.String("publicKey", peerPublicKey))
+	//for peerPublicKey := range knownPeerPublicKeys.Difference(peerPublicKeys) {
+	//	slog.Debug("Removing peer", slog.String("publicKey", peerPublicKey))
 
-		if err := tun.RemovePeer(peerPublicKey); err != nil {
-			slog.Error("Failed to remove peer", slog.String("publicKey", peerPublicKey), slog.Any("error", err))
-		}
+	//	if err := tun.RemovePeer(peerPublicKey); err != nil {
+	//		slog.Error("Failed to remove peer", slog.String("publicKey", peerPublicKey), slog.Any("error", err))
+	//	}
 
-		// TODO(dsky): Remove peer from bind.
-	}
+	//	// TODO(dsky): Remove peer from bind.
+	//}
 }
 
 func (t *tunnelNode) offerExchange(ctx context.Context, local, remote *corev1alpha.TunnelNode) (string, error) {
@@ -452,7 +452,7 @@ func (t *tunnelNode) offerExchange(ctx context.Context, local, remote *corev1alp
 	if err := peer.Init(ctx); err != nil {
 		return "", fmt.Errorf("failed to initialize ICE peer: %w", err)
 	}
-	time.Sleep(5 * time.Second) // Wait for ICE candidates
+	time.Sleep(2 * time.Second) // Wait for ICE candidates
 	ufrag, pwd := peer.LocalUserCredentials()
 	candidates, err := peer.LocalCandidates()
 	if err != nil {

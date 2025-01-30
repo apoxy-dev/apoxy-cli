@@ -16,53 +16,57 @@ import (
 type IceBind struct {
 	Conf *ice.AgentConfig
 
+	pctx      context.Context
 	ctx       context.Context
 	ctxCancel context.CancelFunc
 
 	recvCh chan *message
 
-	peerMu sync.RWMutex
-	peers  map[string]*IcePeer
+	mu    sync.RWMutex
+	peers map[string]*IcePeer
 
-	bufPool sync.Pool
 	msgPool sync.Pool
 }
 
+const (
+	maxMessageSize = 65535
+)
+
 // NewIceBind creates a new IceBind.
 func NewIceBind(ctx context.Context, conf *ice.AgentConfig) *IceBind {
-	ctx, ctxCancel := context.WithCancel(ctx)
+	cctx, ctxCancel := context.WithCancel(ctx)
 	return &IceBind{
 		Conf: conf,
 
-		ctx:       ctx,
+		pctx:      ctx,
+		ctx:       cctx,
 		ctxCancel: ctxCancel,
 
 		recvCh: make(chan *message),
 
 		peers: make(map[string]*IcePeer),
 
-		bufPool: sync.Pool{
-			New: func() interface{} {
-				buf := make([]byte, 1500)
-				return &buf
-			},
-		},
 		msgPool: sync.Pool{
 			New: func() interface{} {
-				return &message{}
+				return &message{
+					buf: make([]byte, maxMessageSize),
+					ep:  &endpoint{},
+				}
 			},
 		},
 	}
 }
 
 func (b *IceBind) Close() error {
-	b.peerMu.Lock()
-	defer b.peerMu.Unlock()
+	log.Debugf("Closing")
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	for _, ep := range b.peers {
 		ep.agent.Close()
 	}
 	clear(b.peers)
-	b.ctxCancel()
+	//b.ctxCancel()
+	//b.ctx, b.ctxCancel = context.WithCancel(b.ctx)
 	return nil
 }
 
@@ -72,9 +76,11 @@ type message struct {
 }
 
 func (b *IceBind) Open(port uint16) (fns []conn.ReceiveFunc, actualPort uint16, err error) {
+	log.Debugf("Opening port %d", port)
 	return []conn.ReceiveFunc{func(pkts [][]byte, sizes []int, eps []conn.Endpoint) (int, error) {
 		select {
 		case <-b.ctx.Done():
+			log.Errorf("bind.Open() closed")
 			return 0, net.ErrClosed
 		case msg := <-b.recvCh:
 			log.Debugf("Received message from %v", msg.ep)
@@ -82,8 +88,10 @@ func (b *IceBind) Open(port uint16) (fns []conn.ReceiveFunc, actualPort uint16, 
 			sizes[0] = len(msg.buf)
 			eps[0] = msg.ep
 
-			b.bufPool.Put(&msg.buf)
-			b.msgPool.Put(&msg)
+			log.Debugf("Received message from %v of size %d", msg.ep, len(msg.buf))
+
+			msg.buf = msg.buf[:maxMessageSize] // Reset the buffer to its original capacity.
+			b.msgPool.Put(msg)
 
 			return 1, nil
 		}
@@ -101,15 +109,17 @@ func (b *IceBind) Send(bufs [][]byte, ep conn.Endpoint) error {
 	if !ok {
 		return fmt.Errorf("invalid endpoint type: %T", ep)
 	}
-	b.peerMu.RLock()
+	b.mu.RLock()
 	peer, ok := b.peers[iceEp.ufrag]
 	if !ok {
-		b.peerMu.RUnlock()
+		b.mu.RUnlock()
 		return fmt.Errorf("endpoint with ufrag %q not connected", iceEp.ufrag)
 	}
-	b.peerMu.RUnlock()
+	b.mu.RUnlock()
 	for _, buf := range bufs {
+		log.Debugf("Writing buf of size %d to peer %v", len(buf), peer)
 		if _, err := peer.c.Write(buf); err != nil {
+			log.Errorf("Failed to write to peer %v: %v", peer, err)
 			return err
 		}
 	}
@@ -211,11 +221,11 @@ func (p *IcePeer) Connect(
 
 	var err error
 	if p.isControlling {
-		log.Debugf("Accepting conneciton from ICE remote peer %s", ufrag)
-		p.c, err = p.agent.Accept(ctx, ufrag, pwd)
-	} else {
 		log.Debugf("Dialing to ICE remote peer %s", ufrag)
 		p.c, err = p.agent.Dial(ctx, ufrag, pwd)
+	} else {
+		log.Debugf("Accepting connection from ICE remote peer %s", ufrag)
+		p.c, err = p.agent.Accept(ctx, ufrag, pwd)
 	}
 	if err != nil {
 		return err
@@ -230,19 +240,21 @@ func (p *IcePeer) Connect(
 		return ctx.Err()
 	}
 
-	p.bind.peerMu.Lock()
+	p.bind.mu.Lock()
 	p.bind.peers[ufrag] = p
-	p.bind.peerMu.Unlock()
+	p.bind.mu.Unlock()
 
 	go func() {
 		defer p.c.Close()
 		for {
-			buf := p.bind.bufPool.Get().(*[]byte)
-			n, err := p.c.Read(*buf)
+			msg := p.bind.msgPool.Get().(*message)
+			log.Debugf("Got buf of size %d from pool", len(msg.buf))
+			n, err := p.c.Read(msg.buf)
 			if err != nil {
 				if err != ice.ErrClosed {
 					log.Errorf("Error reading from ICE connection: %v", err)
 				}
+				log.Infof("ICE connection closed for peer %v: %v", p, err)
 				return
 			}
 			if n == 0 {
@@ -251,11 +263,8 @@ func (p *IcePeer) Connect(
 
 			log.Debugf("Received %d bytes from ICE connection", n)
 
-			msg := p.bind.msgPool.Get().(*message)
-			msg.buf = (*buf)[:n]
-			msg.ep = &endpoint{
-				ufrag: p.ufrag,
-			}
+			msg.buf = msg.buf[:n]
+			msg.ep.(*endpoint).ufrag = ufrag
 
 			select {
 			case p.bind.recvCh <- msg:
@@ -271,9 +280,9 @@ func (p *IcePeer) Connect(
 func (p *IcePeer) Close() error {
 	p.c.Close()
 	p.agent.Close()
-	p.bind.peerMu.Lock()
+	p.bind.mu.Lock()
 	delete(p.bind.peers, p.ufrag)
-	p.bind.peerMu.Unlock()
+	p.bind.mu.Unlock()
 	return nil
 }
 

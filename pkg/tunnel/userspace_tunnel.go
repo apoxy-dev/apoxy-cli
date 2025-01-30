@@ -47,10 +47,10 @@ func CreateUserspaceTunnel(
 
 	wgNet, err := wireguard.Network(&wireguard.DeviceConfig{
 		PrivateKey: ptr.To(privateKey.String()),
-		ListenPort: ptr.To(listenPort),
-		Verbose:    ptr.To(true),
-		Address:    []string{addr.String()},
-		Bind:       bind,
+		//ListenPort: ptr.To(listenPort),
+		Verbose: ptr.To(true),
+		Address: []string{addr.String()},
+		Bind:    bind,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("could not create WireGuard network: %w", err)
