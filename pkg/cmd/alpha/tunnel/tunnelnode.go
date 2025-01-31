@@ -5,34 +5,43 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"sync"
 	"time"
-
-	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/util/retry"
-	"k8s.io/utils/ptr"
-	"k8s.io/utils/set"
 
 	"github.com/pion/ice/v4"
 	icelogging "github.com/pion/logging"
 	"github.com/pion/stun/v3"
 	"github.com/spf13/cobra"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/util/retry"
+	"k8s.io/utils/ptr"
+	"k8s.io/utils/set"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	clog "sigs.k8s.io/controller-runtime/pkg/log"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
-	"github.com/apoxy-dev/apoxy-cli/client/informers"
 	"github.com/apoxy-dev/apoxy-cli/client/versioned"
 	"github.com/apoxy-dev/apoxy-cli/config"
 	"github.com/apoxy-dev/apoxy-cli/pkg/log"
 	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel"
 	"github.com/apoxy-dev/apoxy-cli/pkg/wireguard"
 
-	corev1alphaclient "github.com/apoxy-dev/apoxy-cli/client/listers/core/v1alpha"
-
 	configv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/config/v1alpha1"
 	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
+)
+
+const (
+	matchingTunnelNodesIndex = "remoteTunnelNodeIndex"
 )
 
 var (
@@ -60,7 +69,7 @@ var tunnelRunCmd = &cobra.Command{
 			return fmt.Errorf("unable to load config: %w", err)
 		}
 
-		client, err := config.DefaultAPIClient()
+		a3y, err := config.DefaultAPIClient()
 		if err != nil {
 			return fmt.Errorf("unable to create API client: %w", err)
 		}
@@ -78,17 +87,20 @@ var tunnelRunCmd = &cobra.Command{
 			defer func() {
 				slog.Debug("Deleting TunnelNode", slog.String("name", tn.Name))
 
-				if err := client.CoreV1alpha().TunnelNodes().Delete(ctx, tn.Name, metav1.DeleteOptions{}); err != nil {
+				if err := a3y.CoreV1alpha().TunnelNodes().Delete(ctx, tn.Name, metav1.DeleteOptions{}); err != nil {
 					log.Errorf("Failed to delete TunnelNode: %v", err)
 				}
 			}()
 		} else if tunnelNodeName != "" {
-			tn, err = client.CoreV1alpha().TunnelNodes().Get(ctx, tunnelNodeName, metav1.GetOptions{})
+			tn, err = a3y.CoreV1alpha().TunnelNodes().Get(ctx, tunnelNodeName, metav1.GetOptions{})
 			if err != nil {
 				return fmt.Errorf("unable to get TunnelNode: %w", err)
 			}
 		} else {
 			return fmt.Errorf("either --file or stdin must be specified")
+		}
+		if err != nil {
+			return fmt.Errorf("unable to get TunnelNode: %w", err)
 		}
 
 		iceConf := &ice.AgentConfig{
@@ -127,112 +139,105 @@ var tunnelRunCmd = &cobra.Command{
 			},
 		}
 
-		tun := &tunnelNode{
-			TunnelNode: tn,
-			cfg:        cfg,
-			bind:       wireguard.NewIceBind(ctx, iceConf),
-			a3y:        client,
+		log.Infof("Creating TunnelNode %s", tn.Name)
+
+		tun := &tunnelNodeReconciler{
+			scheme:          scheme,
+			localTunnelNode: *tn,
+			cfg:             cfg,
+			a3y:             a3y,
+			bind:            wireguard.NewIceBind(ctx, iceConf),
 		}
 		return tun.run(ctx)
 	},
 }
 
-type tunnelNode struct {
-	*corev1alpha.TunnelNode
-	a3y  versioned.Interface
-	bind *wireguard.IceBind
-	cfg  *configv1alpha1.Config
+type tunnelNodeReconciler struct {
+	client.Client
+
+	mu              sync.RWMutex
+	localTunnelNode corev1alpha.TunnelNode
+
+	scheme *runtime.Scheme
+	cfg    *configv1alpha1.Config
+	a3y    versioned.Interface
+	bind   *wireguard.IceBind
+
+	tun tunnel.Tunnel
 }
 
-func (t *tunnelNode) run(ctx context.Context) error {
+func (t *tunnelNodeReconciler) run(ctx context.Context) error {
 	var err error
 
-	var tun tunnel.Tunnel
-	tunAddr := tunnel.NewApoxy4To6Prefix(t.cfg.CurrentProject, t.TunnelNode.Name)
+	tunAddr := tunnel.NewApoxy4To6Prefix(t.cfg.CurrentProject, t.localTunnelNode.Name)
 	if t.cfg.Tunnel != nil && t.cfg.Tunnel.Mode == configv1alpha1.TunnelModeUserspace {
 		socksPort := uint16(1080)
 		if t.cfg.Tunnel.SocksPort != nil {
 			socksPort = uint16(*t.cfg.Tunnel.SocksPort)
 		}
 
-		tun, err = tunnel.CreateUserspaceTunnel(ctx, tunAddr.Addr(), t.bind, socksPort, t.cfg.Verbose)
+		t.tun, err = tunnel.CreateUserspaceTunnel(ctx, tunAddr.Addr(), t.bind, socksPort, t.cfg.Verbose)
 	} else {
-		tun, err = tunnel.CreateKernelTunnel(ctx)
+		t.tun, err = tunnel.CreateKernelTunnel(ctx)
 	}
 	if err != nil {
 		return fmt.Errorf("unable to create tunnel: %w", err)
 	}
-	defer tun.Close()
+	defer t.tun.Close()
 
 	slog.Debug("Running TunnelNode controller",
-		slog.String("name", t.TunnelNode.Name), slog.String("publicKey", tun.PublicKey()),
-		slog.String("internalAddress", tun.InternalAddress().String()))
+		slog.String("name", t.localTunnelNode.Name), slog.String("publicKey", t.tun.PublicKey()),
+		slog.String("internalAddress", t.tun.InternalAddress().String()))
 
 	client, err := config.DefaultAPIClient()
 	if err != nil {
 		return fmt.Errorf("unable to create API client: %w", err)
 	}
 
-	factory := informers.NewSharedInformerFactoryWithOptions(
-		client,
-		resyncPeriod,
-	)
-
-	tunnelNodeInformer := factory.Core().V1alpha().TunnelNodes().Informer()
-	tunnelNodeLister := factory.Core().V1alpha().TunnelNodes().Lister()
-
-	doneCh := make(chan struct{})
-	tunnelNodeInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj any) {
-			updatedTunnelNode, ok := obj.(*corev1alpha.TunnelNode)
-			if !ok {
-				return
-			}
-
-			t.handleTunnelNodeUpdate(tunnelNodeLister, t.TunnelNode.Name, tun, updatedTunnelNode)
-		},
-		UpdateFunc: func(_, newObj any) {
-			updatedTunnelNode, ok := newObj.(*corev1alpha.TunnelNode)
-			if !ok {
-				return
-			}
-
-			t.handleTunnelNodeUpdate(tunnelNodeLister, t.TunnelNode.Name, tun, updatedTunnelNode)
-		},
-		DeleteFunc: func(obj any) {
-			deletedTunnelNode, ok := obj.(*corev1alpha.TunnelNode)
-			if !ok {
-				return
-			}
-
-			if deletedTunnelNode.Name != t.TunnelNode.Name {
-				// Nothing for us to do.
-				return
-			}
-
-			doneCh <- struct{}{}
-		},
-	})
-
-	t.TunnelNode.Status.Phase = corev1alpha.NodePhaseReady
-	t.TunnelNode.Status.PublicKey = tun.PublicKey()
-	t.TunnelNode.Status.ExternalAddress = tun.ExternalAddress().String()
-	t.TunnelNode.Status.InternalAddress = tun.InternalAddress().String()
+	t.localTunnelNode.Status.Phase = corev1alpha.NodePhaseReady
+	t.localTunnelNode.Status.PublicKey = t.tun.PublicKey()
+	t.localTunnelNode.Status.ExternalAddress = t.tun.ExternalAddress().String()
+	t.localTunnelNode.Status.InternalAddress = t.tun.InternalAddress().String()
 
 	// Create/update the TunnelNode object in the API.
-	slog.Debug("Creating/updating TunnelNode", slog.String("name", t.TunnelNode.Name))
+	slog.Debug("Creating/updating TunnelNode", slog.String("name", t.localTunnelNode.Name))
 
-	if err := upsertTunnelNode(ctx, client, t.TunnelNode); err != nil {
+	if err := t.upsertTunnelNode(ctx, client); err != nil {
 		return err
 	}
 
-	factory.Start(ctx.Done())
-	synced := factory.WaitForCacheSync(ctx.Done())
-	for v, s := range synced {
-		if !s {
-			return fmt.Errorf("informer %s failed to sync", v)
-		}
+	mgr, err := ctrl.NewManager(client.RESTConfig, ctrl.Options{
+		Scheme:         scheme,
+		LeaderElection: false,
+		Metrics: metricsserver.Options{
+			BindAddress: "0",
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("unable to set up overall controller manager: %w", err)
 	}
+
+	t.Client = mgr.GetClient()
+	if err := t.setupWithManager(ctx, mgr); err != nil {
+		return fmt.Errorf("unable to set up controller: %w", err)
+	}
+	tunnelOfferCtrl := &tunnelPeerOfferReconciler{
+		Client:              mgr.GetClient(),
+		localTunnelNodeName: t.localTunnelNode.Name,
+		bind:                t.bind,
+		peers:               make(map[string]*wireguard.IcePeer),
+	}
+	if err := tunnelOfferCtrl.setupWithManager(mgr); err != nil {
+		return fmt.Errorf("unable to set up controller: %w", err)
+	}
+
+	doneCh := make(chan struct{})
+	go func() {
+		defer close(doneCh)
+		if err := mgr.Start(ctx); err != nil {
+			slog.Error("Manager exited non-zero", slog.Any("error", err))
+		}
+	}()
 
 	// Set the initial status of the TunnelNode object.
 	// Wait for the TunnelNode object to be deleted, or for the command to be cancelled.
@@ -244,142 +249,178 @@ func (t *tunnelNode) run(ctx context.Context) error {
 	return nil
 }
 
-// handleTunnelNodeUpdate is called every time a TunnelNode object is added or updated.
-func (t *tunnelNode) handleTunnelNodeUpdate(
-	tunnelNodeLister corev1alphaclient.TunnelNodeLister,
-	tunnelNodeName string,
-	tun tunnel.Tunnel,
-	updatedTunnelNode *corev1alpha.TunnelNode,
-) {
-	var tunnelNode *corev1alpha.TunnelNode
-	if updatedTunnelNode.Name == tunnelNodeName {
-		// The updated object is the one we are managing.
-		tunnelNode = updatedTunnelNode
-	} else {
-		// A different object was updated. We need to check if it references the object we are managing.
-		var err error
-		tunnelNode, err = tunnelNodeLister.Get(tunnelNodeName)
-		if err != nil {
-			if !errors.IsNotFound(err) {
-				slog.Warn("Failed to get TunnelNode",
-					slog.String("name", tunnelNodeName), slog.Any("error", err))
-			}
-			return
+func (t *tunnelNodeReconciler) makeTunnelNodePredicate() predicate.Predicate {
+	return predicate.NewPredicateFuncs(func(obj client.Object) bool {
+		tunnelNode, ok := obj.(*corev1alpha.TunnelNode)
+		if !ok {
+			return false
 		}
-
-		// Do we have a reference to the object?
-		var foundRef bool
-		for _, peer := range tunnelNode.Spec.Peers {
-			if peer.TunnelNodeRef != nil {
-				if peer.TunnelNodeRef.Name == updatedTunnelNode.Name {
-					foundRef = true
-					break
-				}
-			} else if peer.LabelSelector != nil {
+		t.mu.RLock()
+		defer t.mu.RUnlock()
+		if tunnelNode.Name != t.localTunnelNode.Name {
+			return true
+		}
+		for _, peer := range t.localTunnelNode.Spec.Peers {
+			if peer.TunnelNodeRef != nil && peer.TunnelNodeRef.Name == tunnelNode.Name {
+				return true
+			}
+			if peer.LabelSelector != nil {
 				selector, err := metav1.LabelSelectorAsSelector(peer.LabelSelector)
 				if err != nil {
 					slog.Warn("Invalid label selector", slog.Any("error", err))
 					continue
 				}
-
-				peerTunnelNodesList, err := tunnelNodeLister.List(selector)
-				if err != nil {
-					slog.Warn("Failed to list TunnelNodes", slog.Any("error", err))
-					continue
-				}
-
-				for _, peerTunnelNode := range peerTunnelNodesList {
-					if peerTunnelNode.Name == updatedTunnelNode.Name {
-						foundRef = true
-						break
-					}
+				if selector.Matches(labels.Set(tunnelNode.Labels)) {
+					return true
 				}
 			}
 		}
-
-		if !foundRef {
-			// The updated object is not referenced by the object we are managing.
-			return
-		}
-	}
-
-	t.syncTunnelNode(tunnelNodeLister, tunnelNode, tun)
+		return false
+	})
 }
 
-// syncTunnelNode reconciles the state of our TunnelNode object with the state of the tunnel.
-func (t *tunnelNode) syncTunnelNode(
-	tunnelNodeLister corev1alphaclient.TunnelNodeLister,
-	tunnelNode *corev1alpha.TunnelNode,
-	tun tunnel.Tunnel,
-) {
-	peerPublicKeys := set.New[string]()
-	peerTunnelNodes := map[string]*corev1alpha.TunnelNode{}
-
-	for _, peer := range tunnelNode.Spec.Peers {
-		if peer.TunnelNodeRef != nil {
-			peerTunnelNode, err := tunnelNodeLister.Get(peer.TunnelNodeRef.Name)
-			if err != nil {
-				if !errors.IsNotFound(err) {
-					slog.Warn("Failed to get peer", slog.String("name", peer.TunnelNodeRef.Name), slog.Any("error", err))
-				}
-				continue
+func (t *tunnelNodeReconciler) setupWithManager(ctx context.Context, mgr ctrl.Manager) error {
+	if err := mgr.GetFieldIndexer().IndexField(ctx, &corev1alpha.TunnelNode{}, matchingTunnelNodesIndex, func(obj client.Object) []string {
+		remoteNode, ok := obj.(*corev1alpha.TunnelNode)
+		if !ok {
+			return nil
+		}
+		t.mu.RLock()
+		defer t.mu.RUnlock()
+		for _, peer := range t.localTunnelNode.Spec.Peers {
+			if peer.TunnelNodeRef != nil && peer.TunnelNodeRef.Name == remoteNode.Name {
+				return []string{"true"}
 			}
+			if peer.LabelSelector != nil {
+				selector, err := metav1.LabelSelectorAsSelector(peer.LabelSelector)
+				if err != nil {
+					slog.Warn("Invalid label selector", slog.Any("error", err))
+					continue
+				}
+				if selector.Matches(labels.Set(remoteNode.Labels)) {
+					return []string{"true"}
+				}
+			}
+		}
+		return nil
+	}); err != nil {
+		return fmt.Errorf("unable to create index for remoteTunnelNodeIndex: %w", err)
+	}
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&corev1alpha.TunnelNode{},
+			builder.WithPredicates(
+				&predicate.ResourceVersionChangedPredicate{},
+				t.makeTunnelNodePredicate(),
+			),
+		).
+		WithOptions(controller.Options{
+			MaxConcurrentReconciles: 1,
+			RecoverPanic:            ptr.To(true),
+		}).
+		Complete(t)
+}
 
-			if peerTunnelNode.Status.PublicKey != "" && peerTunnelNode.Status.Phase == corev1alpha.NodePhaseReady {
-				peerPublicKeys.Insert(peerTunnelNode.Status.PublicKey)
-				peerTunnelNodes[peerTunnelNode.Status.PublicKey] = peerTunnelNode
+func (t *tunnelNodeReconciler) matchWithRemotePeer(
+	ctx context.Context,
+	remote *corev1alpha.TunnelNode,
+) (bool, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	for _, peer := range remote.Spec.Peers {
+		if peer.TunnelNodeRef != nil {
+			if peer.TunnelNodeRef.Name == t.localTunnelNode.Name {
+				return true, nil
 			}
 		} else if peer.LabelSelector != nil {
+			// Re-fetch local TunnelNode object from the index.
+			var localTunnelNode corev1alpha.TunnelNode
+			if err := t.Get(ctx, client.ObjectKey{Name: t.localTunnelNode.Name}, &localTunnelNode); err != nil {
+				return false, err
+			}
 			selector, err := metav1.LabelSelectorAsSelector(peer.LabelSelector)
 			if err != nil {
 				slog.Warn("Invalid label selector", slog.Any("error", err))
 				continue
 			}
 
-			peerTunnelNodeList, err := tunnelNodeLister.List(selector)
-			if err != nil {
-				slog.Warn("Failed to list TunnelNodes", slog.Any("error", err))
-				continue
-			}
-
-			for _, peerTunnelNode := range peerTunnelNodeList {
-				if peerTunnelNode.Status.PublicKey != "" && peerTunnelNode.Status.Phase == corev1alpha.NodePhaseReady {
-					peerPublicKeys.Insert(peerTunnelNode.Status.PublicKey)
-					peerTunnelNodes[peerTunnelNode.Status.PublicKey] = peerTunnelNode
-				}
+			if selector.Matches(labels.Set(localTunnelNode.Labels)) {
+				return true, nil
 			}
 		}
 	}
+	return false, nil
+}
 
-	knownPeers, err := tun.Peers()
-	if err != nil {
-		slog.Error("Failed to get known peers", slog.String("name", tunnelNode.Name), slog.Any("error", err))
-		return
+func (t *tunnelNodeReconciler) getMatchingRemoteTunnelNodes(
+	ctx context.Context,
+	localTunnelNode *corev1alpha.TunnelNode,
+) (map[string]*corev1alpha.TunnelNode, error) {
+	matchingNodes := &corev1alpha.TunnelNodeList{}
+	if err := t.List(ctx, matchingNodes, client.MatchingFields{matchingTunnelNodesIndex: "true"}); err != nil {
+		return nil, fmt.Errorf("unable to list matching TunnelNodes: %w", err)
 	}
 
-	log.Debugf("Known peers: %v", knownPeers)
+	matchingTunnelNodes := make(map[string]*corev1alpha.TunnelNode)
+	for i := range matchingNodes.Items {
+		node := &matchingNodes.Items[i]
+		matchingTunnelNodes[node.Status.PublicKey] = node
+	}
+
+	return matchingTunnelNodes, nil
+}
+
+func (t *tunnelNodeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	log := clog.FromContext(ctx)
+	var tunnelNode corev1alpha.TunnelNode
+	if err := t.Get(ctx, req.NamespacedName, &tunnelNode); err != nil {
+		log.Error(err, "Failed to get TunnelNode")
+		return ctrl.Result{}, err
+	}
+
+	t.mu.RLock()
+	isLocal := tunnelNode.Name == t.localTunnelNode.Name
+	log.Info("Reconciling", "isLocal", isLocal, "localTunnelNode", t.localTunnelNode.Name, "remoteTunnelNode", tunnelNode.Name)
+	if isLocal { // Local tunnel peer - do nothing.
+		t.mu.RUnlock()
+		t.mu.Lock()
+		t.localTunnelNode = *tunnelNode.DeepCopy()
+		t.mu.Unlock()
+		return ctrl.Result{}, nil
+	}
+	defer t.mu.RUnlock()
+
+	remoteTunnelNodes, err := t.getMatchingRemoteTunnelNodes(ctx, &tunnelNode)
+	remotePeerPublicKeys := set.New[string]()
+	for _, remoteTunnelNode := range remoteTunnelNodes {
+		if remoteTunnelNode.Status.Phase == corev1alpha.NodePhaseReady &&
+			remoteTunnelNode.Status.PublicKey != "" {
+			remotePeerPublicKeys.Insert(remoteTunnelNode.Status.PublicKey)
+		}
+	}
+	slog.Debug("Remote peers", slog.Any("publicKeys", remotePeerPublicKeys.SortedList()))
+
+	knownPeers, err := t.tun.Peers()
+	if err != nil {
+		slog.Error("Failed to get known peers", slog.Any("error", err))
+		return ctrl.Result{}, err
+	}
 
 	knownPeerPublicKeys := set.New[string]()
 	for _, peerConf := range knownPeers {
 		knownPeerPublicKeys.Insert(*peerConf.PublicKey)
 	}
+	slog.Debug("Known peers", slog.Any("publicKeys", knownPeerPublicKeys.SortedList()))
 
 	// Check for peers with no longer valid configurations.
 	for _, peerConf := range knownPeers {
-		peerTunnelNode, ok := peerTunnelNodes[*peerConf.PublicKey]
+		peerTunnelNode, ok := remoteTunnelNodes[*peerConf.PublicKey]
 		if !ok {
 			continue
 		}
 
 		// Check if the peer configuration has changed.
 		var peerConfChanged bool
-		if *peerConf.PublicKey != peerTunnelNode.Status.PublicKey {
-			peerConfChanged = true
-		}
-		//if (peerConf.Endpoint == nil && peerTunnelNode.Status.ExternalAddress != "") ||
-		//	(peerConf.Endpoint != nil && *peerConf.Endpoint != peerTunnelNode.Status.ExternalAddress) {
-		//	peerConfChanged = true
-		//}
+
 		if (len(peerConf.AllowedIPs) == 0 && peerTunnelNode.Status.InternalAddress != "") ||
 			(len(peerConf.AllowedIPs) > 0 && peerConf.AllowedIPs[0] != peerTunnelNode.Status.InternalAddress) {
 			peerConfChanged = true
@@ -388,207 +429,88 @@ func (t *tunnelNode) syncTunnelNode(
 		if peerConfChanged {
 			slog.Debug("Peer configuration changed", slog.String("name", peerTunnelNode.Name))
 
-			if err := tun.RemovePeer(*peerConf.PublicKey); err != nil {
+			if err := t.tun.RemovePeer(*peerConf.PublicKey); err != nil {
 				slog.Error("Failed to remove peer", slog.String("name", peerTunnelNode.Name), slog.Any("error", err))
 			}
 
 			// Will be re-added below with the new configuration.
-			peerPublicKeys.Delete(*peerConf.PublicKey)
+			knownPeerPublicKeys.Delete(*peerConf.PublicKey)
 		}
 	}
 
 	// New peers to add.
-	for peerPublicKey := range peerPublicKeys.Difference(knownPeerPublicKeys) {
-		peerTunnelNode := peerTunnelNodes[peerPublicKey]
+	for peerPublicKey := range remotePeerPublicKeys.Difference(knownPeerPublicKeys) {
+		peerTunnelNode := remoteTunnelNodes[peerPublicKey]
 
 		slog.Debug("Adding peer",
 			slog.String("name", peerTunnelNode.Name),
 			slog.String("publicKey", peerPublicKey))
 
-		remoteUfrag, err := t.offerExchange(context.Background(), tunnelNode, peerTunnelNode)
-		if err != nil {
-			slog.Error("Failed to exchange ICE offer", slog.String("name", peerTunnelNode.Name), slog.Any("error", err))
-			continue
+		// Create TunnelPeerOffer if local peer is controlling node.
+		if peerTunnelNode.Name < t.localTunnelNode.Name {
+			peerOffer := &corev1alpha.TunnelPeerOffer{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: fmt.Sprintf("%s-%s", t.localTunnelNode.Name, peerTunnelNode.Name),
+				},
+				Spec: corev1alpha.TunnelPeerOfferSpec{
+					RemoteTunnelNodeName: peerTunnelNode.Name,
+				},
+			}
+			if err := controllerutil.SetControllerReference(&t.localTunnelNode, peerOffer, t.scheme); err != nil {
+				slog.Error("Failed to set controller reference", slog.Any("error", err))
+				return ctrl.Result{}, err
+			}
+			if err := t.Create(ctx, peerOffer); err != nil && !apierrors.IsAlreadyExists(err) {
+				slog.Error("Failed to create TunnelPeerOffer", slog.String("name", peerOffer.Name), slog.Any("error", err))
+				return ctrl.Result{}, err
+			}
 		}
-
-		log.Debugf("Remote ufrag: %s", remoteUfrag)
 
 		peerConf := &wireguard.PeerConfig{
 			PublicKey:  ptr.To(peerTunnelNode.Status.PublicKey),
 			AllowedIPs: []string{peerTunnelNode.Status.InternalAddress},
-			Endpoint:   ptr.To(remoteUfrag),
+			Endpoint:   ptr.To(peerTunnelNode.Name),
 		}
 
-		if err := tun.AddPeer(peerConf); err != nil {
+		if err := t.tun.AddPeer(peerConf); err != nil {
 			slog.Error("Failed to add peer", slog.String("name", peerTunnelNode.Name), slog.Any("error", err))
+			return ctrl.Result{}, err
 		}
 	}
 
 	// Peers to remove.
-	//for peerPublicKey := range knownPeerPublicKeys.Difference(peerPublicKeys) {
-	//	slog.Debug("Removing peer", slog.String("publicKey", peerPublicKey))
+	for peerPublicKey := range knownPeerPublicKeys.Difference(remotePeerPublicKeys) {
+		slog.Debug("Removing peer", slog.String("publicKey", peerPublicKey))
 
-	//	if err := tun.RemovePeer(peerPublicKey); err != nil {
-	//		slog.Error("Failed to remove peer", slog.String("publicKey", peerPublicKey), slog.Any("error", err))
-	//	}
-
-	//	// TODO(dsky): Remove peer from bind.
-	//}
-}
-
-func (t *tunnelNode) offerExchange(ctx context.Context, local, remote *corev1alpha.TunnelNode) (string, error) {
-	// Whichever TunnelNode has larger uuid sum is the controlling node
-	isOfferCreator := local.UID > remote.UID
-	log.Debugf("Local peer UUID: %s, Remote peer UUID: %s, Offer creator: %t", local.UID, remote.UID, isOfferCreator)
-	offerName := fmt.Sprintf("%s-%s", local.Name, remote.Name)
-	if !isOfferCreator {
-		offerName = fmt.Sprintf("%s-%s", remote.Name, local.Name)
-	}
-
-	peer, err := t.bind.NewPeer(ctx, isOfferCreator)
-	if err != nil {
-		return "", fmt.Errorf("failed to create ICE peer: %w", err)
-	}
-	if err := peer.Init(ctx); err != nil {
-		return "", fmt.Errorf("failed to initialize ICE peer: %w", err)
-	}
-	time.Sleep(2 * time.Second) // Wait for ICE candidates
-	ufrag, pwd := peer.LocalUserCredentials()
-	candidates, err := peer.LocalCandidates()
-	if err != nil {
-		return "", fmt.Errorf("failed to get local candidates: %w", err)
-	}
-
-	if isOfferCreator { // If we are controlling node, create offer.
-		log.Debugf("Exchanging ICE offer with %s as offer creator (offerName: %s)", remote.Name, offerName)
-		if _, err := t.a3y.CoreV1alpha().TunnelPeerOffers().Create(ctx, &corev1alpha.TunnelPeerOffer{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: offerName,
-			},
-			Spec: corev1alpha.TunnelPeerOfferSpec{
-				ICEOffer: corev1alpha.ICEOffer{
-					Ufrag:      ufrag,
-					Password:   pwd,
-					Candidates: candidates,
-				},
-			},
-		}, metav1.CreateOptions{}); err != nil {
-			if errors.IsAlreadyExists(err) {
-				// Update existing offer
-				existingOffer, err := t.a3y.CoreV1alpha().TunnelPeerOffers().Get(ctx, offerName, metav1.GetOptions{})
-				if err != nil {
-					return "", fmt.Errorf("failed to get existing TunnelPeerOffer: %w", err)
-				}
-				existingOffer.Spec.ICEOffer = corev1alpha.ICEOffer{
-					Ufrag:      ufrag,
-					Password:   pwd,
-					Candidates: candidates,
-				}
-				existingOffer.Status.PeerOffer = nil
-				if _, err = t.a3y.CoreV1alpha().TunnelPeerOffers().Update(ctx, existingOffer, metav1.UpdateOptions{}); err != nil {
-					return "", fmt.Errorf("failed to update TunnelPeerOffer: %w", err)
-				}
-			} else {
-				return "", fmt.Errorf("failed to create TunnelPeerOffer: %w", err)
-			}
-		}
-	} else {
-		log.Debugf("Exchanging ICE offer with %s as offer receiver", local.Name)
-	}
-
-	w, err := t.a3y.CoreV1alpha().TunnelPeerOffers().Watch(ctx, metav1.ListOptions{
-		FieldSelector: fmt.Sprintf("metadata.name=%s", offerName),
-	})
-	if err != nil {
-		return "", fmt.Errorf("failed to watch TunnelPeerOffer: %w", err)
-	}
-	defer w.Stop()
-
-	// Wait for the offer to be created.
-	for {
-		select {
-		case <-ctx.Done():
-			return "", fmt.Errorf("timed out waiting on offer: %w", ctx.Err())
-		case e, ok := <-w.ResultChan():
-			if !ok {
-				return "", fmt.Errorf("watch channel closed")
-			}
-
-			log.Debugf("Received event %s", e.Type)
-
-			var remoteOffer *corev1alpha.ICEOffer
-			if isOfferCreator { // If we are controlling node, get peer offer from status
-				remote := e.Object.(*corev1alpha.TunnelPeerOffer)
-				if remote.Status.PeerOffer == nil {
-					log.Debugf("Offer not yet created, waiting...")
-					continue // Offer not yet created
-				}
-				remoteOffer = remote.Status.PeerOffer
-			} else {
-				remoteOffer = &e.Object.(*corev1alpha.TunnelPeerOffer).Spec.ICEOffer
-
-				// If we are not controlling node, update the offer status with the local peer's offer.
-				log.Debugf("Updating offer status with local peer's offer")
-				if err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-					tn, err := t.a3y.CoreV1alpha().TunnelPeerOffers().Get(ctx, offerName, metav1.GetOptions{})
-					if err != nil {
-						return fmt.Errorf("failed to get TunnelPeerOffer: %w", err)
-					}
-					tn.Status.PeerOffer = &corev1alpha.ICEOffer{
-						Ufrag:      ufrag,
-						Password:   pwd,
-						Candidates: candidates,
-					}
-					if _, err = t.a3y.CoreV1alpha().TunnelPeerOffers().UpdateStatus(ctx, tn, metav1.UpdateOptions{}); err != nil {
-						return fmt.Errorf("failed to update TunnelPeerOffer status: %w", err)
-					}
-					return nil
-				}); err != nil {
-					return "", fmt.Errorf("failed to update TunnelPeerOffer status: %w", err)
-				}
-			}
-
-			log.Debugf("Received remote ICE offer: %v", remoteOffer)
-
-			if err := peer.Connect(ctx, remoteOffer.Ufrag, remoteOffer.Password, remoteOffer.Candidates); err != nil {
-				return "", fmt.Errorf("failed to dial peer: %w", err)
-			}
-
-			return remoteOffer.Ufrag, nil
+		if err := t.tun.RemovePeer(peerPublicKey); err != nil {
+			slog.Error("Failed to remove peer", slog.String("publicKey", peerPublicKey), slog.Any("error", err))
+			return ctrl.Result{}, err
 		}
 	}
+
+	return ctrl.Result{}, nil
 }
 
 // upsertTunnelNode creates or updates a TunnelNode object in the API.
-func upsertTunnelNode(ctx context.Context, client versioned.Interface, tunnelNode *corev1alpha.TunnelNode) error {
+func (t *tunnelNodeReconciler) upsertTunnelNode(ctx context.Context, client versioned.Interface) error {
+	var updated *corev1alpha.TunnelNode
 	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		existingTunnelNode, err := client.CoreV1alpha().TunnelNodes().Get(ctx, tunnelNode.Name, metav1.GetOptions{})
-		if err == nil {
-			// Update the existing TunnelNode.
-			tunnelNode.ResourceVersion = existingTunnelNode.ResourceVersion
-
-			_, err = client.CoreV1alpha().TunnelNodes().Update(ctx, tunnelNode, metav1.UpdateOptions{})
+		existingTunnelNode, err := client.CoreV1alpha().TunnelNodes().Get(ctx, t.localTunnelNode.Name, metav1.GetOptions{})
+		if err != nil && !apierrors.IsNotFound(err) {
+			return fmt.Errorf("failed to get existing TunnelNode: %w", err)
+		} else if err != nil {
+			if updated, err = client.CoreV1alpha().TunnelNodes().Create(ctx, &t.localTunnelNode, metav1.CreateOptions{}); err != nil {
+				return fmt.Errorf("failed to create TunnelNode: %w", err)
+			}
+		} else {
+			t.localTunnelNode.ResourceVersion = existingTunnelNode.ResourceVersion
+			updated, err = client.CoreV1alpha().TunnelNodes().Update(ctx, &t.localTunnelNode, metav1.UpdateOptions{})
 			if err != nil {
 				return fmt.Errorf("failed to update existing TunnelNode: %w", err)
 			}
-		} else {
-			// Create a new TunnelNode.
-			if _, err := client.CoreV1alpha().TunnelNodes().Create(ctx, tunnelNode, metav1.CreateOptions{}); err != nil {
-				return fmt.Errorf("failed to create TunnelNode: %w", err)
-			}
-
-			existingTunnelNode, err := client.CoreV1alpha().TunnelNodes().Get(ctx, tunnelNode.Name, metav1.GetOptions{})
-			if err != nil {
-				return fmt.Errorf("failed to get newly created TunnelNode: %w", err)
-			}
-
-			tunnelNode.ResourceVersion = existingTunnelNode.ResourceVersion
 		}
 
-		_, err = client.CoreV1alpha().TunnelNodes().UpdateStatus(ctx, tunnelNode, metav1.UpdateOptions{})
-		if err != nil {
-			return fmt.Errorf("failed to update TunnelNode status: %w", err)
-		}
+		t.localTunnelNode = *updated.DeepCopy()
 
 		return nil
 	})

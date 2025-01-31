@@ -11,6 +11,8 @@ import (
 	"golang.zx2c4.com/wireguard/conn"
 
 	"github.com/apoxy-dev/apoxy-cli/pkg/log"
+
+	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
 )
 
 type IceBind struct {
@@ -42,7 +44,7 @@ func NewIceBind(ctx context.Context, conf *ice.AgentConfig) *IceBind {
 		ctx:       cctx,
 		ctxCancel: ctxCancel,
 
-		recvCh: make(chan *message),
+		recvCh: make(chan *message, 1000),
 
 		peers: make(map[string]*IcePeer),
 
@@ -83,7 +85,6 @@ func (b *IceBind) Open(port uint16) (fns []conn.ReceiveFunc, actualPort uint16, 
 			log.Errorf("bind.Open() closed")
 			return 0, net.ErrClosed
 		case msg := <-b.recvCh:
-			log.Debugf("Received message from %v", msg.ep)
 			copy(pkts[0], msg.buf)
 			sizes[0] = len(msg.buf)
 			eps[0] = msg.ep
@@ -100,7 +101,7 @@ func (b *IceBind) Open(port uint16) (fns []conn.ReceiveFunc, actualPort uint16, 
 
 func (b *IceBind) ParseEndpoint(s string) (conn.Endpoint, error) {
 	return &endpoint{
-		ufrag: s,
+		dst: s,
 	}, nil
 }
 
@@ -110,10 +111,10 @@ func (b *IceBind) Send(bufs [][]byte, ep conn.Endpoint) error {
 		return fmt.Errorf("invalid endpoint type: %T", ep)
 	}
 	b.mu.RLock()
-	peer, ok := b.peers[iceEp.ufrag]
+	peer, ok := b.peers[iceEp.dst]
 	if !ok {
 		b.mu.RUnlock()
-		return fmt.Errorf("endpoint with ufrag %q not connected", iceEp.ufrag)
+		return fmt.Errorf("endpoint with dst %q not connected", iceEp.dst)
 	}
 	b.mu.RUnlock()
 	for _, buf := range bufs {
@@ -133,15 +134,19 @@ func (b *IceBind) SetMark(mark uint32) error {
 func (b *IceBind) BatchSize() int { return 1 }
 
 type IcePeer struct {
-	ufrag, password string
-	isControlling   bool
+	OnCandidate func(candidate string)
+
+	ufrag, password        string
+	isControlling          bool
+	remoteUfrag, remotePwd string
+	dst                    string
 
 	bind  *IceBind
 	agent *ice.Agent
 	c     *ice.Conn
 
 	candMu     sync.RWMutex
-	candidates []ice.Candidate
+	candidates []string
 }
 
 func (b *IceBind) NewPeer(ctx context.Context, isControlling bool) (*IcePeer, error) {
@@ -164,14 +169,15 @@ func (b *IceBind) NewPeer(ctx context.Context, isControlling bool) (*IcePeer, er
 }
 
 func (p *IcePeer) Init(ctx context.Context) error {
-	p.candMu.Lock()
-	defer p.candMu.Unlock()
 	if err := p.agent.OnCandidate(func(c ice.Candidate) {
 		if c == nil {
 			return
 		}
 		log.Debugf("ICE candidate: %v", c)
-		p.candidates = append(p.candidates, c)
+		p.candMu.Lock()
+		p.candidates = append(p.candidates, c.Marshal())
+		p.candMu.Unlock()
+		p.OnCandidate(c.Marshal())
 	}); err != nil {
 		return fmt.Errorf("could not set ICE candidate handler: %w", err)
 	}
@@ -185,20 +191,29 @@ func (p *IcePeer) LocalUserCredentials() (ufrag, pwd string) {
 	return p.ufrag, p.password
 }
 
-func (p *IcePeer) LocalCandidates() ([]string, error) {
+func (p *IcePeer) LocalCandidates() []string {
 	p.candMu.RLock()
 	defer p.candMu.RUnlock()
-	var ss []string
-	for _, c := range p.candidates {
-		ss = append(ss, c.Marshal())
+	return append([]string(nil), p.candidates...)
+}
+
+func (p *IcePeer) AddRemoteOffer(offer *corev1alpha.ICEOffer) error {
+	p.remoteUfrag, p.remotePwd = offer.Ufrag, offer.Password
+	for _, c := range offer.Candidates {
+		rc, err := ice.UnmarshalCandidate(c)
+		if err != nil {
+			return fmt.Errorf("could not unmarshal remote candidate: %w", err)
+		}
+		if err := p.agent.AddRemoteCandidate(rc); err != nil {
+			return fmt.Errorf("could not add remote candidate: %w", err)
+		}
 	}
-	return ss, nil
+	return nil
 }
 
 func (p *IcePeer) Connect(
 	ctx context.Context,
-	ufrag, pwd string,
-	remoteCandidates []string,
+	dst string,
 ) error {
 	connCh := make(chan struct{})
 	if err := p.agent.OnConnectionStateChange(func(c ice.ConnectionState) {
@@ -209,27 +224,22 @@ func (p *IcePeer) Connect(
 	}); err != nil {
 		return err
 	}
-	for _, c := range remoteCandidates {
-		rc, err := ice.UnmarshalCandidate(c)
-		if err != nil {
-			return fmt.Errorf("could not unmarshal remote candidate: %w", err)
-		}
-		if err := p.agent.AddRemoteCandidate(rc); err != nil {
-			return fmt.Errorf("could not add remote candidate: %w", err)
-		}
-	}
 
-	var err error
+	var (
+		err error
+		c   *ice.Conn
+	)
 	if p.isControlling {
-		log.Debugf("Dialing to ICE remote peer %s", ufrag)
-		p.c, err = p.agent.Dial(ctx, ufrag, pwd)
+		log.Debugf("Dialing to ICE remote peer %s", dst)
+		c, err = p.agent.Dial(ctx, p.remoteUfrag, p.remotePwd)
 	} else {
-		log.Debugf("Accepting connection from ICE remote peer %s", ufrag)
-		p.c, err = p.agent.Accept(ctx, ufrag, pwd)
+		log.Debugf("Accepting connection from ICE remote peer %s", dst)
+		c, err = p.agent.Accept(ctx, p.remoteUfrag, p.remotePwd)
 	}
 	if err != nil {
 		return err
 	}
+	p.c = c
 
 	log.Debugf("ICE connection established for peer %v", p)
 
@@ -241,8 +251,9 @@ func (p *IcePeer) Connect(
 	}
 
 	p.bind.mu.Lock()
-	p.bind.peers[ufrag] = p
+	p.bind.peers[dst] = p
 	p.bind.mu.Unlock()
+	p.dst = dst
 
 	go func() {
 		defer p.c.Close()
@@ -264,7 +275,7 @@ func (p *IcePeer) Connect(
 			log.Debugf("Received %d bytes from ICE connection", n)
 
 			msg.buf = msg.buf[:n]
-			msg.ep.(*endpoint).ufrag = ufrag
+			msg.ep.(*endpoint).dst = dst
 
 			select {
 			case p.bind.recvCh <- msg:
@@ -281,17 +292,17 @@ func (p *IcePeer) Close() error {
 	p.c.Close()
 	p.agent.Close()
 	p.bind.mu.Lock()
-	delete(p.bind.peers, p.ufrag)
+	delete(p.bind.peers, p.dst)
 	p.bind.mu.Unlock()
 	return nil
 }
 
 type endpoint struct {
-	ufrag string
+	dst string
 }
 
 func (e *endpoint) DstToString() string {
-	return e.ufrag
+	return e.dst
 }
 
 func (e *endpoint) SrcToString() string {
@@ -301,7 +312,7 @@ func (e *endpoint) SrcToString() string {
 func (e *endpoint) ClearSrc() {}
 
 func (e *endpoint) DstToBytes() []byte {
-	return []byte(e.ufrag)
+	return []byte(e.dst)
 }
 
 func (e *endpoint) DstIP() netip.Addr {

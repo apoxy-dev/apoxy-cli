@@ -175,8 +175,9 @@ type TunnelPeerOfferSpec struct {
 	// RemoteTunnelNodeName is the name of the remote tunnel node that this offer is for.
 	RemoteTunnelNodeName string `json:"remoteTunnelNodeName,omitempty"`
 
-	// ICEOffer is the ICE connection information.
-	ICEOffer ICEOffer `json:"iceOffer,omitempty"`
+	// Offer is the ICE connection information.
+	// +optional
+	Offer *ICEOffer `json:"iceOffer,omitempty"`
 }
 
 type TunnelPeerOfferStatus struct {

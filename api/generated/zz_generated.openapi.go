@@ -2549,8 +2549,7 @@ func schema_apoxy_cli_api_core_v1alpha_TunnelPeerOfferSpec(ref common.ReferenceC
 					},
 					"iceOffer": {
 						SchemaProps: spec.SchemaProps{
-							Description: "ICEOffer is the ICE connection information.",
-							Default:     map[string]interface{}{},
+							Description: "Offer is the ICE connection information.",
 							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.ICEOffer"),
 						},
 					},
