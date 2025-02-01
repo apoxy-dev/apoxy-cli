@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"slices"
 	"sync"
-	"time"
 
 	"github.com/pion/ice/v4"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -80,7 +79,7 @@ func (r *tunnelPeerOfferReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		return r.connect(ctx, remoteName, req, peer, remoteOffer)
 	}
 
-	log.Info("Createing a new ICE peer", "IsControlling", false)
+	log.Info("Creating a new ICE peer", "IsControlling", false)
 
 	var err error
 	peer, err = r.bind.NewPeer(ctx, isControlling)
@@ -155,8 +154,39 @@ func (r *tunnelPeerOfferReconciler) connect(
 		return ctrl.Result{}, err
 	}
 
-	if err := peer.Connect(ctx, remoteName); err != nil && !errors.Is(err, ice.ErrMultipleStart) {
-		log.Error(err, "Failed to connect to ICE peer")
+	go func() {
+		if err := peer.Connect(ctx, remoteName); err != nil && !errors.Is(err, ice.ErrMultipleStart) {
+			log.Error(err, "Failed to connect to ICE peer")
+
+			if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+				var tunnelPeerOffer corev1alpha.TunnelPeerOffer
+				if err := r.Get(ctx, req.NamespacedName, &tunnelPeerOffer); err != nil {
+					return err
+				}
+				tunnelPeerOffer.Status.Conditions = append(tunnelPeerOffer.Status.Conditions, metav1.Condition{
+					Type:    "Ready",
+					Status:  metav1.ConditionFalse,
+					Reason:  "ConnectFailed",
+					Message: fmt.Sprintf("Peer %s failed to connect: %v", r.localTunnelNodeName, err),
+				})
+				return r.Status().Update(ctx, &tunnelPeerOffer)
+			}); err != nil {
+				log.Error(err, "Failed to update tunnel peer offer status")
+			}
+
+			// Connect failed, remove the peer and start over in a few seconds.
+			log.Info("Connect failed, removing peer and starting over in a few seconds")
+
+			r.mu.Lock()
+			delete(r.peers, req.Name)
+			r.mu.Unlock()
+			peer.Close()
+
+			return
+		} else if errors.Is(err, ice.ErrMultipleStart) {
+			log.Info("ICE connection already established, ignoring")
+			return
+		}
 
 		if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 			var tunnelPeerOffer corev1alpha.TunnelPeerOffer
@@ -165,44 +195,15 @@ func (r *tunnelPeerOfferReconciler) connect(
 			}
 			tunnelPeerOffer.Status.Conditions = append(tunnelPeerOffer.Status.Conditions, metav1.Condition{
 				Type:    "Ready",
-				Status:  metav1.ConditionFalse,
-				Reason:  "ConnectFailed",
-				Message: fmt.Sprintf("Peer %s failed to connect: %v", r.localTunnelNodeName, err),
+				Status:  metav1.ConditionTrue,
+				Reason:  "Connected",
+				Message: fmt.Sprintf("Peer %s successfully connected", r.localTunnelNodeName),
 			})
 			return r.Status().Update(ctx, &tunnelPeerOffer)
 		}); err != nil {
 			log.Error(err, "Failed to update tunnel peer offer status")
 		}
-
-		// Connect failed, remove the peer and start over in a few seconds.
-		log.Info("Connect failed, removing peer and starting over in a few seconds")
-
-		r.mu.Lock()
-		delete(r.peers, req.Name)
-		r.mu.Unlock()
-		peer.Close()
-
-		return ctrl.Result{RequeueAfter: time.Second * 2}, nil
-	} else if errors.Is(err, ice.ErrMultipleStart) {
-		log.Info("ICE connection already established, ignoring")
-		return ctrl.Result{}, nil
-	}
-
-	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		var tunnelPeerOffer corev1alpha.TunnelPeerOffer
-		if err := r.Get(ctx, req.NamespacedName, &tunnelPeerOffer); err != nil {
-			return err
-		}
-		tunnelPeerOffer.Status.Conditions = append(tunnelPeerOffer.Status.Conditions, metav1.Condition{
-			Type:    "Ready",
-			Status:  metav1.ConditionTrue,
-			Reason:  "Connected",
-			Message: fmt.Sprintf("Peer %s successfully connected", r.localTunnelNodeName),
-		})
-		return r.Status().Update(ctx, &tunnelPeerOffer)
-	}); err != nil {
-		log.Error(err, "Failed to update tunnel peer offer status")
-	}
+	}()
 
 	return ctrl.Result{}, nil
 }
