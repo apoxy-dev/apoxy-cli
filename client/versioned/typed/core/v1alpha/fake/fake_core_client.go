@@ -51,6 +51,10 @@ func (c *FakeCoreV1alpha) TunnelNodes() v1alpha.TunnelNodeInterface {
 	return &FakeTunnelNodes{c}
 }
 
+func (c *FakeCoreV1alpha) TunnelPeerOffers() v1alpha.TunnelPeerOfferInterface {
+	return &FakeTunnelPeerOffers{c}
+}
+
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
 func (c *FakeCoreV1alpha) RESTClient() rest.Interface {

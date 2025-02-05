@@ -382,7 +382,3 @@ allowing you to test and develop your proxy infrastructure.`,
 		return nil
 	},
 }
-
-func init() {
-	alphaCmd.AddCommand(runCmd)
-}

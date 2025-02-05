@@ -13,7 +13,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/vishvananda/netlink"
 	"golang.zx2c4.com/wireguard/conn"
 	"golang.zx2c4.com/wireguard/wgctrl"
@@ -38,8 +37,7 @@ type kernelTunnel struct {
 // CreateKernelTunnel creates a new kernel tunnel interface (WireGuard).
 func CreateKernelTunnel(
 	ctx context.Context,
-	projectID uuid.UUID,
-	endpoint string,
+	addr netip.Prefix,
 	stunServers []string,
 ) (*kernelTunnel, error) {
 	privateKey, err := wgtypes.GeneratePrivateKey()
@@ -53,9 +51,6 @@ func CreateKernelTunnel(
 	}
 
 	slog.Debug("Listening for wireguard traffic", slog.Int("port", int(listenPort)))
-
-	// An IPv6 prefix for the wireguard tunnel interface.
-	ip6to4 := NewApoxy4To6Prefix(projectID, endpoint)
 
 	bind := conn.NewDefaultBind()
 	externalAddress, err := wireguard.TryStun(context.Background(), bind, listenPort, stunServers...)
@@ -84,11 +79,13 @@ func CreateKernelTunnel(
 	}
 
 	// Set the address of the kernel tunnel interface.
-	_, ip6to4IPNet, _ := net.ParseCIDR(ip6to4.String())
-	addr := &netlink.Addr{
-		IPNet: ip6to4IPNet,
+	naddr := &netlink.Addr{
+		IPNet: &net.IPNet{
+			IP:   addr.Addr().AsSlice(),
+			Mask: net.CIDRMask(addr.Bits(), len(addr.Addr().AsSlice())*8),
+		},
 	}
-	if err := netlink.AddrAdd(link, addr); err != nil {
+	if err := netlink.AddrAdd(link, naddr); err != nil {
 		return nil, fmt.Errorf("could not assign address to interface %s: %w", ifaceName, err)
 	}
 

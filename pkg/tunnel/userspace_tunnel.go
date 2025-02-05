@@ -9,7 +9,6 @@ import (
 	"net"
 	"net/netip"
 
-	"github.com/google/uuid"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	"k8s.io/utils/ptr"
 
@@ -29,10 +28,9 @@ type userspaceTunnel struct {
 // CreateUserspaceTunnel creates a new user-space WireGuard tunnel.
 func CreateUserspaceTunnel(
 	ctx context.Context,
-	projectID uuid.UUID,
-	endpoint string,
+	addr netip.Addr,
+	bind *wireguard.IceBind,
 	socksPort uint16,
-	stunServers []string,
 	packetCapturePath string,
 	verbose bool,
 ) (*userspaceTunnel, error) {
@@ -48,15 +46,12 @@ func CreateUserspaceTunnel(
 
 	slog.Debug("Listening for wireguard traffic", slog.Int("port", int(listenPort)))
 
-	ip6to4 := NewApoxy4To6Prefix(projectID, endpoint)
-
 	wgNet, err := wireguard.Network(&wireguard.DeviceConfig{
 		PrivateKey:        ptr.To(privateKey.String()),
-		ListenPort:        ptr.To(listenPort),
 		Verbose:           ptr.To(verbose),
-		Address:           []string{ip6to4.String()},
-		STUNServers:       stunServers,
 		PacketCapturePath: packetCapturePath,
+		Address:           []string{addr.String()},
+		Bind:              bind,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("could not create WireGuard network: %w", err)

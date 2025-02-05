@@ -1,4 +1,4 @@
-package alpha
+package tunnel
 
 import (
 	"errors"
@@ -170,20 +170,6 @@ var deleteCmd = &cobra.Command{
 	},
 }
 
-func init() {
-	createCmd.Flags().StringVarP(&tunnelNodeFile, "file", "f", "", "Path to the TunnelNode file to create.")
-	updateCmd.Flags().StringVarP(&tunnelNodeFile, "file", "f", "", "Path to the TunnelNode file to update.")
-	tunnelRunCmd.Flags().StringVarP(&tunnelNodeFile, "file", "f", "", "Path to the TunnelNode file to create.")
-	tunnelRunCmd.Flags().StringVarP(&tunnelNodeName, "name", "n", "", "Name of the TunnelNode to run.")
-
-	tunnelCmd.AddCommand(createCmd)
-	tunnelCmd.AddCommand(getCmd)
-	tunnelCmd.AddCommand(updateCmd)
-	tunnelCmd.AddCommand(deleteCmd)
-	tunnelCmd.AddCommand(tunnelRunCmd)
-	alphaCmd.AddCommand(tunnelCmd)
-}
-
 func loadTunnelNodeFromPath(path string) (*corev1alpha.TunnelNode, error) {
 	yamlFile, err := os.ReadFile(path)
 	if err != nil {
@@ -222,4 +208,21 @@ func loadTunnelNodeFromStdin() (*corev1alpha.TunnelNode, error) {
 
 		return tunnelNode, nil
 	}
+}
+
+func init() {
+	createCmd.Flags().StringVarP(&tunnelNodeFile, "file", "f", "", "Path to the TunnelNode file to create.")
+	updateCmd.Flags().StringVarP(&tunnelNodeFile, "file", "f", "", "Path to the TunnelNode file to update.")
+	tunnelRunCmd.Flags().StringVarP(&tunnelNodeFile, "file", "f", "", "Path to the TunnelNode file to create.")
+	tunnelRunCmd.Flags().StringVarP(&tunnelNodeName, "name", "n", "", "Name of the TunnelNode to run.")
+
+	tunnelCmd.AddCommand(createCmd)
+	tunnelCmd.AddCommand(getCmd)
+	tunnelCmd.AddCommand(updateCmd)
+	tunnelCmd.AddCommand(deleteCmd)
+	tunnelCmd.AddCommand(tunnelRunCmd)
+}
+
+func Cmd() *cobra.Command {
+	return tunnelCmd
 }

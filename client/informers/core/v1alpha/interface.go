@@ -35,6 +35,8 @@ type Interface interface {
 	Proxies() ProxyInformer
 	// TunnelNodes returns a TunnelNodeInformer.
 	TunnelNodes() TunnelNodeInformer
+	// TunnelPeerOffers returns a TunnelPeerOfferInformer.
+	TunnelPeerOffers() TunnelPeerOfferInformer
 }
 
 type version struct {
@@ -76,4 +78,9 @@ func (v *version) Proxies() ProxyInformer {
 // TunnelNodes returns a TunnelNodeInformer.
 func (v *version) TunnelNodes() TunnelNodeInformer {
 	return &tunnelNodeInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
+}
+
+// TunnelPeerOffers returns a TunnelPeerOfferInformer.
+func (v *version) TunnelPeerOffers() TunnelPeerOfferInformer {
+	return &tunnelPeerOfferInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
