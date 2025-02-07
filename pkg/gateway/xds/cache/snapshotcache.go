@@ -10,7 +10,6 @@
 // and is provided here subject to the following:
 // Copyright Project Contour Authors
 // SPDX-License-Identifier: Apache-2.0
-
 package cache
 
 import (
@@ -20,12 +19,14 @@ import (
 	"math"
 	"strconv"
 	"sync"
+	"time"
 
 	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	discoveryv3 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	cachev3 "github.com/envoyproxy/go-control-plane/pkg/cache/v3"
 	envoylog "github.com/envoyproxy/go-control-plane/pkg/log"
 	serverv3 "github.com/envoyproxy/go-control-plane/pkg/server/v3"
+	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/xds/types"
 	"github.com/apoxy-dev/apoxy-cli/pkg/log"
@@ -52,6 +53,13 @@ type snapshotMap map[string]*cachev3.Snapshot
 
 type nodeInfoMap map[int64]*corev3.Node
 
+type nodeBackoff struct {
+	backoff     wait.Backoff
+	lastAttempt time.Time
+}
+
+type backoffMap map[string]*nodeBackoff
+
 type snapshotCache struct {
 	cachev3.SnapshotCache
 	snapshotVersion int64
@@ -59,6 +67,7 @@ type snapshotCache struct {
 
 	mu               sync.Mutex
 	streamIDNodeInfo nodeInfoMap
+	nodeBackoffs     backoffMap
 }
 
 // GenerateNewSnapshot takes a table of resources (the output from the IR->xDS
@@ -128,6 +137,7 @@ func NewSnapshotCache(ads bool, logger *slog.Logger) SnapshotCacheWithCallbacks 
 		SnapshotCache:    cachev3.NewSnapshotCache(ads, &Hash, l),
 		lastSnapshot:     make(snapshotMap),
 		streamIDNodeInfo: make(nodeInfoMap),
+		nodeBackoffs:     make(backoffMap),
 	}
 }
 
@@ -215,9 +225,36 @@ func (s *snapshotCache) OnStreamRequest(streamID int64, req *discoveryv3.Discove
 
 	if status := req.ErrorDetail; status != nil {
 		// if Envoy rejected the last update log the details here.
-		// TODO(youngnick): Handle NACK properly
 		errorCode = status.Code
 		errorMessage = status.Message
+		log.Warnf("NACK received: code %d, message %s", errorCode, errorMessage)
+
+		if s.nodeBackoffs[nodeID] == nil {
+			s.nodeBackoffs[nodeID] = &nodeBackoff{
+				backoff: wait.Backoff{
+					Duration: time.Second,
+					Factor:   2,
+					Steps:    5,
+					Cap:      30 * time.Second,
+				},
+			}
+		}
+
+		// Check if enough time has passed since last backoff and reset the backoff if so.
+		if time.Since(s.nodeBackoffs[nodeID].lastAttempt) > s.nodeBackoffs[nodeID].backoff.Cap {
+			s.nodeBackoffs[nodeID].backoff = wait.Backoff{
+				Duration: time.Second,
+				Factor:   2,
+				Steps:    5,
+				Cap:      30 * time.Second,
+			}
+		}
+
+		// Backoff for a bit before retrying.
+		s.nodeBackoffs[nodeID].lastAttempt = time.Now()
+		delay := s.nodeBackoffs[nodeID].backoff.Step()
+		log.Warnf("Backing off for retry after NACK for node %s", nodeID)
+		time.Sleep(delay)
 	}
 
 	log.Debugf("handling v3 xDS resource request, version_info %s, response_nonce %s, nodeID %s, node_version %s, resource_names %v, type_url %s, errorCode %d, errorMessage %s",
@@ -312,9 +349,36 @@ func (s *snapshotCache) OnStreamDeltaRequest(streamID int64, req *discoveryv3.De
 		req.ResponseNonce, nodeID, nodeVersion)
 	if status := req.ErrorDetail; status != nil {
 		// if Envoy rejected the last update log the details here.
-		// TODO(youngnick): Handle NACK properly
 		errorCode = status.Code
 		errorMessage = status.Message
+		log.Warnf("NACK received: code %d, message %s", errorCode, errorMessage)
+
+		if s.nodeBackoffs[nodeID] == nil {
+			s.nodeBackoffs[nodeID] = &nodeBackoff{
+				backoff: wait.Backoff{
+					Duration: time.Second,
+					Factor:   2,
+					Steps:    5,
+					Cap:      30 * time.Second,
+				},
+			}
+		}
+
+		// Check if enough time has passed since last backoff and reset the backoff if so.
+		if time.Since(s.nodeBackoffs[nodeID].lastAttempt) > s.nodeBackoffs[nodeID].backoff.Cap {
+			s.nodeBackoffs[nodeID].backoff = wait.Backoff{
+				Duration: time.Second,
+				Factor:   2,
+				Steps:    5,
+				Cap:      30 * time.Second,
+			}
+		}
+
+		// Backoff for a bit before retrying.
+		s.nodeBackoffs[nodeID].lastAttempt = time.Now()
+		delay := s.nodeBackoffs[nodeID].backoff.Step()
+		log.Warnf("Backing off for retry after NACK for node %s", nodeID)
+		time.Sleep(delay)
 	}
 	log.Debugf("handling v3 xDS resource request, response_nonce %s, nodeID %s, node_version %s, resource_names_subscribe %v, resource_names_unsubscribe %v, type_url %s, errorCode %d, errorMessage %s",
 		req.ResponseNonce,
