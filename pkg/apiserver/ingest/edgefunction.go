@@ -177,6 +177,10 @@ Finalize:
 	if errors.As(err, &appErr) {
 		res.Err = appErr.Error()
 	}
+	cleanErr := workflow.ExecuteActivity(sessCtx, w.CleanupStagedData, in.Obj.Name).Get(ctx, nil)
+	if cleanErr != nil {
+		log.Error("Failed to cleanup staged data", "Error", cleanErr)
+	}
 	finErr := workflow.ExecuteActivity(sessCtx, w.FinalizeActivity, in, &res).Get(ctx, nil)
 	if finErr != nil {
 		log.Error("Failed to finalize Edge Function ingest", "Error", finErr)
@@ -218,6 +222,7 @@ func (w *worker) RegisterActivities(tw tworker.Worker) {
 	tw.RegisterActivity(w.DownloadGoPluginActivity)
 	tw.RegisterActivity(w.StoreGoPluginActivity)
 	tw.RegisterActivity(w.FinalizeActivity)
+	tw.RegisterActivity(w.CleanupStagedData)
 }
 
 func (w *worker) AddIngestConditionActivity(
@@ -845,6 +850,26 @@ func (w *worker) FinalizeActivity(
 
 		return nil
 	})
+}
+
+func (w *worker) CleanupStagedData(
+	ctx context.Context,
+	in *EdgeFunctionIngestParams,
+) error {
+	log := tlog.With(activity.GetLogger(ctx), "Name", in.Obj.Name, "ResourceVersion", in.Obj.ResourceVersion)
+	log.Info("Cleaning up staged data")
+
+	wid := activity.GetInfo(ctx).WorkflowExecution.ID
+	rid := activity.GetInfo(ctx).WorkflowExecution.RunID
+	stagingDir := w.stagingDir(wid, rid)
+
+	if err := os.RemoveAll(stagingDir); err != nil {
+		log.Error("Failed to remove staging directory", "Error", err)
+		return err
+	}
+
+	log.Info("Staging directory cleaned up successfully")
+	return nil
 }
 
 func hasCondition(conditions []metav1.Condition, condType string, status metav1.ConditionStatus) bool {
