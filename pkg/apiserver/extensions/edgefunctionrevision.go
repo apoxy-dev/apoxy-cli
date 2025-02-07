@@ -5,6 +5,7 @@ import (
 	"sort"
 	"time"
 
+	tclient "go.temporal.io/sdk/client"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -14,6 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	extensionsv1alpha2 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2"
+	"github.com/apoxy-dev/apoxy-cli/pkg/apiserver/ingest"
 )
 
 const (
@@ -25,8 +27,8 @@ var _ reconcile.Reconciler = &EdgeFunctionRevisionGCReconciler{}
 // EdgeFunctionRevisionGCReconciler garbage collects EdgeFunctionRevisions.
 type EdgeFunctionRevisionGCReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
-
+	scheme     *runtime.Scheme
+	tc         tclient.Client
 	gcInterval time.Duration
 }
 
@@ -34,12 +36,13 @@ type EdgeFunctionRevisionGCReconciler struct {
 func NewEdgeFunctionRevisionGCReconciler(
 	c client.Client,
 	s *runtime.Scheme,
+	tc tclient.Client,
 	gcInterval time.Duration,
 ) *EdgeFunctionRevisionGCReconciler {
 	return &EdgeFunctionRevisionGCReconciler{
-		Client: c,
-		Scheme: s,
-
+		Client:     c,
+		scheme:     s,
+		tc:         tc,
 		gcInterval: gcInterval,
 	}
 }
@@ -80,6 +83,18 @@ func (r *EdgeFunctionRevisionGCReconciler) Reconcile(ctx context.Context, req re
 				if err := r.Delete(ctx, revision); err != nil {
 					log.Error(err, "Failed to delete old revision", "revision", revision.Name)
 					continue
+				}
+				// Execute cleanup workflow.
+				wOpts := tclient.StartWorkflowOptions{
+					ID:                       revision.Name + "-cleanup",
+					TaskQueue:                ingest.EdgeFunctionCleanupQueue,
+					WorkflowExecutionTimeout: 10 * time.Minute,
+				}
+				in := &ingest.EdgeFunctionIngestParams{
+					Obj: revision.DeepCopy(),
+				}
+				if _, err := r.tc.ExecuteWorkflow(ctx, wOpts, ingest.EdgeFunctionCleanupWorkflow, in); err != nil {
+					log.Error(err, "Failed to start cleanup workflow", "revision", revision.Name)
 				}
 				log.Info("Deleted old revision", "revision", revision.Name)
 			}

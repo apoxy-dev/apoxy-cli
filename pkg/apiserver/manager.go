@@ -426,6 +426,7 @@ func (m *Manager) Start(
 	if err := extensionscontroller.NewEdgeFunctionRevisionGCReconciler(
 		m.manager.GetClient(),
 		m.manager.GetScheme(),
+		tc,
 		dOpts.gcInterval,
 	).SetupWithManager(ctx, m.manager); err != nil {
 		return fmt.Errorf("failed to set up EdgeFunctionRevision GC controller: %v", err)

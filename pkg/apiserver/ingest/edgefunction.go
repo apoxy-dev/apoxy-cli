@@ -41,7 +41,8 @@ import (
 )
 
 const (
-	EdgeFunctionIngestQueue = "EDGE_FUNC_INGEST_TASK_QUEUE"
+	EdgeFunctionIngestQueue  = "EDGE_FUNC_INGEST_TASK_QUEUE"
+	EdgeFunctionCleanupQueue = "EDGE_FUNC_CLEANUP_TASK_QUEUE"
 )
 
 const (
@@ -61,6 +62,7 @@ type IngestResult struct {
 // RegisterWorkflows registers Edge Function workflows with the Temporal worker.
 func RegisterWorkflows(w tworker.Worker) {
 	w.RegisterWorkflow(EdgeFunctionIngestWorkflow)
+	w.RegisterWorkflow(EdgeFunctionCleanupWorkflow)
 }
 
 // EdgeFunctionIngestWorkflow is a Temporal workflow that ingests Edge Functions.
@@ -191,6 +193,35 @@ Finalize:
 	return nil
 }
 
+func EdgeFunctionCleanupWorkflow(ctx workflow.Context, in *EdgeFunctionIngestParams) error {
+	opts := workflow.ActivityOptions{
+		StartToCloseTimeout: 10 * time.Minute,
+		RetryPolicy: &temporal.RetryPolicy{
+			InitialInterval:    time.Second,
+			BackoffCoefficient: 2.0,
+			MaximumInterval:    10 * time.Second,
+			MaximumAttempts:    3,
+		},
+	}
+	ctx = workflow.WithActivityOptions(ctx, opts)
+	log := tlog.With(workflow.GetLogger(ctx), "Name", in.Obj.Name, "ResourceVersion", in.Obj.ResourceVersion)
+
+	var w *worker
+
+	if err := workflow.ExecuteActivity(ctx, w.CleanupStagedData, in).Get(ctx, nil); err != nil {
+		log.Error("Failed to cleanup staged data", "Error", err)
+		return err
+	}
+
+	if err := workflow.ExecuteActivity(ctx, w.CleanupStoredData, in).Get(ctx, nil); err != nil {
+		log.Error("Failed to cleanup stored data", "Error", err)
+		return err
+	}
+
+	log.Info("Edge Function cleanup completed successfully")
+	return nil
+}
+
 // Worker implements Temporal Activities for Edge Functions Ingest queue.
 type worker struct {
 	k8s     kubernetes.Interface
@@ -223,6 +254,7 @@ func (w *worker) RegisterActivities(tw tworker.Worker) {
 	tw.RegisterActivity(w.StoreGoPluginActivity)
 	tw.RegisterActivity(w.FinalizeActivity)
 	tw.RegisterActivity(w.CleanupStagedData)
+	tw.RegisterActivity(w.CleanupStoredData)
 }
 
 func (w *worker) AddIngestConditionActivity(
@@ -869,6 +901,25 @@ func (w *worker) CleanupStagedData(
 	}
 
 	log.Info("Staging directory cleaned up successfully")
+	return nil
+}
+
+func (w *worker) CleanupStoredData(
+	ctx context.Context,
+	in *EdgeFunctionIngestParams,
+) error {
+	log := tlog.With(activity.GetLogger(ctx), "Name", in.Obj.Name, "ResourceVersion", in.Obj.ResourceVersion)
+	log.Info("Cleaning up stored data")
+
+	wid := activity.GetInfo(ctx).WorkflowExecution.ID
+	storeDir := w.storeDir(wid)
+
+	if err := os.RemoveAll(storeDir); err != nil {
+		log.Error("Failed to remove store directory", "Error", err)
+		return err
+	}
+
+	log.Info("Store directory cleaned up successfully")
 	return nil
 }
 
