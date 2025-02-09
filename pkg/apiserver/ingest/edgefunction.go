@@ -179,7 +179,7 @@ Finalize:
 	if errors.As(err, &appErr) {
 		res.Err = appErr.Error()
 	}
-	cleanErr := workflow.ExecuteActivity(sessCtx, w.CleanupStagedData, in.Obj.Name).Get(ctx, nil)
+	cleanErr := workflow.ExecuteActivity(sessCtx, w.CleanupStagedData, in).Get(ctx, nil)
 	if cleanErr != nil {
 		log.Error("Failed to cleanup staged data", "Error", cleanErr)
 	}
