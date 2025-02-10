@@ -27,12 +27,8 @@ If your CLI is already authenticated this will return information about your ses
 
 		auth := config.NewAuthenticator(cfg)
 		ok, err := auth.Check()
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
 
-		if ok {
+		if ok && err == nil {
 			fmt.Println("Authenticated")
 			os.Exit(0)
 		} else if checkOnly { // If we're only checking, exit with an error.
@@ -49,6 +45,6 @@ If your CLI is already authenticated this will return information about your ses
 }
 
 func init() {
+	authCmd.PersistentFlags().BoolVar(&checkOnly, "check", false, "only check the authentication status")
 	rootCmd.AddCommand(authCmd)
-	rootCmd.PersistentFlags().BoolVar(&checkOnly, "check", false, "only check the authentication status")
 }

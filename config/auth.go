@@ -1,8 +1,9 @@
 package config
 
 import (
+	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -11,10 +12,10 @@ import (
 	"github.com/getsentry/sentry-go"
 	"github.com/google/uuid"
 	"github.com/pkg/browser"
-	"golang.org/x/exp/slog"
-	"k8s.io/client-go/rest"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	configv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/config/v1alpha1"
+	"github.com/apoxy-dev/apoxy-cli/pkg/log"
 	"github.com/apoxy-dev/apoxy-cli/web"
 )
 
@@ -35,45 +36,36 @@ func NewAuthenticator(cfg *configv1alpha1.Config) *Authenticator {
 }
 
 func (a *Authenticator) Check() (bool, error) {
+	log.Debugf("checking Apoxy authentication")
 	c, err := DefaultAPIClient()
 	if err != nil {
+		log.Debugf("error creating API client: %v", err)
 		return true, err
 	}
 
 	if c.BaseHost != "" {
 		resp, err := c.SendRequest(http.MethodPost, "/v1/terra/check", nil)
 		if err != nil {
+			log.Debugf("API request error: %v", err)
 			return true, err
 		}
 
-		slog.Debug("/v1/terra/check returned", "status", resp.StatusCode)
+		log.Debugf("/v1/terra/check returned status=%d", resp.StatusCode)
 		if resp.StatusCode != 200 {
 			return false, nil
 		}
 	}
 
-	if c.RESTConfig != nil {
-		httpC, err := rest.HTTPClientFor(c.RESTConfig)
-		if err != nil {
-			return true, err
-		}
-		req, err := http.NewRequest("HEAD", c.RESTConfig.Host, nil)
-		if err != nil {
-			return true, err
-		}
-		resp, err := httpC.Do(req)
-		if err != nil {
-			return true, err
-		}
-		defer resp.Body.Close()
-		if resp.StatusCode != http.StatusOK {
-			return false, nil
-		}
+	log.Debugf("checking API server authentication")
+	_, err = c.ControllersV1alpha1().Proxies().List(context.Background(), metav1.ListOptions{})
+	if err != nil {
+		return false, err
 	}
+	log.Debugf("API server authentication successful")
 
 	return true, nil
-}
 
+}
 func (a *Authenticator) healthzHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "OK")
 }
@@ -81,12 +73,12 @@ func (a *Authenticator) healthzHandler(w http.ResponseWriter, r *http.Request) {
 func (a *Authenticator) handler(w http.ResponseWriter, r *http.Request) {
 	key := r.URL.Query().Get("key")
 	projectID := r.URL.Query().Get("project")
-	slog.Debug("API key received", "APIKey", key, "ProjectID", projectID)
+	log.Debugf("API key received. APIKey=%q ProjectID=%q", key, projectID)
 	go func() {
 		time.Sleep(2 * time.Second)
 		pUUID, err := uuid.Parse(projectID)
 		if err != nil {
-			slog.Error("Failed to parse project ID", "error", err)
+			slog.Error("Failed to parse project ID: %v", err)
 			return
 		}
 		a.authCh <- authContext{APIKey: key, ProjectID: pUUID}
@@ -119,21 +111,21 @@ func (a *Authenticator) launchServer() int {
 	// Create a listener on a random port
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
-		log.Fatal("Error starting listener: ", err)
+		log.Fatalf("Error starting listener: %v", err)
 	}
 	port := listener.Addr().(*net.TCPAddr).Port
 	go func() {
 		defer listener.Close()
 		http.HandleFunc("/", a.handler)
 		http.HandleFunc("/healthz", a.healthzHandler)
-		slog.Debug(fmt.Sprintf("Server listening on port %d", port))
+		log.Debugf("Server listening on port %d", port)
 		err = http.Serve(listener, nil)
 		if err != nil {
-			slog.Error("Error starting server", slog.Any("error", err))
+			log.Errorf("Error starting server: %v", err)
 		}
 	}()
 	if err := a.awaitHealthy(port); err != nil {
-		slog.Error("Error starting server", slog.Any("error", err))
+		log.Errorf("Error starting server: %v", err)
 		sentry.CaptureMessage("auth redirect server failed to start")
 	}
 	return port
@@ -157,16 +149,18 @@ func (a *Authenticator) Authenticate() {
 	for i, p := range a.cfg.Projects {
 		if p.ID == a.cfg.CurrentProject {
 			a.cfg.Projects[i].APIKey = key.APIKey
+			a.cfg.Projects[i].ID = key.ProjectID
 			projectUpdated = true
 			break
 		}
 	}
+	a.cfg.CurrentProject = key.ProjectID
 	if !projectUpdated {
-		slog.Error("Failed to update project", "ProjectID", a.cfg.CurrentProject)
+		log.Errorf("Failed to update project. ProjectID=%q", a.cfg.CurrentProject)
 		return
 	}
 
-	slog.Debug("API key set", "APIKey", key.APIKey, "ProjectID", a.cfg.CurrentProject)
+	log.Debugf("API key set. APIKey=%q ProjectID=%q", key.APIKey, a.cfg.CurrentProject)
 	fmt.Println("Login Succcessful!")
 	return
 }
