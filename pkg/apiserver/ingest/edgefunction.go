@@ -892,7 +892,9 @@ func (w *worker) CleanupStagedData(
 
 	wid := activity.GetInfo(ctx).WorkflowExecution.ID
 	rid := activity.GetInfo(ctx).WorkflowExecution.RunID
-	stagingDir := w.stagingDir(wid, rid)
+	stagingDir := filepath.Dir(w.stagingDir(wid, rid))
+
+	log.Info("Removing staging directory", "Directory", stagingDir)
 
 	if err := os.RemoveAll(stagingDir); err != nil {
 		log.Error("Failed to remove staging directory", "Error", err)
