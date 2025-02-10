@@ -1,4 +1,4 @@
-package alpha
+package cmd
 
 import (
 	"context"
@@ -40,13 +40,13 @@ import (
 )
 
 var (
-	scheme       = runtime.NewScheme()
-	codecFactory = serializer.NewCodecFactory(scheme)
+	rs           = runtime.NewScheme()
+	codecFactory = serializer.NewCodecFactory(rs)
 	decodeFn     = codecFactory.UniversalDeserializer().Decode
 )
 
 func init() {
-	utilruntime.Must(corev1alpha.Install(scheme))
+	utilruntime.Must(corev1alpha.Install(rs))
 }
 
 func maybeNamespaced(un *unstructured.Unstructured) string {

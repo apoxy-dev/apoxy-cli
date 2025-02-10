@@ -2,13 +2,11 @@ package alpha
 
 import (
 	"github.com/spf13/cobra"
-
-	alphatunnel "github.com/apoxy-dev/apoxy-cli/pkg/cmd/alpha/tunnel"
 )
 
 var alphaCmd = &cobra.Command{
 	Use:   "alpha",
-	Short: "Alpha features",
+	Short: "Alpha features that are still under development",
 	Run: func(cmd *cobra.Command, args []string) {
 		cmd.Help()
 	},
@@ -20,8 +18,6 @@ func Cmd() *cobra.Command {
 }
 
 func init() {
-	alphaCmd.AddCommand(alphatunnel.Cmd())
-	alphaCmd.AddCommand(alphaProxyCmd)
-	alphaCmd.AddCommand(runCmd)
+	alphaCmd.AddCommand(rateLimitCmd)
 	alphaCmd.AddCommand(stunServerCmd)
 }

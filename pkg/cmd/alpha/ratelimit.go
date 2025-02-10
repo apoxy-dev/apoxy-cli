@@ -68,5 +68,4 @@ var createrateLimitCmd = &cobra.Command{
 
 func init() {
 	rateLimitCmd.AddCommand(createrateLimitCmd)
-	alphaCmd.AddCommand(rateLimitCmd)
 }
