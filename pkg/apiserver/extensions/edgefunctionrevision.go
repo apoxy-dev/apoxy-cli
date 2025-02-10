@@ -87,7 +87,7 @@ func (r *EdgeFunctionRevisionGCReconciler) Reconcile(ctx context.Context, req re
 				// Execute cleanup workflow.
 				wOpts := tclient.StartWorkflowOptions{
 					ID:                       revision.Name + "-cleanup",
-					TaskQueue:                ingest.EdgeFunctionCleanupQueue,
+					TaskQueue:                ingest.EdgeFunctionIngestQueue,
 					WorkflowExecutionTimeout: 10 * time.Minute,
 				}
 				in := &ingest.EdgeFunctionIngestParams{

@@ -41,8 +41,7 @@ import (
 )
 
 const (
-	EdgeFunctionIngestQueue  = "EDGE_FUNC_INGEST_TASK_QUEUE"
-	EdgeFunctionCleanupQueue = "EDGE_FUNC_CLEANUP_TASK_QUEUE"
+	EdgeFunctionIngestQueue = "EDGE_FUNC_INGEST_TASK_QUEUE"
 )
 
 const (
