@@ -12,11 +12,15 @@ VERSION="0.1.5"
 set -e
 
 function copy_binary() {
+  USER=$(whoami)
   if [[ ":$PATH:" == *":$HOME/bin:"* ]]; then
       if [ ! -d "$HOME/bin" ]; then
         mkdir -p "$HOME/bin"
       fi
       mv apoxy "$HOME/bin/apoxy"
+  elif [[ "$USER" == "root" ]]; then
+      echo "Installing Apoxy to /usr/local/bin as root"
+      mv apoxy /usr/local/bin/apoxy
   else
       echo "Installing Apoxy to /usr/local/bin which is write protected"
       echo "If you'd prefer to install Apoxy without sudo permissions, add \$HOME/bin to your \$PATH and rerun the installer"
