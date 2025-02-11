@@ -242,7 +242,7 @@ var devCmd = &cobra.Command{
 			FrontendPort:           7223,
 			Namespaces:             []string{"default"},
 			Logger:                 log.DefaultLogger,
-			LogLevel:               slog.LevelInfo, // Too noisy otherwise.
+			LogLevel:               slog.LevelError, // Too noisy otherwise.
 			ClusterID:              uuid.NewString(),
 			MasterClusterName:      "active",
 			CurrentClusterName:     "active",
@@ -256,7 +256,7 @@ var devCmd = &cobra.Command{
 		tc, err := tclient.NewLazyClient(tclient.Options{
 			HostPort:  "localhost:7223",
 			Namespace: "default",
-			Logger:    log.DefaultLogger,
+			Logger:    nil,
 		})
 		if err != nil {
 			return fmt.Errorf("failed creating Temporal client: %w", err)
@@ -349,6 +349,7 @@ var devCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		defer bpDriver.Stop(projectID, proxyName)
 
 		rc := apiserver.NewClientConfig()
 		fwd, err := portforward.NewPortForwarder(rc, proxyName, proxyName, cname)

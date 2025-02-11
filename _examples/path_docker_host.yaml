@@ -39,6 +39,14 @@ spec:
     - fqdn: next-debug-apoxy.vercel.app
   protocol: tls
 ---
+apiVersion: core.apoxy.dev/v1alpha
+kind: Backend
+metadata:
+  name: docker-host
+spec:
+  endpoints:
+    - fqdn: host.docker.internal
+---
 apiVersion: gateway.apoxy.dev/v1
 kind: HTTPRoute
 metadata:
@@ -59,3 +67,11 @@ spec:
         - type: URLRewrite
           urlRewrite:
             hostname: next-debug-apoxy.vercel.app
+    - matches:
+      - path:
+          type: PathPrefix
+          value: /docs
+      backendRefs:
+      - kind: Backend
+        name: docker-host
+        port: 3001

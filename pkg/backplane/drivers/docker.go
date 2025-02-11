@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"os/exec"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -40,6 +41,8 @@ func WithArgs(args ...string) Option {
 type Driver interface {
 	// Deploy deploys the proxy.
 	Start(ctx context.Context, orgID uuid.UUID, proxyName string, opts ...Option) (string, error)
+	// Stop stops the proxy.
+	Stop(orgID uuid.UUID, proxyName string)
 }
 
 // GetDriver returns a driver by name.
@@ -76,7 +79,7 @@ func (d *dockerDriver) Start(
 		ctx,
 		containerNamePrefix,
 		imageRef,
-		dockerutils.WithLabel("org.apoxy.projec_id", orgID.String()),
+		dockerutils.WithLabel("org.apoxy.project_id", orgID.String()),
 		dockerutils.WithLabel("org.apoxy.proxy", proxyName),
 	)
 	if err != nil {
@@ -145,4 +148,32 @@ func (d *dockerDriver) Start(
 	}
 
 	return cname, nil
+}
+
+func (d *dockerDriver) Stop(orgID uuid.UUID, proxyName string) {
+	ctx, _ := context.WithTimeout(context.Background(), 30*time.Second)
+	imageRef := imageRef()
+	cname, found, err := dockerutils.Collect(
+		ctx,
+		containerNamePrefix,
+		imageRef,
+		dockerutils.WithLabel("org.apoxy.project_id", orgID.String()),
+		dockerutils.WithLabel("org.apoxy.proxy", proxyName),
+	)
+	if err != nil {
+		log.Errorf("Error stopping Docker container: %v", err)
+	} else if !found {
+		log.Infof("Container %s wasn't found running")
+	}
+	log.Infof("Stopping container %s", cname)
+	cmd := exec.CommandContext(ctx,
+		"docker", "rm", "-f", cname,
+	)
+	if err := cmd.Run(); err != nil {
+		if execErr, ok := err.(*exec.ExitError); ok {
+			log.Errorf("failed to stop Envoy backplane: %s", execErr.Stderr)
+		} else {
+			log.Errorf("failed to stop Envoy backplane: %w", err)
+		}
+	}
 }
