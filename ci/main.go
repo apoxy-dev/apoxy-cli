@@ -241,10 +241,7 @@ func (m *ApoxyCli) PublishImages(
 	fmt.Println("API server image published to", addr)
 
 	var bCtrs []*dagger.Container
-	// TODO(dilyevsky): When Go team finally gets around fixing their
-	// https://github.com/golang/go/issues/22040 hack, we can enable arm64
-	// builds in CI.
-	for _, platform := range []string{"linux/amd64" /* "linux/arm64", */} {
+	for _, platform := range []string{"linux/amd64", "linux/arm64"} {
 		bCtr := m.BuildBackplane(ctx, src, platform)
 		bCtrs = append(bCtrs, bCtr)
 	}
