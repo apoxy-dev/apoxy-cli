@@ -1,0 +1,56 @@
+apiVersion: controllers.apoxy.dev/v1alpha1
+kind: Proxy
+metadata:
+  name: example-proxy
+spec:
+  provider: unmanaged
+  listeners:
+    - protocol: TCP
+      port: 10000
+---
+apiVersion: gateway.apoxy.dev/v1
+kind: GatewayClass
+metadata:
+  name: apoxy
+spec:
+  controllerName: gateway.apoxy.dev/gatewayclass-controller
+---
+apiVersion: gateway.apoxy.dev/v1
+kind: Gateway
+metadata:
+  name: example-gw
+spec:
+  gatewayClassName: apoxy
+  infrastructure:
+    parametersRef:
+      kind: Proxy
+      name: example-proxy
+  listeners:
+    - protocol: HTTP
+      port: 10000
+      name: example-listener
+---
+apiVersion: core.apoxy.dev/v1alpha
+kind: Backend
+metadata:
+  name: next-debug
+spec:
+  endpoints:
+    - fqdn: next-debug-apoxy.vercel.app
+---
+apiVersion: gateway.apoxy.dev/v1
+kind: HTTPRoute
+metadata:
+  name: default
+spec:
+  parentRefs:
+    - kind: Gateway
+      name: example-gw
+      port: 10000
+  hostnames:
+    - ifconfig.me
+  rules:
+    - backendRefs:
+        - kind: Backend
+          name: next-debug
+          port: 80

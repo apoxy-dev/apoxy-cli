@@ -47,6 +47,8 @@ var (
 
 func init() {
 	utilruntime.Must(corev1alpha.Install(rs))
+
+	rootCmd.AddCommand(devCmd)
 }
 
 func maybeNamespaced(un *unstructured.Unstructured) string {
@@ -204,12 +206,10 @@ func stopCh(ctx context.Context) <-chan interface{} {
 	return ch
 }
 
-var runCmd = &cobra.Command{
-	Use:   "run",
-	Short: "Run Apoxy server locally",
-	Long: `Run Apoxy API locally. This command brings up Apoxy API stack locally
-allowing you to test and develop your proxy infrastructure.`,
-	Args: cobra.ExactArgs(1),
+var devCmd = &cobra.Command{
+	Use:   "dev [path/to/proxy.yaml]",
+	Short: "Develop against the Apoxy API locally",
+	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		config.LocalMode = true // Enable local mode
 		cmd.SilenceUsage = true
@@ -242,7 +242,7 @@ allowing you to test and develop your proxy infrastructure.`,
 			FrontendPort:           7223,
 			Namespaces:             []string{"default"},
 			Logger:                 log.DefaultLogger,
-			LogLevel:               slog.LevelError, // Too noisy otherwise.
+			LogLevel:               slog.LevelInfo, // Too noisy otherwise.
 			ClusterID:              uuid.NewString(),
 			MasterClusterName:      "active",
 			CurrentClusterName:     "active",
@@ -256,7 +256,7 @@ allowing you to test and develop your proxy infrastructure.`,
 		tc, err := tclient.NewLazyClient(tclient.Options{
 			HostPort:  "localhost:7223",
 			Namespace: "default",
-			Logger:    nil, // No logging.
+			Logger:    log.DefaultLogger,
 		})
 		if err != nil {
 			return fmt.Errorf("failed creating Temporal client: %w", err)
