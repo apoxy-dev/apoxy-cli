@@ -202,6 +202,11 @@ func (m *ApoxyCli) BuildBackplane(
 		builder = builder.
 			WithEnvVariable("CGO_ENABLED", "1").
 			WithEnvVariable("CC", fmt.Sprintf("zig cc --target=%s-linux-musl", canonArchFromGoArch(goarch)))
+	} else if goarch == "arm64" {
+		builder = builder.
+			WithEnvVariable("CGO_ENABLED", "1").
+			WithEnvVariable("CC", "aarch64-linux-gnu-gcc").
+			WithEnvVariable("CXX", "aarch64-linux-gnu-g++")
 	}
 
 	builder = builder.
