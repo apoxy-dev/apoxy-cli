@@ -19,3 +19,4 @@ jobs:
         timeout-minutes: 15
         run: |
           dagger call -v build-cli --src=.
+          dagger call -v publish-images --src=. --tag=dev --registry-password=env:APOXY_DOCKERHUB_PASSWORD
