@@ -13,6 +13,10 @@ import (
 	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
 )
 
+const (
+	expiryDuration = 5 * time.Minute
+)
+
 // TunnelNodeReconciler implements a basic garbage collector for dead/orphaned
 // TunnelNode objects.
 type TunnelNodeReconciler struct {
@@ -47,8 +51,8 @@ func (r *TunnelNodeReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 
 	// Check if the last synced time is more than 5 minutes ago.
 	// If so, assume the node is dead and delete it.
-	expiryTime := metav1.NewTime(now.Add(-5 * time.Minute))
-	if tn.Status.LastSynced.Before(&expiryTime) {
+	expiryTime := metav1.NewTime(now.Add(-expiryDuration))
+	if tn.Status.LastSynced.Before(&expiryTime) && tn.CreationTimestamp.Before(&expiryTime) {
 		log.Info("Deleting dead TunnelNode", "lastSynced", tn.Status.LastSynced)
 
 		if err := r.Delete(ctx, &tn); err != nil {
