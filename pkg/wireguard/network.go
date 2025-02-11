@@ -142,23 +142,22 @@ func (n *WireGuardNetwork) Peers() ([]PeerConfig, error) {
 
 // AddPeer adds, or updates, a peer to the WireGuard network.
 func (n *WireGuardNetwork) AddPeer(peerConf *PeerConfig) error {
-	//if peerConf.Endpoint != nil {
-	//	host, port, err := net.SplitHostPort(*peerConf.Endpoint)
-	//	if err != nil {
-	//		return fmt.Errorf("failed to parse peer endpoint: %w", err)
-	//	}
+	if peerConf.Endpoint != nil {
+		// If it's an address, resolve it. If it's a name pass it through unmodified.
+		host, port, err := net.SplitHostPort(*peerConf.Endpoint)
+		if err == nil {
+			if _, err := netip.ParseAddr(host); err != nil {
+				// If the endpoint is a hostname, resolve it.
+				ips, err := net.LookupHost(host)
+				if err != nil {
+					return fmt.Errorf("failed to resolve endpoint: %w", err)
+				}
 
-	//	if _, err := netip.ParseAddr(host); err != nil {
-	//		// If the endpoint is a hostname, resolve it.
-	//		ips, err := net.LookupHost(host)
-	//		if err != nil {
-	//			return fmt.Errorf("failed to resolve endpoint: %w", err)
-	//		}
-
-	//		// TODO: Use a proper IP address selection algorithm.
-	//		peerConf.Endpoint = ptr.To(net.JoinHostPort(ips[0], port))
-	//	}
-	//}
+				// TODO: Use a proper IP address selection algorithm.
+				peerConf.Endpoint = ptr.To(net.JoinHostPort(ips[0], port))
+			}
+		}
+	}
 
 	// Don't set the persistent keep-alive interval immediately.
 	var persistentKeepaliveIntervalSec *uint16
