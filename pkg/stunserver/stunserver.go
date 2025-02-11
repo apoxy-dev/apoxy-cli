@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"net"
 
-	"github.com/pion/stun"
+	"github.com/pion/stun/v3"
 )
 
 func ListenAndServe(ctx context.Context, addr string) error {
