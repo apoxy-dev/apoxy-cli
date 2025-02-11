@@ -12,20 +12,189 @@ Start by creating an account on https://apoxy.dev and logging in with 'apoxy aut
 ### Options
 
 ```
-      --check           only check the authentication status
-      --config string   config file (default is $HOME/.apoxy/config.yaml)
-  -h, --help            help for apoxy
-  -v, --verbose         enable verbose output
+      --alsologtostderr   Log to standard error as well as files.
+      --config string     Config file (default is $HOME/.apoxy/config.yaml).
+  -h, --help              help for apoxy
+      --local             Run in local mode.
+      --project string    The project ID to use.
+  -v, --verbose           Enable verbose output.
 ```
 
 ### SEE ALSO
 
+* [apoxy alpha](#apoxy-alpha)	 - Alpha features that are still under development
 * [apoxy auth](#apoxy-auth)	 - Authenticate this CLI
-* [apoxy domain](#apoxy-domain)	 - Manage domain objects
+* [apoxy dev](#apoxy-dev)	 - Develop against the Apoxy API locally
 * [apoxy k8s](#apoxy-k8s)	 - Commands that manage Apoxy on Kubernetes
 * [apoxy logs](#apoxy-logs)	 - View proxy logs
 * [apoxy proxy](#apoxy-proxy)	 - Manage proxy objects
+* [apoxy tunnel](#apoxy-tunnel)	 - Manage tunnels
+* [apoxy upgrade](#apoxy-upgrade)	 - Upgrade Apoxy CLI to the latest version
 * [apoxy version](#apoxy-version)	 - The version of this CLI
+
+
+
+## apoxy alpha
+
+Alpha features that are still under development
+
+```
+apoxy alpha [flags]
+```
+
+### Options
+
+```
+  -h, --help   help for alpha
+```
+
+### Options inherited from parent commands
+
+```
+      --alsologtostderr   Log to standard error as well as files.
+      --config string     Config file (default is $HOME/.apoxy/config.yaml).
+      --local             Run in local mode.
+      --project string    The project ID to use.
+  -v, --verbose           Enable verbose output.
+```
+
+### SEE ALSO
+
+* [apoxy](#apoxy)	 - Apoxy helps you expose, explore, and evolve your APIs and services.
+* [apoxy alpha ratelimit](#apoxy-alpha-ratelimit)	 - Manage RateLimit objects
+* [apoxy alpha stunserver](#apoxy-alpha-stunserver)	 - Run a minimal STUN server
+* [apoxy alpha stunserver](#apoxy-alpha-stunserver)	 - Run a minimal STUN server
+
+
+
+## apoxy alpha ratelimit
+
+Manage RateLimit objects
+
+### Synopsis
+
+Manages RateLimit objects within an Apoxy Control Plane.
+
+```
+apoxy alpha ratelimit [flags]
+```
+
+### Options
+
+```
+  -h, --help   help for ratelimit
+```
+
+### Options inherited from parent commands
+
+```
+      --alsologtostderr   Log to standard error as well as files.
+      --config string     Config file (default is $HOME/.apoxy/config.yaml).
+      --local             Run in local mode.
+      --project string    The project ID to use.
+  -v, --verbose           Enable verbose output.
+```
+
+### SEE ALSO
+
+* [apoxy alpha](#apoxy-alpha)	 - Alpha features that are still under development
+* [apoxy alpha ratelimit create](#apoxy-alpha-ratelimit-create)	 - Create RateLimit objects
+
+
+
+## apoxy alpha ratelimit create
+
+Create RateLimit objects
+
+### Synopsis
+
+Create RateLimit objects by providing a configuration as a file or via stdin.
+
+```
+apoxy alpha ratelimit create [-f filename] [flags]
+```
+
+### Options
+
+```
+  -h, --help   help for create
+```
+
+### Options inherited from parent commands
+
+```
+      --alsologtostderr   Log to standard error as well as files.
+      --config string     Config file (default is $HOME/.apoxy/config.yaml).
+      --local             Run in local mode.
+      --project string    The project ID to use.
+  -v, --verbose           Enable verbose output.
+```
+
+### SEE ALSO
+
+* [apoxy alpha ratelimit](#apoxy-alpha-ratelimit)	 - Manage RateLimit objects
+
+
+
+## apoxy alpha stunserver
+
+Run a minimal STUN server
+
+```
+apoxy alpha stunserver [flags]
+```
+
+### Options
+
+```
+  -h, --help            help for stunserver
+  -l, --listen string   Address to listen on (default "localhost:3478")
+```
+
+### Options inherited from parent commands
+
+```
+      --alsologtostderr   Log to standard error as well as files.
+      --config string     Config file (default is $HOME/.apoxy/config.yaml).
+      --local             Run in local mode.
+      --project string    The project ID to use.
+  -v, --verbose           Enable verbose output.
+```
+
+### SEE ALSO
+
+* [apoxy alpha](#apoxy-alpha)	 - Alpha features that are still under development
+
+
+
+## apoxy alpha stunserver
+
+Run a minimal STUN server
+
+```
+apoxy alpha stunserver [flags]
+```
+
+### Options
+
+```
+  -h, --help            help for stunserver
+  -l, --listen string   Address to listen on (default "localhost:3478")
+```
+
+### Options inherited from parent commands
+
+```
+      --alsologtostderr   Log to standard error as well as files.
+      --config string     Config file (default is $HOME/.apoxy/config.yaml).
+      --local             Run in local mode.
+      --project string    The project ID to use.
+  -v, --verbose           Enable verbose output.
+```
+
+### SEE ALSO
+
+* [apoxy alpha](#apoxy-alpha)	 - Alpha features that are still under development
 
 
 
@@ -46,15 +215,18 @@ apoxy auth [flags]
 ### Options
 
 ```
-  -h, --help   help for auth
+      --check   only check the authentication status
+  -h, --help    help for auth
 ```
 
 ### Options inherited from parent commands
 
 ```
-      --check           only check the authentication status
-      --config string   config file (default is $HOME/.apoxy/config.yaml)
-  -v, --verbose         enable verbose output
+      --alsologtostderr   Log to standard error as well as files.
+      --config string     Config file (default is $HOME/.apoxy/config.yaml).
+      --local             Run in local mode.
+      --project string    The project ID to use.
+  -v, --verbose           Enable verbose output.
 ```
 
 ### SEE ALSO
@@ -63,161 +235,33 @@ apoxy auth [flags]
 
 
 
-## apoxy domain
+## apoxy dev
 
-Manage domain objects
-
-### Synopsis
-
-Expose proxies on your own domains or borrow one of ours to get going quickly.
+Develop against the Apoxy API locally
 
 ```
-apoxy domain [flags]
+apoxy dev [path/to/proxy.yaml] [flags]
 ```
 
 ### Options
 
 ```
-  -h, --help   help for domain
+  -h, --help   help for dev
 ```
 
 ### Options inherited from parent commands
 
 ```
-      --check           only check the authentication status
-      --config string   config file (default is $HOME/.apoxy/config.yaml)
-  -v, --verbose         enable verbose output
+      --alsologtostderr   Log to standard error as well as files.
+      --config string     Config file (default is $HOME/.apoxy/config.yaml).
+      --local             Run in local mode.
+      --project string    The project ID to use.
+  -v, --verbose           Enable verbose output.
 ```
 
 ### SEE ALSO
 
 * [apoxy](#apoxy)	 - Apoxy helps you expose, explore, and evolve your APIs and services.
-* [apoxy domain create](#apoxy-domain-create)	 - Create domain objects
-* [apoxy domain delete](#apoxy-domain-delete)	 - Delete domain objects
-* [apoxy domain get](#apoxy-domain-get)	 - Get domain objects
-* [apoxy domain list](#apoxy-domain-list)	 - List domain objects
-
-
-
-## apoxy domain create
-
-Create domain objects
-
-### Synopsis
-
-Create domain objects by providing a configuration as a file or via stdin.
-
-```
-apoxy domain create [-f filename] [flags]
-```
-
-### Options
-
-```
-  -f, --filename string   The file that contains the configuration to create.
-  -h, --help              help for create
-      --magic             Create a new magic domain.
-      --name string       A name for the new domain.
-      --random            Generate a random name of the domain.
-```
-
-### Options inherited from parent commands
-
-```
-      --check           only check the authentication status
-      --config string   config file (default is $HOME/.apoxy/config.yaml)
-  -v, --verbose         enable verbose output
-```
-
-### SEE ALSO
-
-* [apoxy domain](#apoxy-domain)	 - Manage domain objects
-
-
-
-## apoxy domain delete
-
-Delete domain objects
-
-```
-apoxy domain delete [flags]
-```
-
-### Options
-
-```
-  -h, --help   help for delete
-```
-
-### Options inherited from parent commands
-
-```
-      --check           only check the authentication status
-      --config string   config file (default is $HOME/.apoxy/config.yaml)
-  -v, --verbose         enable verbose output
-```
-
-### SEE ALSO
-
-* [apoxy domain](#apoxy-domain)	 - Manage domain objects
-
-
-
-## apoxy domain get
-
-Get domain objects
-
-```
-apoxy domain get <name> [flags]
-```
-
-### Options
-
-```
-  -h, --help      help for get
-  -p, --proxies   List the proxies this domain points to.
-```
-
-### Options inherited from parent commands
-
-```
-      --check           only check the authentication status
-      --config string   config file (default is $HOME/.apoxy/config.yaml)
-  -v, --verbose         enable verbose output
-```
-
-### SEE ALSO
-
-* [apoxy domain](#apoxy-domain)	 - Manage domain objects
-
-
-
-## apoxy domain list
-
-List domain objects
-
-```
-apoxy domain list [flags]
-```
-
-### Options
-
-```
-  -h, --help          help for list
-      --show-labels   Print the domain's labels.
-```
-
-### Options inherited from parent commands
-
-```
-      --check           only check the authentication status
-      --config string   config file (default is $HOME/.apoxy/config.yaml)
-  -v, --verbose         enable verbose output
-```
-
-### SEE ALSO
-
-* [apoxy domain](#apoxy-domain)	 - Manage domain objects
 
 
 
@@ -234,9 +278,11 @@ Commands that manage Apoxy on Kubernetes
 ### Options inherited from parent commands
 
 ```
-      --check           only check the authentication status
-      --config string   config file (default is $HOME/.apoxy/config.yaml)
-  -v, --verbose         enable verbose output
+      --alsologtostderr   Log to standard error as well as files.
+      --config string     Config file (default is $HOME/.apoxy/config.yaml).
+      --local             Run in local mode.
+      --project string    The project ID to use.
+  -v, --verbose           Enable verbose output.
 ```
 
 ### SEE ALSO
@@ -274,9 +320,11 @@ apoxy k8s install [flags]
 ### Options inherited from parent commands
 
 ```
-      --check           only check the authentication status
-      --config string   config file (default is $HOME/.apoxy/config.yaml)
-  -v, --verbose         enable verbose output
+      --alsologtostderr   Log to standard error as well as files.
+      --config string     Config file (default is $HOME/.apoxy/config.yaml).
+      --local             Run in local mode.
+      --project string    The project ID to use.
+  -v, --verbose           Enable verbose output.
 ```
 
 ### SEE ALSO
@@ -304,6 +352,7 @@ apoxy logs [flags]
   -f, --follow              Follow logs in real-time
   -h, --help                help for logs
       --json                Output in raw JSON format
+  -p, --proxy string        Proxy name
       --since duration      Show logs since a given duration (e.g. 5m, 1h)
       --since-time string   Show logs from a given date (e.g. 2019-01-01T00:00:00Z)
 ```
@@ -311,9 +360,11 @@ apoxy logs [flags]
 ### Options inherited from parent commands
 
 ```
-      --check           only check the authentication status
-      --config string   config file (default is $HOME/.apoxy/config.yaml)
-  -v, --verbose         enable verbose output
+      --alsologtostderr   Log to standard error as well as files.
+      --config string     Config file (default is $HOME/.apoxy/config.yaml).
+      --local             Run in local mode.
+      --project string    The project ID to use.
+  -v, --verbose           Enable verbose output.
 ```
 
 ### SEE ALSO
@@ -328,7 +379,7 @@ Manage proxy objects
 
 ### Synopsis
 
-The core object in the Apoxy API.
+The controllers object in the Apoxy API.
 
 ```
 apoxy proxy [flags]
@@ -343,9 +394,11 @@ apoxy proxy [flags]
 ### Options inherited from parent commands
 
 ```
-      --check           only check the authentication status
-      --config string   config file (default is $HOME/.apoxy/config.yaml)
-  -v, --verbose         enable verbose output
+      --alsologtostderr   Log to standard error as well as files.
+      --config string     Config file (default is $HOME/.apoxy/config.yaml).
+      --local             Run in local mode.
+      --project string    The project ID to use.
+  -v, --verbose           Enable verbose output.
 ```
 
 ### SEE ALSO
@@ -380,9 +433,11 @@ apoxy proxy create [-f filename] [flags]
 ### Options inherited from parent commands
 
 ```
-      --check           only check the authentication status
-      --config string   config file (default is $HOME/.apoxy/config.yaml)
-  -v, --verbose         enable verbose output
+      --alsologtostderr   Log to standard error as well as files.
+      --config string     Config file (default is $HOME/.apoxy/config.yaml).
+      --local             Run in local mode.
+      --project string    The project ID to use.
+  -v, --verbose           Enable verbose output.
 ```
 
 ### SEE ALSO
@@ -408,9 +463,11 @@ apoxy proxy delete [flags]
 ### Options inherited from parent commands
 
 ```
-      --check           only check the authentication status
-      --config string   config file (default is $HOME/.apoxy/config.yaml)
-  -v, --verbose         enable verbose output
+      --alsologtostderr   Log to standard error as well as files.
+      --config string     Config file (default is $HOME/.apoxy/config.yaml).
+      --local             Run in local mode.
+      --project string    The project ID to use.
+  -v, --verbose           Enable verbose output.
 ```
 
 ### SEE ALSO
@@ -436,9 +493,11 @@ apoxy proxy get <name> [flags]
 ### Options inherited from parent commands
 
 ```
-      --check           only check the authentication status
-      --config string   config file (default is $HOME/.apoxy/config.yaml)
-  -v, --verbose         enable verbose output
+      --alsologtostderr   Log to standard error as well as files.
+      --config string     Config file (default is $HOME/.apoxy/config.yaml).
+      --local             Run in local mode.
+      --project string    The project ID to use.
+  -v, --verbose           Enable verbose output.
 ```
 
 ### SEE ALSO
@@ -465,14 +524,259 @@ apoxy proxy list [flags]
 ### Options inherited from parent commands
 
 ```
-      --check           only check the authentication status
-      --config string   config file (default is $HOME/.apoxy/config.yaml)
-  -v, --verbose         enable verbose output
+      --alsologtostderr   Log to standard error as well as files.
+      --config string     Config file (default is $HOME/.apoxy/config.yaml).
+      --local             Run in local mode.
+      --project string    The project ID to use.
+  -v, --verbose           Enable verbose output.
 ```
 
 ### SEE ALSO
 
 * [apoxy proxy](#apoxy-proxy)	 - Manage proxy objects
+
+
+
+## apoxy tunnel
+
+Manage tunnels
+
+### Synopsis
+
+Manage WireGuard tunnels state and connect to the remote Apoxy Edge fabric.
+
+### Options
+
+```
+  -h, --help   help for tunnel
+```
+
+### Options inherited from parent commands
+
+```
+      --alsologtostderr   Log to standard error as well as files.
+      --config string     Config file (default is $HOME/.apoxy/config.yaml).
+      --local             Run in local mode.
+      --project string    The project ID to use.
+  -v, --verbose           Enable verbose output.
+```
+
+### SEE ALSO
+
+* [apoxy](#apoxy)	 - Apoxy helps you expose, explore, and evolve your APIs and services.
+* [apoxy tunnel create](#apoxy-tunnel-create)	 - Create a TunnelNode
+* [apoxy tunnel delete](#apoxy-tunnel-delete)	 - Delete a TunnelNode
+* [apoxy tunnel get](#apoxy-tunnel-get)	 - Get a TunnelNode
+* [apoxy tunnel run](#apoxy-tunnel-run)	 - Run a tunnel
+* [apoxy tunnel update](#apoxy-tunnel-update)	 - Update a TunnelNode
+
+
+
+## apoxy tunnel create
+
+Create a TunnelNode
+
+### Synopsis
+
+Create a TunnelNode object from a file or stdin.
+
+```
+apoxy tunnel create [flags]
+```
+
+### Options
+
+```
+  -f, --file string   Path to the TunnelNode file to create.
+  -h, --help          help for create
+```
+
+### Options inherited from parent commands
+
+```
+      --alsologtostderr   Log to standard error as well as files.
+      --config string     Config file (default is $HOME/.apoxy/config.yaml).
+      --local             Run in local mode.
+      --project string    The project ID to use.
+  -v, --verbose           Enable verbose output.
+```
+
+### SEE ALSO
+
+* [apoxy tunnel](#apoxy-tunnel)	 - Manage tunnels
+
+
+
+## apoxy tunnel delete
+
+Delete a TunnelNode
+
+### Synopsis
+
+Delete a TunnelNode object.
+
+```
+apoxy tunnel delete [flags]
+```
+
+### Options
+
+```
+  -h, --help   help for delete
+```
+
+### Options inherited from parent commands
+
+```
+      --alsologtostderr   Log to standard error as well as files.
+      --config string     Config file (default is $HOME/.apoxy/config.yaml).
+      --local             Run in local mode.
+      --project string    The project ID to use.
+  -v, --verbose           Enable verbose output.
+```
+
+### SEE ALSO
+
+* [apoxy tunnel](#apoxy-tunnel)	 - Manage tunnels
+
+
+
+## apoxy tunnel get
+
+Get a TunnelNode
+
+### Synopsis
+
+Get a TunnelNode object(s).
+
+```
+apoxy tunnel get [flags]
+```
+
+### Options
+
+```
+  -h, --help   help for get
+```
+
+### Options inherited from parent commands
+
+```
+      --alsologtostderr   Log to standard error as well as files.
+      --config string     Config file (default is $HOME/.apoxy/config.yaml).
+      --local             Run in local mode.
+      --project string    The project ID to use.
+  -v, --verbose           Enable verbose output.
+```
+
+### SEE ALSO
+
+* [apoxy tunnel](#apoxy-tunnel)	 - Manage tunnels
+
+
+
+## apoxy tunnel run
+
+Run a tunnel
+
+### Synopsis
+
+Create a secure tunnel to the remote Apoxy Edge fabric.
+
+```
+apoxy tunnel run [flags]
+```
+
+### Options
+
+```
+  -f, --file string   Path to the TunnelNode file to create.
+  -h, --help          help for run
+  -n, --name string   Name of the TunnelNode to run.
+```
+
+### Options inherited from parent commands
+
+```
+      --alsologtostderr   Log to standard error as well as files.
+      --config string     Config file (default is $HOME/.apoxy/config.yaml).
+      --local             Run in local mode.
+      --project string    The project ID to use.
+  -v, --verbose           Enable verbose output.
+```
+
+### SEE ALSO
+
+* [apoxy tunnel](#apoxy-tunnel)	 - Manage tunnels
+
+
+
+## apoxy tunnel update
+
+Update a TunnelNode
+
+### Synopsis
+
+Update a TunnelNode object from a file or stdin.
+
+```
+apoxy tunnel update [flags]
+```
+
+### Options
+
+```
+  -f, --file string   Path to the TunnelNode file to update.
+  -h, --help          help for update
+```
+
+### Options inherited from parent commands
+
+```
+      --alsologtostderr   Log to standard error as well as files.
+      --config string     Config file (default is $HOME/.apoxy/config.yaml).
+      --local             Run in local mode.
+      --project string    The project ID to use.
+  -v, --verbose           Enable verbose output.
+```
+
+### SEE ALSO
+
+* [apoxy tunnel](#apoxy-tunnel)	 - Manage tunnels
+
+
+
+## apoxy upgrade
+
+Upgrade Apoxy CLI to the latest version
+
+### Synopsis
+
+Upgrade Apoxy CLI to the latest version.
+
+```
+apoxy upgrade [flags]
+```
+
+### Options
+
+```
+  -h, --help   help for upgrade
+```
+
+### Options inherited from parent commands
+
+```
+      --alsologtostderr   Log to standard error as well as files.
+      --config string     Config file (default is $HOME/.apoxy/config.yaml).
+      --local             Run in local mode.
+      --project string    The project ID to use.
+  -v, --verbose           Enable verbose output.
+```
+
+### SEE ALSO
+
+* [apoxy](#apoxy)	 - Apoxy helps you expose, explore, and evolve your APIs and services.
 
 
 
@@ -493,9 +797,11 @@ apoxy version [flags]
 ### Options inherited from parent commands
 
 ```
-      --check           only check the authentication status
-      --config string   config file (default is $HOME/.apoxy/config.yaml)
-  -v, --verbose         enable verbose output
+      --alsologtostderr   Log to standard error as well as files.
+      --config string     Config file (default is $HOME/.apoxy/config.yaml).
+      --local             Run in local mode.
+      --project string    The project ID to use.
+  -v, --verbose           Enable verbose output.
 ```
 
 ### SEE ALSO
