@@ -19,3 +19,6 @@ jobs:
         timeout-minutes: 15
         run: |
           dagger call -v build-cli --src=. --platform=linux/amd64
+          dagger call -v build-cli --src=. --platform=linux/arm64
+          dagger call -v build-cli --src=. --platform=darwin/amd64
+          dagger call -v build-cli --src=. --platform=darwin/arm64
