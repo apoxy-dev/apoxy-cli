@@ -18,4 +18,4 @@ jobs:
           SHUTUP: 1
         timeout-minutes: 15
         run: |
-          dagger call -v build-cli --src=.
+          dagger call -v build-cli --src=. --platform=linux/amd64
