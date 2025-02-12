@@ -49,7 +49,7 @@ function install_apoxy() {
 			copy_binary
   else
       set +x
-      echo "The Tilt installer does not work for your platform: $OSTYPE"
+      echo "The Apoxy installer does not work for your platform: $OSTYPE"
       echo ""
       echo "If you think your platform should be supported, please file an issue:"
       echo "https://github.com/apoxy-dev/apoxy-cli/issues/new"
