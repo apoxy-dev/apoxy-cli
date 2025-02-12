@@ -105,9 +105,13 @@ func (d *dockerDriver) Start(
 	}
 
 	log.Infof("Starting container %s", cname)
+	pullPolicy := "missing"
+	if build.IsDev() {
+		pullPolicy = "always"
+	}
 	cmd := exec.CommandContext(ctx,
 		"docker", "run",
-		"--pull=always",
+		fmt.Sprintf("--pull=%s", pullPolicy),
 		"--detach",
 		//"--rm",
 		"--name", cname,
