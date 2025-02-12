@@ -42,6 +42,27 @@ func hostArch() string {
 	return canonArchFromGoArch(runtime.GOARCH)
 }
 
+// This wrapper script pretends to be Gold linker (see issue link bellow).
+// TODO(dilyevsky): When Go team finally gets around fixing their
+// https://github.com/golang/go/issues/22040 hack, we can undo this hack.
+var zigWrapperScript = `#!/bin/sh
+
+# Find the real zig executable
+REAL_ZIG=$(which -a zig | grep -v "$0" | head -1)
+
+# Check if the command contains both required arguments
+case "$*" in
+    *-fuse-ld=gold*-Wl,--version* | *-Wl,--version*-fuse-ld=gold*)
+        echo "GNU gold"
+        exit 0
+        ;;
+    *)
+        # Forward all other commands to the real zig
+        exec "$REAL_ZIG" "$@"
+        ;;
+esac
+`
+
 // BuilderContainer builds a CLI binary.
 func (m *ApoxyCli) BuilderContainer(ctx context.Context, src *dagger.Directory) *dagger.Container {
 	return dag.Container().
@@ -64,6 +85,9 @@ func (m *ApoxyCli) BuilderContainer(ctx context.Context, src *dagger.Directory) 
 		}).
 		WithExec([]string{
 			"ln", "-s", fmt.Sprintf("/zig-linux-%s-0.13.0/zig", hostArch()), "/bin/zig",
+		}).
+		WithNewFile("/bin/zig-wrapper", zigWrapperScript, dagger.ContainerWithNewFileOpts{
+			Permissions: 0755,
 		}).
 		WithDirectory("/src", src,
 			dagger.ContainerWithDirectoryOpts{
@@ -162,7 +186,7 @@ func (m *ApoxyCli) BuildAPIServer(
 		WithEnvVariable("GOARCH", goarch).
 		WithEnvVariable("GOOS", "linux").
 		WithEnvVariable("CGO_ENABLED", "1").
-		WithEnvVariable("CC", fmt.Sprintf("zig cc --target=%s-linux-musl", targetArch)).
+		WithEnvVariable("CC", fmt.Sprintf("zig-wrapper cc --target=%s-linux-musl", targetArch)).
 		WithExec([]string{"go", "build", "-o", "apiserver", "./cmd/apiserver"})
 
 	runtimeCtr := m.PullEdgeRuntime(ctx, string(platform))
@@ -198,11 +222,9 @@ func (m *ApoxyCli) BuildBackplane(
 		WithMountedCache("/go/build-cache", dag.CacheVolume("go-build-"+goarch)).
 		WithEnvVariable("GOCACHE", "/go/build-cache")
 
-	if goarch == "amd64" {
-		builder = builder.
-			WithEnvVariable("CGO_ENABLED", "1").
-			WithEnvVariable("CC", fmt.Sprintf("zig cc --target=%s-linux-musl", canonArchFromGoArch(goarch)))
-	}
+	builder = builder.
+		WithEnvVariable("CGO_ENABLED", "1").
+		WithEnvVariable("CC", fmt.Sprintf("zig-wrapper cc --target=%s-linux-musl", canonArchFromGoArch(goarch)))
 
 	builder = builder.
 		WithExec([]string{"go", "build", "-ldflags", "-v -linkmode=external", "-o", bpOut, "./cmd/backplane"}).
@@ -241,10 +263,7 @@ func (m *ApoxyCli) PublishImages(
 	fmt.Println("API server image published to", addr)
 
 	var bCtrs []*dagger.Container
-	// TODO(dilyevsky): When Go team finally gets around fixing their
-	// https://github.com/golang/go/issues/22040 hack, we can enable arm64
-	// builds in CI.
-	for _, platform := range []string{"linux/amd64" /* "linux/arm64", */} {
+	for _, platform := range []string{"linux/amd64", "linux/arm64"} {
 		bCtr := m.BuildBackplane(ctx, src, platform)
 		bCtrs = append(bCtrs, bCtr)
 	}
