@@ -4,8 +4,12 @@ import (
 	"context"
 	goerrors "errors"
 	"fmt"
+	"io"
 	"log/slog"
+	"net/http"
+	"net/url"
 	"os"
+	"path/filepath"
 	goruntime "runtime"
 	"strings"
 	"time"
@@ -141,20 +145,79 @@ func updateFromFile(ctx context.Context, proxyNameOverride, path string) error {
 	return err
 }
 
-// watchAndReloadConfig watches the given file for changes and reloads the
-// Apoxy configuration when the file changes.
-// Proxy object name will be overridden with the given value.
-func watchAndReloadConfig(ctx context.Context, proxyNameOverride, path string) error {
+// downloadToFile downloads the content from the given URL to the specified file path
+func downloadToFile(url string, filepath string) error {
+	resp, err := http.Get(url)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("bad status: %s", resp.Status)
+	}
+
+	out, err := os.Create(filepath)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	_, err = io.Copy(out, resp.Body)
+	return err
+}
+
+// watchAndReloadConfig watches the given path or URL for changes and reloads the
+// Apoxy configuration when changes occur. For URLs, it downloads to a temp file
+// and watches that. Proxy object name will be overridden with the given value.
+func watchAndReloadConfig(ctx context.Context, proxyNameOverride, pathOrURL string) error {
+	// Check if the input is a URL
+	isURL := false
+	if _, err := url.ParseRequestURI(pathOrURL); err == nil {
+		if strings.HasPrefix(pathOrURL, "http://") || strings.HasPrefix(pathOrURL, "https://") {
+			isURL = true
+		}
+	}
+
+	var watchPath string
+	var tempDir string
+
+	if isURL {
+		// Create temp directory to store downloaded config
+		var err error
+		tempDir, err = os.MkdirTemp("", "apoxy-config-*")
+		if err != nil {
+			return fmt.Errorf("failed to create temp directory: %w", err)
+		}
+		defer os.RemoveAll(tempDir)
+
+		// Generate temp file path
+		fileName := filepath.Base(pathOrURL)
+		if fileName == "" || fileName == "." {
+			fileName = "config.yaml"
+		}
+		watchPath = filepath.Join(tempDir, fileName)
+
+		// Do initial download
+		if err := downloadToFile(pathOrURL, watchPath); err != nil {
+			return fmt.Errorf("failed to download initial config: %w", err)
+		}
+
+		fmt.Printf("Watching downloaded config at temporary location: %s\n", watchPath)
+	} else {
+		watchPath = pathOrURL
+	}
+
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return err
 	}
 	defer watcher.Close()
-	if err := watcher.Add(path); err != nil {
+	if err := watcher.Add(watchPath); err != nil {
 		return err
 	}
 
-	if err := updateFromFile(ctx, proxyNameOverride, path); err != nil {
+	if err := updateFromFile(ctx, proxyNameOverride, watchPath); err != nil {
 		return err
 	}
 	for {
@@ -170,12 +233,12 @@ func watchAndReloadConfig(ctx context.Context, proxyNameOverride, path string) e
 			}
 
 			// Reload the proxy configuration
-			if err := updateFromFile(ctx, proxyNameOverride, path); err != nil {
+			if err := updateFromFile(ctx, proxyNameOverride, watchPath); err != nil {
 				return err
 			}
 		case <-time.After(3 * time.Second):
 			// Reload the proxy configuration
-			if err := updateFromFile(ctx, proxyNameOverride, path); err != nil {
+			if err := updateFromFile(ctx, proxyNameOverride, watchPath); err != nil {
 				return err
 			}
 		case err := <-watcher.Errors:
