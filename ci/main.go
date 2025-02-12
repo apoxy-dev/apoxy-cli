@@ -100,11 +100,21 @@ func (m *ApoxyCli) BuilderContainer(ctx context.Context, src *dagger.Directory) 
 func (m *ApoxyCli) BuildCLI(
 	ctx context.Context,
 	src *dagger.Directory,
-	platform string,
+	platform, tag, sha string,
 ) *dagger.Container {
 	p := dagger.Platform(platform)
 	goarch := archOf(p)
 	os := osOf(p)
+
+	pkg := "github.com/apoxy-dev/apoxy-cli"
+	date := fmt.Sprintf("%d-%02d-%02dT%02d:%02d:%02d", time.Now().Year(), time.Now().Month(), time.Now().Day(), time.Now().Hour(), time.Now().Minute(), time.Now().Second())
+	ldFlags := []string{
+		fmt.Sprintf("-X '%s/build.BuildVersion=%s'", pkg, tag),
+		fmt.Sprintf("-X '%s/build.BuildDate=%s'", pkg, date),
+		fmt.Sprintf("-X '%s/build.CommitHash=%s'", pkg, sha),
+		"-s", // strip symbols
+		"-w", // disable DWARF
+	}
 
 	builder := m.BuilderContainer(ctx, src)
 	return builder.
@@ -114,7 +124,7 @@ func (m *ApoxyCli) BuildCLI(
 		WithEnvVariable("GOMODCACHE", "/go/pkg/mod").
 		WithMountedCache("/go/build-cache", dag.CacheVolume("go-build-"+goarch)).
 		WithEnvVariable("GOCACHE", "/go/build-cache").
-		WithExec([]string{"go", "build", "-o", "/apoxy", "-ldflags", "-s -w", "."})
+		WithExec([]string{"go", "build", "-o", "/apoxy", "-ldflags", strings.Join(ldFlags, " "), "."})
 }
 
 // PublishGithubRelease publishes a CLI binary to GitHub releases.
@@ -122,12 +132,12 @@ func (m *ApoxyCli) PublishGithubRelease(
 	ctx context.Context,
 	src *dagger.Directory,
 	githubToken *dagger.Secret,
-	tag string,
+	tag, sha string,
 ) *dagger.Container {
-	cliCtrLinuxAmd64 := m.BuildCLI(ctx, src, "linux/amd64")
-	cliCtrLinuxArm64 := m.BuildCLI(ctx, src, "linux/arm64")
-	cliCtrMacosAmd64 := m.BuildCLI(ctx, src, "darwin/amd64")
-	cliCtrMacosArm64 := m.BuildCLI(ctx, src, "darwin/arm64")
+	cliCtrLinuxAmd64 := m.BuildCLI(ctx, src, "linux/amd64", tag, sha)
+	cliCtrLinuxArm64 := m.BuildCLI(ctx, src, "linux/arm64", tag, sha)
+	cliCtrMacosAmd64 := m.BuildCLI(ctx, src, "darwin/amd64", tag, sha)
+	cliCtrMacosArm64 := m.BuildCLI(ctx, src, "darwin/arm64", tag, sha)
 
 	return dag.Container().
 		From("ubuntu:22.04").
