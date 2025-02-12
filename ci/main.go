@@ -108,7 +108,7 @@ func (m *ApoxyCli) BuildCLI(
 
 	zigTarget := fmt.Sprintf("%s-linux-musl", canonArchFromGoArch(goarch))
 	if os == "darwin" {
-		zigTarget = fmt.Sprintf("%s-macos-gnu", canonArchFromGoArch(goarch))
+		zigTarget = fmt.Sprintf("%s-macos-none", canonArchFromGoArch(goarch))
 	}
 	builder := m.BuilderContainer(ctx, src)
 	return builder.
