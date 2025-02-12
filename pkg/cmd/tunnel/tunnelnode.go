@@ -17,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
+	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/ptr"
@@ -26,9 +27,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	clog "sigs.k8s.io/controller-runtime/pkg/log"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/apoxy-dev/apoxy-cli/client/versioned"
 	"github.com/apoxy-dev/apoxy-cli/config"
@@ -298,6 +301,24 @@ func (t *tunnelNodeReconciler) setupWithManager(ctx context.Context, mgr ctrl.Ma
 				t.makeTunnelNodePredicate(),
 			),
 		).
+		Watches(
+			&corev1alpha.TunnelPeerOffer{},
+			handler.EnqueueRequestsFromMapFunc(func(_ context.Context, obj client.Object) []reconcile.Request {
+				offer, ok := obj.(*corev1alpha.TunnelPeerOffer)
+				if !ok {
+					return nil
+				}
+				if len(offer.GetOwnerReferences()) == 0 {
+					return nil
+				}
+				return []reconcile.Request{{
+					NamespacedName: types.NamespacedName{
+						Name: offer.GetOwnerReferences()[0].Name,
+					},
+				}}
+			}),
+			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
+		).
 		WithOptions(controller.Options{
 			MaxConcurrentReconciles: 1,
 			RecoverPanic:            ptr.To(true),
@@ -352,6 +373,50 @@ func (t *tunnelNodeReconciler) getMatchingRemoteTunnelNodes(
 	}
 
 	return matchingTunnelNodes, nil
+}
+
+func isConnected(offer *corev1alpha.TunnelPeerOffer) bool {
+	if offer == nil {
+		return false
+	}
+	for _, condition := range offer.Status.Conditions {
+		if condition.Type == "Connected" && condition.Status == metav1.ConditionTrue {
+			return true
+		}
+	}
+	return false
+}
+
+func (t *tunnelNodeReconciler) offerPeer(
+	ctx context.Context,
+	peerTunnelNode *corev1alpha.TunnelNode,
+) (*corev1alpha.TunnelPeerOffer, bool, error) {
+	offerName := fmt.Sprintf("%s-%s", t.localTunnelNode.Name, peerTunnelNode.Name)
+	// Check if offer already exists
+	existingOffer := &corev1alpha.TunnelPeerOffer{}
+	if err := t.Get(ctx, client.ObjectKey{Name: offerName}, existingOffer); err == nil {
+		return existingOffer, isConnected(existingOffer), nil
+	} else if !apierrors.IsNotFound(err) {
+		return nil, false, err
+	}
+
+	peerOffer := &corev1alpha.TunnelPeerOffer{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: offerName,
+		},
+		Spec: corev1alpha.TunnelPeerOfferSpec{
+			RemoteTunnelNodeName: peerTunnelNode.Name,
+		},
+	}
+	if err := controllerutil.SetControllerReference(&t.localTunnelNode, peerOffer, t.scheme); err != nil {
+		slog.Error("Failed to set controller reference", slog.Any("error", err))
+		return nil, false, err
+	}
+	if err := t.Create(ctx, peerOffer); err != nil && !apierrors.IsAlreadyExists(err) {
+		slog.Error("Failed to create TunnelPeerOffer", slog.String("name", peerOffer.Name), slog.Any("error", err))
+		return nil, false, err
+	}
+	return peerOffer, isConnected(peerOffer), nil
 }
 
 func (t *tunnelNodeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -434,24 +499,14 @@ func (t *tunnelNodeReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			slog.String("publicKey", peerPublicKey),
 			slog.String("internalAddress", peerTunnelNode.Status.InternalAddress))
 
-		// Create TunnelPeerOffer if local peer is controlling node.
-		if peerTunnelNode.Name < t.localTunnelNode.Name {
-			peerOffer := &corev1alpha.TunnelPeerOffer{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: fmt.Sprintf("%s-%s", t.localTunnelNode.Name, peerTunnelNode.Name),
-				},
-				Spec: corev1alpha.TunnelPeerOfferSpec{
-					RemoteTunnelNodeName: peerTunnelNode.Name,
-				},
-			}
-			if err := controllerutil.SetControllerReference(&t.localTunnelNode, peerOffer, t.scheme); err != nil {
-				slog.Error("Failed to set controller reference", slog.Any("error", err))
-				return ctrl.Result{}, err
-			}
-			if err := t.Create(ctx, peerOffer); err != nil && !apierrors.IsAlreadyExists(err) {
-				slog.Error("Failed to create TunnelPeerOffer", slog.String("name", peerOffer.Name), slog.Any("error", err))
-				return ctrl.Result{}, err
-			}
+		_, isConnected, err := t.offerPeer(ctx, peerTunnelNode)
+		if err != nil {
+			slog.Error("Failed to offer peer", slog.String("name", peerTunnelNode.Name), slog.Any("error", err))
+			continue
+		}
+		if !isConnected {
+			slog.Debug("TunnelPeerOffer not yet connected", slog.String("name", peerTunnelNode.Name))
+			continue
 		}
 
 		peerConf := &wireguard.PeerConfig{
@@ -472,7 +527,15 @@ func (t *tunnelNodeReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 		if err := t.tun.RemovePeer(peerPublicKey); err != nil {
 			slog.Error("Failed to remove peer", slog.String("publicKey", peerPublicKey), slog.Any("error", err))
-			return ctrl.Result{}, err
+			continue
+		}
+
+		offerName := fmt.Sprintf("%s-%s", t.localTunnelNode.Name, peerPublicKey)
+		var peerOffer corev1alpha.TunnelPeerOffer
+		if err := t.Get(ctx, client.ObjectKey{Name: offerName}, &peerOffer); err == nil {
+			if err := t.Delete(ctx, &peerOffer); err != nil {
+				slog.Error("Failed to delete TunnelPeerOffer", slog.String("name", peerOffer.Name), slog.Any("error", err))
+			}
 		}
 	}
 

@@ -210,6 +210,7 @@ func (p *IcePeer) Connect(
 	ctx context.Context,
 	dst string,
 ) error {
+	log.Infof("Connecting to %s", dst)
 	if err := p.agent.OnConnectionStateChange(func(c ice.ConnectionState) {
 		log.Debugf("ICE connection state: %v", c)
 	}); err != nil {
