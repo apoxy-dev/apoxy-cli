@@ -106,16 +106,18 @@ func (m *ApoxyCli) BuildCLI(
 	goarch := archOf(p)
 	os := osOf(p)
 
+	/*
 	zigTarget := fmt.Sprintf("%s-linux-musl", canonArchFromGoArch(goarch))
 	if os == "darwin" {
 		zigTarget = fmt.Sprintf("%s-macos-none", canonArchFromGoArch(goarch))
 	}
+	*/
 	builder := m.BuilderContainer(ctx, src)
 	return builder.
 		WithEnvVariable("GOARCH", goarch).
 		WithEnvVariable("GOOS", os).
-		WithEnvVariable("CGO_ENABLED", "1").
-		WithEnvVariable("CC", fmt.Sprintf("zig-wrapper cc --target=%s", zigTarget)).
+		//WithEnvVariable("CGO_ENABLED", "1").
+		//WithEnvVariable("CC", fmt.Sprintf("zig-wrapper cc --target=%s", zigTarget)).
 		WithMountedCache("/go/pkg/mod", dag.CacheVolume("go-mod-"+goarch)).
 		WithEnvVariable("GOMODCACHE", "/go/pkg/mod").
 		WithMountedCache("/go/build-cache", dag.CacheVolume("go-build-"+goarch)).
