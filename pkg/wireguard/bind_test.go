@@ -12,6 +12,7 @@ import (
 	"github.com/apoxy-dev/apoxy-cli/pkg/log"
 	"github.com/apoxy-dev/apoxy-cli/pkg/stunserver"
 	"github.com/apoxy-dev/apoxy-cli/pkg/wireguard"
+	"github.com/apoxy-dev/apoxy-cli/pkg/wireguard/netstack"
 	"github.com/pion/ice/v4"
 	icelogging "github.com/pion/logging"
 	"github.com/pion/stun/v3"
@@ -42,9 +43,7 @@ func TestICEBind(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
-
-	g, ctx := errgroup.WithContext(ctx)
+	g, ctx := errgroup.WithContext(context.Background())
 
 	// Local STUN server.
 	g.Go(func() error {
@@ -63,14 +62,12 @@ func TestICEBind(t *testing.T) {
 			}
 		}()
 
-		peer, err := bind.NewPeer(ctx, true)
+		peer, err := bind.NewPeer(true)
 		if err != nil {
 			return fmt.Errorf("failed to create peer: %w", err)
 		}
 
 		peer.OnCandidate = func(c string) {
-			t.Logf("controlling peer candidate: %s", c)
-
 			ufrag, pwd := peer.LocalUserCredentials()
 			cs := peer.LocalCandidates()
 
@@ -81,13 +78,11 @@ func TestICEBind(t *testing.T) {
 			}
 		}
 
-		if err := peer.Init(ctx); err != nil {
+		if err := peer.Init(); err != nil {
 			return fmt.Errorf("failed to init peer: %w", err)
 		}
 
 		remoteOffer := <-offerFromControlled
-
-		t.Logf("remote offer: %v", remoteOffer)
 
 		if err := peer.AddRemoteOffer(remoteOffer); err != nil {
 			return fmt.Errorf("failed to add remote offer: %w", err)
@@ -96,8 +91,6 @@ func TestICEBind(t *testing.T) {
 		if err := peer.Connect(ctx, "controlled"); err != nil {
 			return fmt.Errorf("failed to connect to controlled peer: %w", err)
 		}
-
-		t.Logf("connected")
 
 		ep, err := bind.ParseEndpoint("controlled")
 		if err != nil {
@@ -122,14 +115,12 @@ func TestICEBind(t *testing.T) {
 			}
 		}()
 
-		peer, err := bind.NewPeer(ctx, false)
+		peer, err := bind.NewPeer(false)
 		if err != nil {
 			return fmt.Errorf("failed to create peer: %w", err)
 		}
 
 		peer.OnCandidate = func(c string) {
-			t.Logf("local candidate: %s", c)
-
 			ufrag, pwd := peer.LocalUserCredentials()
 			cs := peer.LocalCandidates()
 
@@ -140,51 +131,11 @@ func TestICEBind(t *testing.T) {
 			}
 		}
 
-		if err := peer.Init(ctx); err != nil {
+		if err := peer.Init(); err != nil {
 			return fmt.Errorf("failed to init peer: %w", err)
 		}
 
-		receiveFns, _, err := bind.Open(0)
-		if err != nil {
-			return fmt.Errorf("failed to open bind: %w", err)
-		}
-
-		for _, receiveFn := range receiveFns {
-			go func(receiveFn conn.ReceiveFunc) {
-				batchSize := bind.BatchSize()
-				eps := make([]conn.Endpoint, batchSize)
-				sizes := make([]int, batchSize)
-				packets := make([][]byte, batchSize)
-				for i := 0; i < batchSize; i++ {
-					packets[i] = make([]byte, 1500)
-				}
-
-				for {
-					select {
-					case <-ctx.Done():
-						return
-					default:
-					}
-
-					n, err := receiveFn(packets, sizes, eps)
-					if err != nil {
-						if !errors.Is(err, net.ErrClosed) {
-							t.Logf("failed to receive packets: %v", err)
-						}
-
-						return
-					}
-
-					for i := 0; i < n; i++ {
-						t.Logf("received: %s", string(packets[i]))
-					}
-				}
-			}(receiveFn)
-		}
-
 		remoteOffer := <-offerFromController
-
-		t.Logf("remote offer: %v", remoteOffer)
 
 		if err := peer.AddRemoteOffer(remoteOffer); err != nil {
 			return fmt.Errorf("failed to add remote offer: %w", err)
@@ -194,12 +145,72 @@ func TestICEBind(t *testing.T) {
 			return fmt.Errorf("failed to connect to controller peer: %w", err)
 		}
 
-		t.Logf("connected")
+		receiveFns, _, err := bind.Open(0)
+		if err != nil {
+			return fmt.Errorf("failed to open bind: %w", err)
+		}
 
-		return context.Canceled
+		ctx, cancel := context.WithTimeout(ctx, time.Second)
+		defer cancel()
+
+		packets, err := receiveAllPackets(ctx, bind, receiveFns)
+		if err != nil {
+			return fmt.Errorf("failed to receive all packets: %w", err)
+		}
+
+		if len(packets) != 1 || string(packets[0]) != "hello" {
+			return fmt.Errorf("expected 1 packet with content 'hello', got: %v", packets)
+		}
+
+		return nil
 	})
 
 	if err := g.Wait(); err != nil && !errors.Is(err, context.Canceled) {
 		panic(err)
 	}
+}
+
+// receiveAllPackets receives all packets from all receive functions until the
+// context is canceled or the bind is closed.
+func receiveAllPackets(ctx context.Context, bind conn.Bind, receiveFns []conn.ReceiveFunc) ([][]byte, error) {
+	var packets [][]byte
+
+	g, ctx := errgroup.WithContext(ctx)
+	for _, receiveFn := range receiveFns {
+		receiveFn := receiveFn
+		g.Go(func() error {
+			batchSize := bind.BatchSize()
+			epsForBatch := make([]conn.Endpoint, batchSize)
+			sizesForBatch := make([]int, batchSize)
+			packetsForBatch := make([][]byte, batchSize)
+			for i := 0; i < batchSize; i++ {
+				packetsForBatch[i] = make([]byte, netstack.DefaultMTU)
+			}
+
+			for {
+				select {
+				case <-ctx.Done():
+					return nil
+				default:
+				}
+
+				n, err := receiveFn(packetsForBatch, sizesForBatch, epsForBatch)
+				if err != nil {
+					if !errors.Is(err, net.ErrClosed) {
+						return fmt.Errorf("failed to receive packets: %w", err)
+					}
+
+					return nil
+				}
+
+				for i := 0; i < n; i++ {
+					packet := make([]byte, sizesForBatch[i])
+					copy(packet, packetsForBatch[i])
+					packets = append(packets, packet)
+				}
+			}
+		})
+	}
+
+	return packets, g.Wait()
 }

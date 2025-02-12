@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pion/stun"
+	"github.com/pion/stun/v3"
 	"golang.org/x/sync/errgroup"
 	"golang.zx2c4.com/wireguard/conn"
 )

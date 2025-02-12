@@ -40,7 +40,6 @@ require (
 	github.com/opencontainers/runc v1.2.2
 	github.com/pion/ice/v4 v4.0.5
 	github.com/pion/logging v0.2.2
-	github.com/pion/stun v0.6.1
 	github.com/pion/stun/v3 v3.0.0
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
 	github.com/shirou/gopsutil v3.21.11+incompatible
@@ -270,11 +269,9 @@ require (
 	github.com/paulmach/orb v0.11.1 // indirect
 	github.com/pborman/uuid v1.2.1 // indirect
 	github.com/pierrec/lz4/v4 v4.1.21 // indirect
-	github.com/pion/dtls/v2 v2.2.7 // indirect
 	github.com/pion/dtls/v3 v3.0.4 // indirect
 	github.com/pion/mdns/v2 v2.0.7 // indirect
 	github.com/pion/randutil v0.1.0 // indirect
-	github.com/pion/transport/v2 v2.2.1 // indirect
 	github.com/pion/transport/v3 v3.0.7 // indirect
 	github.com/pion/turn/v4 v4.0.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
