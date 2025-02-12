@@ -100,10 +100,20 @@ func (m *ApoxyCli) BuilderContainer(ctx context.Context, src *dagger.Directory) 
 func (m *ApoxyCli) BuildCLI(
 	ctx context.Context,
 	src *dagger.Directory,
+	platform string,
 ) *dagger.Container {
+	p := dagger.Platform(platform)
+	goarch := archOf(p)
+	os := osOf(p)
+
 	builder := m.BuilderContainer(ctx, src)
 	return builder.
-		WithEnvVariable("CGO_ENABLED", "1").
+		WithEnvVariable("GOARCH", goarch).
+		WithEnvVariable("GOOS", os).
+		WithMountedCache("/go/pkg/mod", dag.CacheVolume("go-mod-"+goarch)).
+		WithEnvVariable("GOMODCACHE", "/go/pkg/mod").
+		WithMountedCache("/go/build-cache", dag.CacheVolume("go-build-"+goarch)).
+		WithEnvVariable("GOCACHE", "/go/build-cache").
 		WithExec([]string{"go", "build", "-o", "/apoxy", "-ldflags", "-s -w", "."})
 }
 
@@ -114,7 +124,10 @@ func (m *ApoxyCli) PublishGithubRelease(
 	githubToken *dagger.Secret,
 	tag string,
 ) *dagger.Container {
-	cliCtr := m.BuildCLI(ctx, src)
+	cliCtrLinuxAmd64 := m.BuildCLI(ctx, src, "linux/amd64")
+	cliCtrLinuxArm64 := m.BuildCLI(ctx, src, "linux/arm64")
+	cliCtrMacosAmd64 := m.BuildCLI(ctx, src, "darwin/amd64")
+	cliCtrMacosArm64 := m.BuildCLI(ctx, src, "darwin/arm64")
 
 	return dag.Container().
 		From("ubuntu:22.04").
@@ -126,7 +139,10 @@ func (m *ApoxyCli) PublishGithubRelease(
 		WithExec([]string{"mv", "gh_2.62.0_linux_amd64/bin/gh", "/usr/local/bin/gh"}).
 		WithExec([]string{"rm", "-rf", "gh_2.62.0_linux_amd64", "gh_2.62.0_linux_amd64.tar.gz"}).
 		WithSecretVariable("GITHUB_TOKEN", githubToken).
-		WithFile("/apoxy", cliCtr.File("/apoxy")).
+		WithFile("/apoxy-linux-amd64", cliCtrLinuxAmd64.File("/apoxy")).
+		WithFile("/apoxy-linux-arm64", cliCtrLinuxArm64.File("/apoxy")).
+		WithFile("/apoxy-darwin-amd64", cliCtrMacosAmd64.File("/apoxy")).
+		WithFile("/apoxy-darwin-arm64", cliCtrMacosArm64.File("/apoxy")).
 		WithExec([]string{
 			"gh", "release", "create",
 			tag,
@@ -137,7 +153,28 @@ func (m *ApoxyCli) PublishGithubRelease(
 		WithExec([]string{
 			"gh", "release", "upload",
 			tag,
-			"/apoxy",
+			"/apoxy-linux-amd64",
+			"--clobber",
+			"--repo", "github.com/apoxy-dev/apoxy-cli",
+		}).
+		WithExec([]string{
+			"gh", "release", "upload",
+			tag,
+			"/apoxy-linux-arm64",
+			"--clobber",
+			"--repo", "github.com/apoxy-dev/apoxy-cli",
+		}).
+		WithExec([]string{
+			"gh", "release", "upload",
+			tag,
+			"/apoxy-darwin-amd64",
+			"--clobber",
+			"--repo", "github.com/apoxy-dev/apoxy-cli",
+		}).
+		WithExec([]string{
+			"gh", "release", "upload",
+			tag,
+			"/apoxy-darwin-arm64",
 			"--clobber",
 			"--repo", "github.com/apoxy-dev/apoxy-cli",
 		})
@@ -202,6 +239,10 @@ func archOf(p dagger.Platform) string {
 	return platforms.MustParse(string(p)).Architecture
 }
 
+func osOf(p dagger.Platform) string {
+	return platforms.MustParse(string(p)).OS
+}
+
 // BuildBackplane builds a backplane binary.
 func (m *ApoxyCli) BuildBackplane(
 	ctx context.Context,
@@ -220,13 +261,9 @@ func (m *ApoxyCli) BuildBackplane(
 		WithMountedCache("/go/pkg/mod", dag.CacheVolume("go-mod-"+goarch)).
 		WithEnvVariable("GOMODCACHE", "/go/pkg/mod").
 		WithMountedCache("/go/build-cache", dag.CacheVolume("go-build-"+goarch)).
-		WithEnvVariable("GOCACHE", "/go/build-cache")
-
-	builder = builder.
+		WithEnvVariable("GOCACHE", "/go/build-cache").
 		WithEnvVariable("CGO_ENABLED", "1").
-		WithEnvVariable("CC", fmt.Sprintf("zig-wrapper cc --target=%s-linux-musl", canonArchFromGoArch(goarch)))
-
-	builder = builder.
+		WithEnvVariable("CC", fmt.Sprintf("zig-wrapper cc --target=%s-linux-musl", canonArchFromGoArch(goarch))).
 		WithExec([]string{"go", "build", "-ldflags", "-v -linkmode=external", "-o", bpOut, "./cmd/backplane"}).
 		WithExec([]string{"go", "build", "-ldflags", "-v -linkmode=external", "-o", dsOut, "./cmd/dial-stdio"})
 
