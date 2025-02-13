@@ -50,6 +50,9 @@ func runningContainers(ctx context.Context, namePrefix string) ([]string, error)
 		"--filter", "name=^"+namePrefix,
 		"--format", "{{.Names}}",
 	).CombinedOutput()
+	if err != nil {
+		return nil, err
+	}
 	out = bytes.TrimSpace(out)
 	if len(out) == 0 {
 		return nil, err
