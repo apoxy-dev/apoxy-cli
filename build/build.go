@@ -6,10 +6,10 @@ import (
 )
 
 var (
-	buildVersion = "0.0.0-dev"
-	BuildVersion = buildVersion
-	BuildDate    = "n/a"
-	CommitHash   = "n/a"
+	devBuildVersion = "0.0.0-dev"
+	BuildVersion    = "0.0.0-dev"
+	BuildDate       = "n/a"
+	CommitHash      = "n/a"
 )
 
 // IsDev returns true if the build is a development build.
@@ -19,10 +19,10 @@ func IsDev() bool {
 
 // Version returns the version string in the format of "vX.Y.Z (<commit>), built <date>".
 func Version() string {
-	if BuildVersion == buildVersion {
+	if BuildVersion == devBuildVersion {
 		return BuildVersion
 	}
-	return fmt.Sprintf("v%s (%s), built %s", BuildVersion, CommitHash, BuildDate)
+	return fmt.Sprintf("%s (%s), built %s", BuildVersion, CommitHash, BuildDate)
 }
 
 // UserAgent returns the user agent string.
