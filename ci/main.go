@@ -27,6 +27,10 @@ import (
 	"dagger/apoxy-cli/internal/dagger"
 )
 
+// Note that 0.12.0 and later fail to cross compile for Darwin.
+// See https://github.com/ziglang/zig/issues/20689
+const ZigVersion = "0.11.0"
+
 type ApoxyCli struct{}
 
 func canonArchFromGoArch(goarch string) string {
@@ -75,18 +79,18 @@ func (m *ApoxyCli) BuilderContainer(ctx context.Context, src *dagger.Directory) 
 		WithMountedCache("/go/build-cache", dag.CacheVolume("go-build")).
 		WithEnvVariable("GOCACHE", "/go/build-cache").
 		// Install Zig toolchain.
-		WithExec([]string{"apt-get", "update", "-yq"}).
+		WithExec([]string{"apt-get", "update"}).
 		WithExec([]string{
 			"apt-get", "install", "-yq", "xz-utils", "clang",
 		}).
 		WithExec([]string{
-			"wget", fmt.Sprintf("https://ziglang.org/download/0.13.0/zig-linux-%s-0.13.0.tar.xz", hostArch()),
+			"wget", fmt.Sprintf("https://ziglang.org/download/%s/zig-linux-%s-%s.tar.xz", ZigVersion, hostArch(), ZigVersion),
 		}).
 		WithExec([]string{
-			"tar", "-xf", fmt.Sprintf("zig-linux-%s-0.13.0.tar.xz", hostArch()),
+			"tar", "-xf", fmt.Sprintf("zig-linux-%s-%s.tar.xz", hostArch(), ZigVersion),
 		}).
 		WithExec([]string{
-			"ln", "-s", fmt.Sprintf("/zig-linux-%s-0.13.0/zig", hostArch()), "/bin/zig",
+			"ln", "-s", fmt.Sprintf("/zig-linux-%s-%s/zig", hostArch(), ZigVersion), "/bin/zig",
 		}).
 		WithNewFile("/bin/zig-wrapper", zigWrapperScript, dagger.ContainerWithNewFileOpts{
 			Permissions: 0755,
@@ -114,19 +118,44 @@ func (m *ApoxyCli) BuildCLI(
 		fmt.Sprintf("-X '%s/build.BuildVersion=%s'", pkg, tag),
 		fmt.Sprintf("-X '%s/build.BuildDate=%s'", pkg, date),
 		fmt.Sprintf("-X '%s/build.CommitHash=%s'", pkg, sha),
-		"-s", // strip symbols
 		"-w", // disable DWARF
+		// Before you think about adding -s here, see https://github.com/ziglang/zig/issues/22844
+	}
+
+	targetArch := canonArchFromGoArch(goarch)
+	zigTarget := fmt.Sprintf("%s-linux-musl", targetArch)
+	if os == "darwin" {
+		zigTarget = fmt.Sprintf("%s-macos", targetArch)
 	}
 
 	builder := m.BuilderContainer(ctx, src)
+
+	if os == "darwin" {
+		builder = builder.
+			WithExec([]string{ "apt-get", "update" }).
+			WithExec([]string{ "apt-get", "install", "-yq", "gcc", "g++", "zlib1g-dev", "libmpc-dev", "libmpfr-dev", "libgmp-dev"}).
+			WithExec([]string{
+				"wget", fmt.Sprintf("https://apoxy-public-build-tools.s3.us-west-2.amazonaws.com/MacOSX14.sdk.tar.xz"),
+			}).
+			WithExec([]string{
+				"tar", "-xf", "MacOSX14.sdk.tar.xz",
+			}).
+			WithExec([]string{
+				"mv", "MacOSX14.sdk", "/macsdk",
+			})
+	}
+
 	return builder.
 		WithEnvVariable("GOARCH", goarch).
 		WithEnvVariable("GOOS", os).
+		WithEnvVariable("CGO_ENABLED", "1").
+		WithEnvVariable("CC", fmt.Sprintf("zig-wrapper cc --target=%s --sysroot=/macsdk -I/macsdk/usr/include -L/macsdk/usr/lib -F/macsdk/System/Library/Frameworks -Wno-expansion-to-defined -Wno-availability -Wno-nullability-completeness -DZIG_STATIC_ZLIB=on", zigTarget)).
+		WithEnvVariable("CXX", fmt.Sprintf("zig-wrapper c++ --target=%s --sysroot=/macsdk -I/macsdk/usr/include -L/macsdk/usr/lib -F/macsdk/System/Library/Frameworks -Wno-expansion-to-defined -Wno-availability -Wno-nullability-completeness -DZIG_STATIC_ZLIB=on", zigTarget)).
 		WithMountedCache("/go/pkg/mod", dag.CacheVolume("go-mod-"+goarch)).
 		WithEnvVariable("GOMODCACHE", "/go/pkg/mod").
 		WithMountedCache("/go/build-cache", dag.CacheVolume("go-build-"+goarch)).
 		WithEnvVariable("GOCACHE", "/go/build-cache").
-		WithExec([]string{"go", "build", "-o", "/apoxy", "-ldflags", strings.Join(ldFlags, " "), "."})
+		WithExec([]string{"go", "build", "-o", "/apoxy", "-ldflags", strings.Join(ldFlags, " "), "-tags", "netgo", "."})
 }
 
 // PublishGithubRelease publishes a CLI binary to GitHub releases.
