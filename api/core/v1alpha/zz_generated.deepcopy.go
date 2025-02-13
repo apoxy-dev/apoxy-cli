@@ -1113,11 +1113,6 @@ func (in *TunnelPeerOfferStatus) DeepCopyInto(out *TunnelPeerOfferStatus) {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
-	if in.PeerOffer != nil {
-		in, out := &in.PeerOffer, &out.PeerOffer
-		*out = new(ICEOffer)
-		(*in).DeepCopyInto(*out)
-	}
 	return
 }
 

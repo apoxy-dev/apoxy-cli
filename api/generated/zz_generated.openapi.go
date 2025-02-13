@@ -2557,9 +2557,17 @@ func schema_apoxy_cli_api_core_v1alpha_TunnelPeerOfferStatus(ref common.Referenc
 			SchemaProps: spec.SchemaProps{
 				Type: []string{"object"},
 				Properties: map[string]spec.Schema{
+					"phase": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Phase is the current aggregate phase of the tunnel peer offer. It may be represented by one or more conditions.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 					"conditions": {
 						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
+							Description: "Conditions is a list of conditions that apply to the tunnel peer offer.",
+							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
@@ -2570,17 +2578,11 @@ func schema_apoxy_cli_api_core_v1alpha_TunnelPeerOfferStatus(ref common.Referenc
 							},
 						},
 					},
-					"peerOffer": {
-						SchemaProps: spec.SchemaProps{
-							Description: "PeerOffer is the offer from the remote peer.",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.ICEOffer"),
-						},
-					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.ICEOffer", "k8s.io/apimachinery/pkg/apis/meta/v1.Condition"},
+			"k8s.io/apimachinery/pkg/apis/meta/v1.Condition"},
 	}
 }
 

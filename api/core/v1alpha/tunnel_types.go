@@ -182,12 +182,22 @@ type TunnelPeerOfferSpec struct {
 	Offer *ICEOffer `json:"iceOffer,omitempty"`
 }
 
-type TunnelPeerOfferStatus struct {
-	Conditions []metav1.Condition `json:"conditions,omitempty"`
+type TunnelPeerOfferPhase string
 
-	// PeerOffer is the offer from the remote peer.
+const (
+	TunnelPeerOfferPhaseConnecting TunnelPeerOfferPhase = "Connecting"
+	TunnelPeerOfferPhaseConnected  TunnelPeerOfferPhase = "Connected"
+	TunnelPeerOfferPhaseFailed     TunnelPeerOfferPhase = "Failed"
+)
+
+type TunnelPeerOfferStatus struct {
+	// Phase is the current aggregate phase of the tunnel peer offer.
+	// It may be represented by one or more conditions.
+	Phase TunnelPeerOfferPhase `json:"phase,omitempty"`
+
+	// Conditions is a list of conditions that apply to the tunnel peer offer.
 	// +optional
-	PeerOffer *ICEOffer `json:"peerOffer,omitempty"`
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
 var _ resource.StatusSubResource = &TunnelPeerOfferStatus{}

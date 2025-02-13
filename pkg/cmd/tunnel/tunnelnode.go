@@ -379,12 +379,7 @@ func isConnected(offer *corev1alpha.TunnelPeerOffer) bool {
 	if offer == nil {
 		return false
 	}
-	for _, condition := range offer.Status.Conditions {
-		if condition.Type == "Connected" && condition.Status == metav1.ConditionTrue {
-			return true
-		}
-	}
-	return false
+	return offer.Status.Phase == corev1alpha.TunnelPeerOfferPhaseConnected
 }
 
 func (t *tunnelNodeReconciler) offerPeer(

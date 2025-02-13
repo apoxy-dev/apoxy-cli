@@ -130,7 +130,10 @@ func (b *IceBind) SetMark(mark uint32) error {
 func (b *IceBind) BatchSize() int { return 1 }
 
 type IcePeer struct {
-	OnCandidate func(candidate string)
+	OnCandidate     func(candidate string)
+	OnConnected     func()
+	OnDisconnected  func(msg string)
+	OnCandidatePair func(local, remote string)
 
 	ufrag, password        string
 	isControlling          bool
@@ -176,6 +179,24 @@ func (p *IcePeer) Init(ctx context.Context) error {
 	}); err != nil {
 		return fmt.Errorf("could not set ICE candidate handler: %w", err)
 	}
+	if err := p.agent.OnConnectionStateChange(func(c ice.ConnectionState) {
+		log.Debugf("ICE connection state: %v", c)
+		switch c {
+		case ice.ConnectionStateConnected:
+			p.OnConnected()
+		case ice.ConnectionStateDisconnected, ice.ConnectionStateFailed:
+			p.OnDisconnected(c.String())
+		}
+	}); err != nil {
+		return err
+	}
+	if err := p.agent.OnSelectedCandidatePairChange(func(local, remote ice.Candidate) {
+		log.Debugf("ICE selected candidate pair: %v, %v", local, remote)
+		//p.OnCandidatePair(local.Marshal(), remote.Marshal())
+	}); err != nil {
+		return err
+	}
+
 	if err := p.agent.GatherCandidates(); err != nil {
 		return fmt.Errorf("could not gather ICE candidates: %w", err)
 	}
@@ -211,12 +232,6 @@ func (p *IcePeer) Connect(
 	dst string,
 ) error {
 	log.Infof("Connecting to %s", dst)
-	if err := p.agent.OnConnectionStateChange(func(c ice.ConnectionState) {
-		log.Debugf("ICE connection state: %v", c)
-	}); err != nil {
-		return err
-	}
-
 	var (
 		err error
 		c   *ice.Conn
@@ -272,7 +287,6 @@ func (p *IcePeer) Connect(
 }
 
 func (p *IcePeer) Close() error {
-	p.c.Close()
 	p.agent.Close()
 	p.bind.mu.Lock()
 	delete(p.bind.peers, p.dst)

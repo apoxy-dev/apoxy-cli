@@ -2,12 +2,13 @@ package tunnel
 
 import (
 	"context"
-	"errors"
+	goerrors "errors"
 	"fmt"
 	"slices"
 	"sync"
 
 	"github.com/pion/ice/v4"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/ptr"
@@ -15,17 +16,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	clog "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/apoxy-dev/apoxy-cli/pkg/wireguard"
 
 	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
-)
-
-const (
-	tunnelPeerOfferFinalizer = "tunnelpeeroffer.apoxy.dev/finalizer"
 )
 
 type tunnelPeerOfferReconciler struct {
@@ -53,72 +49,80 @@ func (r *tunnelPeerOfferReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	log.Info("Reconciling TunnelPeerOffer")
 
 	tunnelPeerOffer := &corev1alpha.TunnelPeerOffer{}
-	if err := r.Get(ctx, req.NamespacedName, tunnelPeerOffer); err != nil {
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+	if err := r.Get(ctx, req.NamespacedName, tunnelPeerOffer); client.IgnoreNotFound(err) != nil {
+		return ctrl.Result{}, err
+	} else if errors.IsNotFound(err) {
+		remoteName := req.Name
+		r.mu.Lock()
+		if peer, ok := r.peers[remoteName]; ok {
+			peer.Close()
+			delete(r.peers, remoteName)
+			log.Info("Deleted TunnelPeerOffer")
+		}
+		r.mu.Unlock()
+
+		return ctrl.Result{}, nil
 	}
 
 	if tunnelPeerOffer.Spec.RemoteTunnelNodeName == r.localTunnelNodeName { // Remote offer.
-		remoteName, err := getOfferOwner(ctx, r.Client, tunnelPeerOffer)
-		if err != nil {
-			return ctrl.Result{}, err
+		switch tunnelPeerOffer.Status.Phase {
+		case corev1alpha.TunnelPeerOfferPhaseConnected:
+			log.Info("Already connected, ignoring")
+			return ctrl.Result{}, nil
+		case corev1alpha.TunnelPeerOfferPhaseFailed:
+			log.Info("Remote peer offer is in failed, ignoring")
+			return ctrl.Result{}, nil
+		case corev1alpha.TunnelPeerOfferPhaseConnecting:
+			remoteName, err := getOfferOwner(ctx, r.Client, tunnelPeerOffer)
+			if err != nil {
+				return ctrl.Result{}, err
+			}
+
+			log.Info("Offer controlled by remote node, starting ICE negotiation", "RemotePeer", remoteName)
+
+			r.mu.Lock()
+			defer r.mu.Unlock()
+			peer, ok := r.peers[remoteName]
+			if !ok { // Haven't started our end of the ICE negotiation yet.
+				return ctrl.Result{Requeue: true}, nil
+			}
+
+			remoteOffer := tunnelPeerOffer.Spec.Offer
+			if remoteOffer == nil {
+				log.Info("ICE offer not yet created")
+				return ctrl.Result{}, nil // Will re-trigger when offer is created.
+			}
+
+			log.Info("Connecting to remote peer", "RemotePeer", remoteName)
+
+			return r.connect(ctx, remoteName, req, peer, remoteOffer)
+		default:
+			log.Info("Remote offer is in unknown state, ignoring")
+			return ctrl.Result{}, nil
 		}
-		log.Info("Offer controlled by remote node, starting ICE negotiation", "RemotePeer", remoteName)
-
-		r.mu.Lock()
-		defer r.mu.Unlock()
-		peer, ok := r.peers[remoteName]
-		if !ok { // Haven't started our end of the ICE negotiation yet.
-			return ctrl.Result{Requeue: true}, nil
-		}
-
-		remoteOffer := tunnelPeerOffer.Spec.Offer
-		if remoteOffer == nil {
-			log.Info("ICE offer not yet created")
-			return ctrl.Result{}, nil // Will re-trigger when offer is created.
-		}
-
-		log.Info("Connecting to remote peer", "RemotePeer", remoteName)
-
-		return r.connect(ctx, remoteName, req, peer, remoteOffer)
 	}
 
 	remoteName := tunnelPeerOffer.Spec.RemoteTunnelNodeName
-
-	if tunnelPeerOffer.ObjectMeta.DeletionTimestamp.IsZero() {
-		if !controllerutil.ContainsFinalizer(tunnelPeerOffer, tunnelPeerOfferFinalizer) {
-			controllerutil.AddFinalizer(tunnelPeerOffer, tunnelPeerOfferFinalizer)
-			if err := r.Update(ctx, tunnelPeerOffer); err != nil {
-				return ctrl.Result{}, err
-			}
-		}
-	} else {
-		if controllerutil.ContainsFinalizer(tunnelPeerOffer, tunnelPeerOfferFinalizer) {
-			r.mu.Lock()
-			if peer, ok := r.peers[remoteName]; ok {
-				peer.Close()
-				delete(r.peers, remoteName)
-			}
-			r.mu.Unlock()
-			controllerutil.RemoveFinalizer(tunnelPeerOffer, tunnelPeerOfferFinalizer)
-			if err := r.Update(ctx, tunnelPeerOffer); err != nil {
-				return ctrl.Result{}, err
-			}
-			log.Info("Deleted TunnelPeerOffer")
-		}
-
-		log.V(1).Info("TunnelPeerOffer is being deleted")
-
-		return ctrl.Result{}, nil // Already deleted, nothing to do.
-	}
-
-	log.Info("Offer controlled by local node, starting ICE negotiation", "RemotePeer", remoteName)
+	log.Info("Offer controlled by local node", "RemotePeer", remoteName)
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	peer, ok := r.peers[remoteName]
-	if ok { // Already connected, just return.
-		return ctrl.Result{}, nil
+	if ok {
+		switch tunnelPeerOffer.Status.Phase {
+		case corev1alpha.TunnelPeerOfferPhaseConnected, corev1alpha.TunnelPeerOfferPhaseConnecting:
+			return ctrl.Result{}, nil // Already connected, or connecting, just return.
+		case corev1alpha.TunnelPeerOfferPhaseFailed:
+			log.Info("Failed state, cleaning up peer")
+			peer.Close()
+			delete(r.peers, remoteName)
+			return ctrl.Result{}, nil
+		default:
+			return ctrl.Result{}, nil
+		}
 	}
+
+	log.Info("Starting ICE negotiation", "RemotePeer", remoteName)
 
 	var err error
 	isControlling := r.localTunnelNodeName > remoteName
@@ -149,6 +153,45 @@ func (r *tunnelPeerOfferReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 			log.Error(err, "Failed to update tunnel peer offer status")
 		}
 	}
+	peer.OnConnected = func() {
+		log.Info("ICE connection established")
+		if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+			var tn corev1alpha.TunnelPeerOffer
+			if err := r.Get(ctx, req.NamespacedName, &tn); err != nil {
+				return err
+			}
+			tn.Status.Conditions = append(tn.Status.Conditions, metav1.Condition{
+				Type:               "Connected",
+				Status:             metav1.ConditionTrue,
+				Reason:             "IceConnected",
+				LastTransitionTime: metav1.Now(),
+			})
+			tn.Status.Phase = corev1alpha.TunnelPeerOfferPhaseConnected
+			return r.Status().Update(ctx, &tn)
+		}); err != nil {
+			log.Error(err, "Failed to update tunnel peer offer status")
+		}
+	}
+	peer.OnDisconnected = func(msg string) {
+		log.Info("ICE connection disconnected", "Reason", msg)
+		if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+			var tn corev1alpha.TunnelPeerOffer
+			if err := r.Get(ctx, req.NamespacedName, &tn); err != nil {
+				return err
+			}
+			tn.Status.Phase = corev1alpha.TunnelPeerOfferPhaseFailed
+			tn.Status.Conditions = append(tn.Status.Conditions, metav1.Condition{
+				Type:               "ICEConnected",
+				Status:             metav1.ConditionFalse,
+				Reason:             "Failed",
+				Message:            fmt.Sprintf("Peer %s failed to connect: %v", remoteName, msg),
+				LastTransitionTime: metav1.Now(),
+			})
+			return r.Status().Update(ctx, &tn)
+		}); err != nil {
+			log.Error(err, "Failed to update tunnel peer offer status")
+		}
+	}
 	if err := peer.Init(ctx); err != nil {
 		log.Error(err, "Failed to initialize ICE peer")
 		peer.Close()
@@ -156,6 +199,17 @@ func (r *tunnelPeerOfferReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	}
 
 	r.peers[remoteName] = peer
+
+	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		var tn corev1alpha.TunnelPeerOffer
+		if err := r.Get(ctx, req.NamespacedName, &tn); err != nil {
+			return err
+		}
+		tn.Status.Phase = corev1alpha.TunnelPeerOfferPhaseConnecting
+		return r.Status().Update(ctx, &tn)
+	}); err != nil {
+		log.Error(err, "Failed to update tunnel peer offer status")
+	}
 
 	return ctrl.Result{}, nil // Wait until the remote offer is created.
 }
@@ -180,7 +234,7 @@ func (r *tunnelPeerOfferReconciler) connect(
 	}
 
 	go func() {
-		if err := peer.Connect(ctx, remoteName); err != nil && !errors.Is(err, ice.ErrMultipleStart) {
+		if err := peer.Connect(ctx, remoteName); err != nil && !goerrors.Is(err, ice.ErrMultipleStart) {
 			log.Error(err, "Failed to connect to ICE peer")
 
 			if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
@@ -188,11 +242,13 @@ func (r *tunnelPeerOfferReconciler) connect(
 				if err := r.Get(ctx, req.NamespacedName, &tunnelPeerOffer); err != nil {
 					return err
 				}
+				tunnelPeerOffer.Status.Phase = corev1alpha.TunnelPeerOfferPhaseFailed
 				tunnelPeerOffer.Status.Conditions = append(tunnelPeerOffer.Status.Conditions, metav1.Condition{
-					Type:    "Connected",
-					Status:  metav1.ConditionFalse,
-					Reason:  "Failed",
-					Message: fmt.Sprintf("Peer %s failed to connect: %v", r.localTunnelNodeName, err),
+					Type:               "Connected",
+					Status:             metav1.ConditionFalse,
+					Reason:             "Failed",
+					Message:            fmt.Sprintf("Peer %s failed to connect: %v", r.localTunnelNodeName, err),
+					LastTransitionTime: metav1.Now(),
 				})
 				return r.Status().Update(ctx, &tunnelPeerOffer)
 			}); err != nil {
@@ -208,25 +264,9 @@ func (r *tunnelPeerOfferReconciler) connect(
 			peer.Close()
 
 			return
-		} else if errors.Is(err, ice.ErrMultipleStart) {
+		} else if goerrors.Is(err, ice.ErrMultipleStart) {
 			log.Info("ICE connection already established, ignoring")
 			return
-		}
-
-		if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-			var tunnelPeerOffer corev1alpha.TunnelPeerOffer
-			if err := r.Get(ctx, req.NamespacedName, &tunnelPeerOffer); err != nil {
-				return err
-			}
-			tunnelPeerOffer.Status.Conditions = append(tunnelPeerOffer.Status.Conditions, metav1.Condition{
-				Type:    "Connected",
-				Status:  metav1.ConditionTrue,
-				Reason:  "Success",
-				Message: fmt.Sprintf("Peer %s successfully connected", r.localTunnelNodeName),
-			})
-			return r.Status().Update(ctx, &tunnelPeerOffer)
-		}); err != nil {
-			log.Error(err, "Failed to update tunnel peer offer status")
 		}
 	}()
 
