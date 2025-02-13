@@ -287,6 +287,15 @@ func (m *ApoxyCli) BuildBackplane(
 		WithFile("/bin/backplane", builder.File(bpOut)).
 		WithFile("/bin/dial-stdio", builder.File(dsOut)).
 		WithFile("/bin/edge-runtime", runtimeCtr.File("/usr/local/bin/edge-runtime")).
+		WithExec([]string{
+			"/bin/backplane",
+			"--project_id=apoxy",
+			"--proxy=apoxy",
+			"--replica=apoxy",
+			"--apiserver_addr=localhost:8443",
+			"--use_envoy_contrib=true",
+			"--download_envoy_only=true",
+		}).
 		WithEntrypoint([]string{"/bin/backplane"})
 }
 

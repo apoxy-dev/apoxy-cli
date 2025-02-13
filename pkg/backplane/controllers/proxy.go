@@ -491,6 +491,29 @@ func (r *ProxyReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager
 		Complete(r)
 }
 
+func (r *ProxyReconciler) DownloadEnvoy(ctx context.Context) error {
+	opts := []envoy.Option{
+		envoy.WithGoPluginDir(r.options.goPluginDir),
+	}
+	if r.options.releaseURL != "" {
+		opts = append(opts, envoy.WithRelease(&envoy.URLRelease{
+			URL: r.options.releaseURL,
+		}))
+	} else {
+		opts = append(opts, envoy.WithRelease(&envoy.GitHubRelease{
+			Contrib: r.options.useEnvoyContrib,
+		}))
+	}
+
+	if err := r.Runtime.Start(ctx, opts...); err != nil {
+		return fmt.Errorf("failed to start Envoy runtime: %w", err)
+	}
+	if err := r.Runtime.Shutdown(ctx); err != nil {
+		return fmt.Errorf("failed to shutdown Envoy runtime: %w", err)
+	}
+	return nil
+}
+
 func (r *ProxyReconciler) Shutdown(ctx context.Context, reason string) {
 	var wg sync.WaitGroup
 	wg.Add(2)

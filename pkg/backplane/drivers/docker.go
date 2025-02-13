@@ -12,7 +12,6 @@ import (
 
 	"github.com/apoxy-dev/apoxy-cli/build"
 	"github.com/apoxy-dev/apoxy-cli/pkg/log"
-	"github.com/apoxy-dev/apoxy-cli/pkg/utils"
 	dockerutils "github.com/apoxy-dev/apoxy-cli/pkg/utils/docker"
 )
 
@@ -133,7 +132,6 @@ func (d *dockerDriver) Start(
 		"--proxy=" + proxyName,
 		"--replica=" + proxyName,
 		"--apiserver_addr=" + net.JoinHostPort(apiServerHost, "8443"),
-		"--envoy_release_url=https://apoxy-envoy-releases.s3.us-west-2.amazonaws.com/envoy-contrib-dev-cfedcdbc0bf1e687d0fc2ad243e7277ed004673d-" + utils.HostArch(),
 		"--use_envoy_contrib=true",
 	}...)
 	cmd.Args = append(cmd.Args, setOpts.Args...)

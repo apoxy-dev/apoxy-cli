@@ -60,6 +60,7 @@ var (
 	proxyName       = flag.String("proxy", "", "Name of the Proxy to manage. Must not be used with --proxy_path.")
 	replicaName     = flag.String("replica", os.Getenv("HOSTNAME"), "Name of the replica to manage.")
 	envoyReleaseURL = flag.String("envoy_release_url", "", "URL to the Envoy release tarball.")
+	downloadEnvoy   = flag.Bool("download_envoy_only", false, "Whether to just download Envoy from the release URL and exit.")
 
 	devMode = flag.Bool("dev", false, "Enable development mode.")
 
@@ -290,6 +291,12 @@ func main() {
 		apiServerHost,
 		proxyOpts...,
 	)
+	if *downloadEnvoy {
+		if err := pctrl.DownloadEnvoy(ctx); err != nil {
+			log.Fatalf("Failed to download Envoy: %v", err)
+		}
+		os.Exit(0)
+	}
 	if err := pctrl.SetupWithManager(ctx, mgr); err != nil {
 		log.Fatalf("failed to set up Backplane controller: %v", err)
 	}
