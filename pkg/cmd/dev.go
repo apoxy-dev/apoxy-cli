@@ -319,7 +319,7 @@ var devCmd = &cobra.Command{
 		tc, err := tclient.NewLazyClient(tclient.Options{
 			HostPort:  "localhost:7223",
 			Namespace: "default",
-			Logger:    nil,
+			Logger:    log.DefaultLogger,
 		})
 		if err != nil {
 			return fmt.Errorf("failed creating Temporal client: %w", err)
