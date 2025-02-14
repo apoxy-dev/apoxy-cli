@@ -7,12 +7,13 @@
 
 # When releasing Apoxy, the releaser should update this version number
 # AFTER they upload new binaries.
-VERSION="0.1.5"
+VERSION="0.8.0"
 
 set -e
 
 function copy_binary() {
   USER=$(whoami)
+  chmod +x apoxy
   if [[ ":$PATH:" == *":$HOME/bin:"* ]]; then
       if [ ! -d "$HOME/bin" ]; then
         mkdir -p "$HOME/bin"
@@ -33,19 +34,20 @@ function install_apoxy() {
 			# On Linux, "uname -m" reports "aarch64" on ARM 64 bits machines,
 			# and armv7l on ARM 32 bits machines like the Raspberry Pi.
 			# This is a small workaround so that the install script works on ARM.
+			# Note that we don't output an armv6 binary for now.
 			case $(uname -m) in
 					aarch64) ARCH=arm64;;
 					armv7l)  ARCH=armv6;;
 					*)       ARCH=$(uname -m);;
 			esac
 			set -x
-			curl -fsSL https://github.com/apoxy-dev/apoxy-cli/releases/download/v$VERSION/apoxy_Linux_$ARCH.tar.gz | tar -xzv apoxy
+			curl -fsSL https://github.com/apoxy-dev/apoxy-cli/releases/download/v$VERSION/apoxy-linux-$ARCH > apoxy
 			copy_binary
   elif [[ "$OSTYPE" == "darwin"* ]]; then
 			# On macOS, "uname -m" reports "arm64" on ARM 64 bits machines
 			ARCH=$(uname -m)
 			set -x
-			curl -fsSL https://github.com/apoxy-dev/apoxy-cli/releases/download/v$VERSION/apoxy_Darwin_$ARCH.tar.gz | tar -xzv apoxy
+			curl -fsSL https://github.com/apoxy-dev/apoxy-cli/releases/download/v$VERSION/apoxy-darwin-$ARCH > apoxy
 			copy_binary
   else
       set +x
