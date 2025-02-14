@@ -37,7 +37,7 @@ func TestTunnelNodeReconciler(t *testing.T) {
 			Namespace: "default",
 		},
 		Status: corev1alpha.TunnelNodeStatus{
-			LastSynced: lastSyncedTime,
+			LastSynced: &lastSyncedTime,
 		},
 	}
 

@@ -52,7 +52,10 @@ func (r *TunnelNodeReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 	// Check if the last synced time is more than 5 minutes ago.
 	// If so, assume the node is dead and delete it.
 	expiryTime := metav1.NewTime(now.Add(-expiryDuration))
-	if tn.Status.LastSynced.Before(&expiryTime) && tn.CreationTimestamp.Before(&expiryTime) {
+	// Delete the tunnel node if it's been more than expiryDuration since the last
+	// sync or since it was created if no sync was ever recorded.
+	if (tn.Status.LastSynced == nil && tn.CreationTimestamp.Time.Before(expiryTime.Time)) ||
+		(tn.Status.LastSynced != nil && tn.Status.LastSynced.Time.Before(expiryTime.Time)) {
 		log.Info("Deleting dead TunnelNode", "lastSynced", tn.Status.LastSynced)
 
 		if err := r.Delete(ctx, &tn); err != nil {

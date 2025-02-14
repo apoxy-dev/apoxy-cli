@@ -5,11 +5,14 @@ import (
 	goerrors "errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"sync"
 
+	"github.com/go-logr/logr"
 	"github.com/pion/ice/v4"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -33,15 +36,37 @@ type tunnelPeerOfferReconciler struct {
 	peers               map[string]*wireguard.IcePeer
 }
 
-func getOfferOwner(ctx context.Context, client client.Client, offer *corev1alpha.TunnelPeerOffer) (string, error) {
+func getOfferOwner(ctx context.Context, client client.Client, offer *corev1alpha.TunnelPeerOffer) (*corev1alpha.TunnelNode, error) {
 	ownerRef := metav1.GetControllerOf(offer)
 	if ownerRef == nil {
-		return "", fmt.Errorf("could not find owner reference")
+		return nil, fmt.Errorf("could not find owner reference")
 	}
 	if ownerRef.Kind != "TunnelNode" {
-		return "", fmt.Errorf("owner reference is not a TunnelPeer")
+		return nil, fmt.Errorf("owner reference is not a TunnelPeer")
 	}
-	return ownerRef.Name, nil
+	tunnelNode := &corev1alpha.TunnelNode{}
+	if err := client.Get(ctx, types.NamespacedName{Name: ownerRef.Name}, tunnelNode); err != nil {
+		return nil, err
+	}
+	return tunnelNode, nil
+}
+
+func isOfferCurrent(log logr.Logger, node *corev1alpha.TunnelNode, offer *corev1alpha.TunnelPeerOffer) bool {
+	l := offer.Labels[tunnelNodeEpochLabel]
+	if l == "" {
+		log.Info("Offer epoch is missing, ignoring")
+		return false
+	}
+	ln, err := strconv.ParseInt(l, 10, 64)
+	if err != nil {
+		log.Info("Offer epoch is not a valid integer, ignoring")
+		return false
+	}
+	if ln != node.Status.Epoch {
+		log.Info("Offer epoch does not match local epoch, ignoring", "RemotePeer", node.Name, "OfferEpoch", ln, "RemoteNodeEpoch", node.Status.Epoch)
+		return false
+	}
+	return true
 }
 
 func (r *tunnelPeerOfferReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -73,10 +98,21 @@ func (r *tunnelPeerOfferReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 			log.Info("Remote peer offer is in failed, ignoring")
 			return ctrl.Result{}, nil
 		case corev1alpha.TunnelPeerOfferPhaseConnecting:
-			remoteName, err := getOfferOwner(ctx, r.Client, tunnelPeerOffer)
+			remoteNode, err := getOfferOwner(ctx, r.Client, tunnelPeerOffer)
 			if err != nil {
 				return ctrl.Result{}, err
 			}
+
+			if remoteNode.Status.Phase != corev1alpha.NodePhaseReady {
+				log.Info("Remote node is not ready, ignoring")
+				return ctrl.Result{}, nil
+			}
+			if !isOfferCurrent(log, remoteNode, tunnelPeerOffer) {
+				log.Info("Offer is not current, ignoring")
+				return ctrl.Result{}, nil
+			}
+
+			remoteName := remoteNode.Name
 
 			log.Info("Offer controlled by remote node, starting ICE negotiation", "RemotePeer", remoteName)
 
@@ -104,6 +140,15 @@ func (r *tunnelPeerOfferReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 
 	remoteName := tunnelPeerOffer.Spec.RemoteTunnelNodeName
 	log.Info("Offer controlled by local node", "RemotePeer", remoteName)
+
+	localNode := &corev1alpha.TunnelNode{}
+	if err := r.Get(ctx, types.NamespacedName{Name: r.localTunnelNodeName}, localNode); err != nil {
+		return ctrl.Result{}, err
+	}
+	if !isOfferCurrent(log, localNode, tunnelPeerOffer) {
+		log.Info("Offer is not current, ignoring")
+		return ctrl.Result{}, nil
+	}
 
 	r.mu.Lock()
 	defer r.mu.Unlock()

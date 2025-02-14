@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -45,6 +46,8 @@ import (
 
 const (
 	matchingTunnelNodesIndex = "remoteTunnelNodeIndex"
+
+	tunnelNodeEpochLabel = "core.apoxy.dev/tunnelnode-epoch"
 )
 
 var (
@@ -190,9 +193,12 @@ func (t *tunnelNodeReconciler) run(ctx context.Context) error {
 	// Create/update the TunnelNode object in the API.
 	slog.Debug("Creating/updating TunnelNode", slog.String("name", t.localTunnelNode.Name))
 
-	if err := t.upsertTunnelNode(ctx, client); err != nil {
+	if err := t.upsertTunnelNode(ctx, client, 10*time.Second); err != nil {
+		log.Errorf("Failed to create/update TunnelNode: %v", err)
 		return err
 	}
+
+	log.Infof("Starting tunnel node controller")
 
 	mgr, err := ctrl.NewManager(client.RESTConfig, ctrl.Options{
 		Scheme:         scheme,
@@ -226,6 +232,7 @@ func (t *tunnelNodeReconciler) run(ctx context.Context) error {
 			slog.Error("Manager exited non-zero", slog.Any("error", err))
 		}
 	}()
+	go t.runSyncLoop(ctx, client)
 
 	// Set the initial status of the TunnelNode object.
 	// Wait for the TunnelNode object to be deleted, or for the command to be cancelled.
@@ -386,7 +393,7 @@ func (t *tunnelNodeReconciler) offerPeer(
 	ctx context.Context,
 	peerTunnelNode *corev1alpha.TunnelNode,
 ) (*corev1alpha.TunnelPeerOffer, bool, error) {
-	offerName := fmt.Sprintf("%s-%s", t.localTunnelNode.Name, peerTunnelNode.Name)
+	offerName := fmt.Sprintf("%s-%s-%d", t.localTunnelNode.Name, peerTunnelNode.Name, *&t.localTunnelNode.Status.Epoch)
 	// Check if offer already exists
 	existingOffer := &corev1alpha.TunnelPeerOffer{}
 	if err := t.Get(ctx, client.ObjectKey{Name: offerName}, existingOffer); err == nil {
@@ -398,6 +405,9 @@ func (t *tunnelNodeReconciler) offerPeer(
 	peerOffer := &corev1alpha.TunnelPeerOffer{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: offerName,
+			Labels: map[string]string{
+				tunnelNodeEpochLabel: strconv.FormatInt(t.localTunnelNode.Status.Epoch, 10),
+			},
 		},
 		Spec: corev1alpha.TunnelPeerOfferSpec{
 			RemoteTunnelNodeName: peerTunnelNode.Name,
@@ -416,6 +426,7 @@ func (t *tunnelNodeReconciler) offerPeer(
 
 func (t *tunnelNodeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := clog.FromContext(ctx)
+
 	var tunnelNode corev1alpha.TunnelNode
 	if err := t.Get(ctx, req.NamespacedName, &tunnelNode); err != nil {
 		log.Error(err, "Failed to get TunnelNode")
@@ -538,26 +549,92 @@ func (t *tunnelNodeReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 }
 
 // upsertTunnelNode creates or updates a TunnelNode object in the API.
-func (t *tunnelNodeReconciler) upsertTunnelNode(ctx context.Context, client versioned.Interface) error {
+// Will wait up to takoverWait if node has been synced before taking over the node.
+func (t *tunnelNodeReconciler) upsertTunnelNode(
+	ctx context.Context,
+	client versioned.Interface,
+	takoverWait time.Duration,
+) error {
 	var updated *corev1alpha.TunnelNode
-	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		existingTunnelNode, err := client.CoreV1alpha().TunnelNodes().Get(ctx, t.localTunnelNode.Name, metav1.GetOptions{})
-		if err != nil && !apierrors.IsNotFound(err) {
-			return fmt.Errorf("failed to get existing TunnelNode: %w", err)
-		} else if err != nil {
-			if updated, err = client.CoreV1alpha().TunnelNodes().Create(ctx, &t.localTunnelNode, metav1.CreateOptions{}); err != nil {
-				return fmt.Errorf("failed to create TunnelNode: %w", err)
-			}
-		} else {
-			t.localTunnelNode.ResourceVersion = existingTunnelNode.ResourceVersion
-			updated, err = client.CoreV1alpha().TunnelNodes().Update(ctx, &t.localTunnelNode, metav1.UpdateOptions{})
-			if err != nil {
-				return fmt.Errorf("failed to update existing TunnelNode: %w", err)
+
+	existingTunnelNode, err := client.CoreV1alpha().TunnelNodes().Get(ctx, t.localTunnelNode.Name, metav1.GetOptions{})
+	if err != nil && !apierrors.IsNotFound(err) {
+		return fmt.Errorf("failed to get existing TunnelNode: %w", err)
+	} else if apierrors.IsNotFound(err) {
+		if updated, err = client.CoreV1alpha().TunnelNodes().Create(ctx, &t.localTunnelNode, metav1.CreateOptions{}); err != nil {
+			return fmt.Errorf("failed to create TunnelNode: %w", err)
+		}
+	} else {
+		if existingTunnelNode.Status.LastSynced != nil {
+			log.Infof("Detected synced node, waiting for %v before taking over", takoverWait)
+			select {
+			case <-time.After(takoverWait):
+				existingTunnelNode, err = client.CoreV1alpha().TunnelNodes().Get(ctx, t.localTunnelNode.Name, metav1.GetOptions{})
+				if err != nil {
+					log.Errorf("Failed to re-read TunnelNode: %v", err)
+					return err
+				}
+				if !existingTunnelNode.Status.LastSynced.Equal(existingTunnelNode.Status.LastSynced) {
+					log.Infof("TunnelNode was synced while waiting, aborting takeover")
+					return fmt.Errorf("tunnel node was synced while waiting - a tunnel peer may have been connected")
+				}
+			case <-ctx.Done():
+				return ctx.Err()
 			}
 		}
 
-		t.localTunnelNode = *updated.DeepCopy()
+		if err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+			existingTunnelNode, err := client.CoreV1alpha().TunnelNodes().Get(ctx, t.localTunnelNode.Name, metav1.GetOptions{})
+			if err != nil {
+				return fmt.Errorf("failed to get existing TunnelNode: %w", err)
+			}
 
-		return nil
-	})
+			t.localTunnelNode.ResourceVersion = existingTunnelNode.ResourceVersion
+			t.localTunnelNode.Status.LastSynced = ptr.To(metav1.Now())
+			t.localTunnelNode.Status.Epoch = existingTunnelNode.Status.Epoch + 1
+
+			log.Infof("Updating TunnelNode %s with epoch %d", t.localTunnelNode.Name, t.localTunnelNode.Status.Epoch)
+
+			if _, err = client.CoreV1alpha().TunnelNodes().Update(ctx, &t.localTunnelNode, metav1.UpdateOptions{}); err != nil {
+				return fmt.Errorf("failed to update existing TunnelNode: %w", err)
+			}
+			if updated, err = client.CoreV1alpha().TunnelNodes().UpdateStatus(ctx, &t.localTunnelNode, metav1.UpdateOptions{}); err != nil {
+				return fmt.Errorf("failed to update TunnelNode status: %w", err)
+			}
+
+			return nil
+		}); err != nil {
+			return fmt.Errorf("failed to update existing TunnelNode: %w", err)
+		}
+	}
+
+	t.localTunnelNode = *updated.DeepCopy()
+
+	return nil
+}
+
+func (t *tunnelNodeReconciler) runSyncLoop(ctx context.Context, client versioned.Interface) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(2 * time.Second):
+			if err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+				tn, err := client.CoreV1alpha().TunnelNodes().Get(ctx, t.localTunnelNode.Name, metav1.GetOptions{})
+				if err != nil {
+					return fmt.Errorf("failed to get existing TunnelNode: %w", err)
+				}
+
+				tn.Status.LastSynced = ptr.To(metav1.Now())
+
+				if _, err = client.CoreV1alpha().TunnelNodes().UpdateStatus(ctx, tn, metav1.UpdateOptions{}); err != nil {
+					return fmt.Errorf("failed to update existing TunnelNode: %w", err)
+				}
+
+				return nil
+			}); err != nil {
+				slog.Error("Failed to sync TunnelNode status", slog.Any("error", err))
+			}
+		}
+	}
 }

@@ -41,22 +41,25 @@ type TunnelNodeRef struct {
 	Name string `json:"name,omitempty"`
 }
 
-type NodePhase string
+type TunnelNodePhase string
 
 const (
-	// NodePhasePending is the phase for a node that is being setup
+	// NodePhaseInitializing is the phase for a node that is being setup
 	// before it moves into "Ready" (to accept connections from peers and
 	// relay traffic for them) or "Failed" (if it fails to setup).
-	NodePhasePending NodePhase = "Pending"
+	NodePhaseInitializing TunnelNodePhase = "Initializing"
 	// NodePhaseReady
-	NodePhaseReady NodePhase = "Ready"
+	NodePhaseReady TunnelNodePhase = "Ready"
 	// NodePhaseFailed
-	NodePhaseFailed NodePhase = "Failed"
+	NodePhaseFailed TunnelNodePhase = "Failed"
 )
 
 type TunnelNodeStatus struct {
 	// Phase of the node.
-	Phase NodePhase `json:"phase,omitempty"`
+	Phase TunnelNodePhase `json:"phase,omitempty"`
+
+	// Conditions of the tunnel node.
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 
 	// Public key of the node (base64 encoded).
 	PublicKey string `json:"publicKey,omitempty"`
@@ -66,8 +69,15 @@ type TunnelNodeStatus struct {
 
 	// Internal address of the node. Always a /96 IPv6 address.
 	InternalAddress string `json:"internalAddress,omitempty"`
+
 	// Last time the tunnel node configuration was synced.
-	LastSynced metav1.Time `json:"lastSynced,omitempty"`
+	// +optional
+	LastSynced *metav1.Time `json:"lastSynced,omitempty"`
+
+	// Epoch is an opaque value that represents the current run of the tunnel node controller.
+	// TunnelPeerOffers created for this node will have core.apoxy.dev/tunnelnode-epoch=<epoch>
+	// set to this value.
+	Epoch int64 `json:"epoch"`
 }
 
 var _ resource.StatusSubResource = &TunnelNodeStatus{}
