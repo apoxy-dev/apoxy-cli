@@ -110,14 +110,8 @@ var tunnelRunCmd = &cobra.Command{
 		}
 
 		iceConf := &ice.AgentConfig{
-			Urls: []*stun.URI{
-				{
-					Scheme: stun.SchemeTypeSTUN,
-					Host:   "stun.l.google.com",
-					Port:   19302,
-				},
-			},
-			NetworkTypes:  []ice.NetworkType{ice.NetworkTypeUDP4},
+			// TODO(dsky): Support TCP network types and other configs from TunnelConfig.
+			NetworkTypes:  []ice.NetworkType{ice.NetworkTypeUDP4, ice.NetworkTypeTCP4},
 			CheckInterval: ptr.To(50 * time.Millisecond),
 			CandidateTypes: []ice.CandidateType{
 				ice.CandidateTypeHost,
@@ -128,6 +122,28 @@ var tunnelRunCmd = &cobra.Command{
 			LoggerFactory: &icelogging.DefaultLoggerFactory{
 				Writer: log.NewDefaultLogWriter(log.InfoLevel),
 			},
+		}
+		for _, uri := range cfg.Tunnel.STUNServers {
+			proto := stun.NewProtoType(string(uri.Proto))
+			if proto == stun.ProtoTypeUnknown {
+				log.Errorf("Unknown STUN protocol: %s", uri.Proto)
+				return fmt.Errorf("unknown STUN protocol: %s", uri.Proto)
+			}
+			iceConf.Urls = append(iceConf.Urls, &stun.URI{
+				Scheme:   stun.SchemeTypeSTUN,
+				Host:     uri.Host,
+				Port:     uri.Port,
+				Username: uri.Username,
+				Password: uri.Password,
+				Proto:    proto,
+			})
+		}
+		if len(iceConf.Urls) == 0 {
+			iceConf.Urls = append(iceConf.Urls, &stun.URI{
+				Scheme: stun.SchemeTypeSTUN,
+				Host:   "stun.l.google.com",
+				Port:   19302,
+			})
 		}
 
 		log.Infof("Creating TunnelNode %s", tn.Name)

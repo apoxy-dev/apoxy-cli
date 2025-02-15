@@ -59,6 +59,33 @@ type KubernetesConfig struct {
 	KubeconfigPath string `json:"kubeconfigPath,omitempty"`
 }
 
+type STUNScheme string
+
+const (
+	STUNSchemeSTUN    STUNScheme = "stun"
+	STUNSchemeSTUNS   STUNScheme = "stuns"
+	STUNSchemeTURN    STUNScheme = "turn"
+	STUNSchemeTURNSSL STUNScheme = "turns"
+)
+
+type StunProto string
+
+const (
+	StunProtoUDP StunProto = "udp"
+	StunProtoTCP StunProto = "tcp"
+)
+
+// STUNServer represent a STUN (https://datatracker.ietf.org/doc/html/rfc7064)
+// or a TURN (https://datatracker.ietf.org/doc/html/rfc7065) server URIs.
+type STUNServer struct {
+	Scheme   STUNScheme `json:"scheme,omitempty"`
+	Host     string     `json:"host,omitempty"`
+	Port     int        `json:"port,omitempty"`
+	Proto    StunProto  `json:"proto,omitempty"`
+	Username string     `json:"username,omitempty"`
+	Password string     `json:"password,omitempty"`
+}
+
 // TunnelConfig is the configuration for the tunnel.
 type TunnelConfig struct {
 	// Mode is the mode of the tunnel.
@@ -69,7 +96,7 @@ type TunnelConfig struct {
 	// STUNServers is an optional list of STUN servers to use for determining the
 	// external address of the tunnel node. If not specified it will default to
 	// Google and Cloudflare's public STUN servers.
-	STUNServers []string `json:"stunServers,omitempty"`
+	STUNServers []STUNServer `json:"stunServers,omitempty"`
 	// PacketCapturePath is an optional path to write packet captures to.
 	// If not specified, packet sniffing will be disabled.
 	// This is only available in userspace mode and intended for debugging purposes.
