@@ -20,6 +20,7 @@ const maxMessageSize = 65535
 
 type IceBind struct {
 	conf    *ice.AgentConfig
+	pCtx    context.Context
 	ctx     context.Context
 	cancel  context.CancelFunc
 	recvCh  chan *message
@@ -30,11 +31,9 @@ type IceBind struct {
 
 // NewIceBind creates a new IceBind.
 func NewIceBind(ctx context.Context, conf *ice.AgentConfig) *IceBind {
-	ctx, cancel := context.WithCancel(ctx)
 	return &IceBind{
 		conf:   conf,
-		ctx:    ctx,
-		cancel: cancel,
+		pCtx:   ctx,
 		recvCh: make(chan *message, 1000),
 		peers:  make(map[string]*IcePeer),
 		msgPool: sync.Pool{
@@ -55,7 +54,10 @@ func (b *IceBind) Close() error {
 		ep.agent.Close()
 	}
 	clear(b.peers)
-	b.cancel()
+	if b.cancel != nil {
+		b.cancel()
+		b.cancel = nil
+	}
 	return nil
 }
 
@@ -66,6 +68,10 @@ type message struct {
 
 func (b *IceBind) Open(_ uint16) (fns []conn.ReceiveFunc, actualPort uint16, err error) {
 	log.Debugf("Opening")
+
+	// Create a new context for each Open() call.
+	b.ctx, b.cancel = context.WithCancel(b.pCtx)
+
 	return []conn.ReceiveFunc{func(pkts [][]byte, sizes []int, eps []conn.Endpoint) (int, error) {
 		select {
 		case <-b.ctx.Done():
@@ -161,10 +167,14 @@ func (p *IcePeer) Init() error {
 		p.candMu.Lock()
 		p.candidates = append(p.candidates, c.Marshal())
 		p.candMu.Unlock()
-		p.OnCandidate(c.Marshal())
+
+		if p.OnCandidate != nil {
+			p.OnCandidate(c.Marshal())
+		}
 	}); err != nil {
 		return fmt.Errorf("could not set ICE candidate handler: %w", err)
 	}
+
 	if err := p.agent.OnConnectionStateChange(func(c ice.ConnectionState) {
 		log.Debugf("ICE connection state: %v", c)
 		switch c {
@@ -178,18 +188,23 @@ func (p *IcePeer) Init() error {
 			}
 		}
 	}); err != nil {
-		return err
+		return fmt.Errorf("could not set ICE connection state handler: %w", err)
 	}
+
 	if err := p.agent.OnSelectedCandidatePairChange(func(local, remote ice.Candidate) {
 		log.Debugf("ICE selected candidate pair: %v, %v", local, remote)
-		//p.OnCandidatePair(local.Marshal(), remote.Marshal())
+
+		if p.OnCandidatePair != nil {
+			p.OnCandidatePair(local.Marshal(), remote.Marshal())
+		}
 	}); err != nil {
-		return err
+		return fmt.Errorf("could not set ICE selected candidate pair handler: %w", err)
 	}
 
 	if err := p.agent.GatherCandidates(); err != nil {
 		return fmt.Errorf("could not gather ICE candidates: %w", err)
 	}
+
 	return nil
 }
 
