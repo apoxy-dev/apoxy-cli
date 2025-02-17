@@ -2414,13 +2414,6 @@ func schema_apoxy_cli_api_core_v1alpha_TunnelNodeStatus(ref common.ReferenceCall
 							Format:      "",
 						},
 					},
-					"externalAddress": {
-						SchemaProps: spec.SchemaProps{
-							Description: "External address of the node or address of the NAT hole punched.",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
 					"internalAddress": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Internal address of the node. Always a /96 IPv6 address.",

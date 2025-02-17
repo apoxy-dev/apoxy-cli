@@ -64,9 +64,6 @@ type TunnelNodeStatus struct {
 	// Public key of the node (base64 encoded).
 	PublicKey string `json:"publicKey,omitempty"`
 
-	// External address of the node or address of the NAT hole punched.
-	ExternalAddress string `json:"externalAddress,omitempty"`
-
 	// Internal address of the node. Always a /96 IPv6 address.
 	InternalAddress string `json:"internalAddress,omitempty"`
 

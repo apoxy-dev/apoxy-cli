@@ -185,7 +185,7 @@ func (t *tunnelNodeReconciler) run(ctx context.Context) error {
 
 		t.tun, err = tunnel.CreateUserspaceTunnel(ctx, tunAddr.Addr(), t.bind, socksPort, t.cfg.Tunnel.PacketCapturePath, t.cfg.Verbose)
 	} else {
-		t.tun, err = tunnel.CreateKernelTunnel(ctx, tunAddr, tunnel.DefaultSTUNServers)
+		t.tun, err = tunnel.CreateKernelTunnel(tunAddr, t.bind, t.cfg.Verbose)
 	}
 	if err != nil {
 		return fmt.Errorf("unable to create tunnel: %w", err)
@@ -203,7 +203,6 @@ func (t *tunnelNodeReconciler) run(ctx context.Context) error {
 
 	t.localTunnelNode.Status.Phase = corev1alpha.NodePhaseReady
 	t.localTunnelNode.Status.PublicKey = t.tun.PublicKey()
-	t.localTunnelNode.Status.ExternalAddress = t.tun.ExternalAddress().String()
 	t.localTunnelNode.Status.InternalAddress = t.tun.InternalAddress().String()
 
 	// Create/update the TunnelNode object in the API.

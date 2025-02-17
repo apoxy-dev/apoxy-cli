@@ -9,27 +9,26 @@ import (
 	"net"
 	"net/netip"
 
+	"golang.zx2c4.com/wireguard/conn"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	"k8s.io/utils/ptr"
 
 	"github.com/apoxy-dev/apoxy-cli/pkg/socksproxy"
-	"github.com/apoxy-dev/apoxy-cli/pkg/utils"
 	"github.com/apoxy-dev/apoxy-cli/pkg/wireguard"
 )
 
 var _ Tunnel = (*userspaceTunnel)(nil)
 
 type userspaceTunnel struct {
-	wgNet      *wireguard.WireGuardNetwork
-	proxySrv   *socksproxy.ProxyServer
-	listenPort uint16
+	wgNet    *wireguard.WireGuardNetwork
+	proxySrv *socksproxy.ProxyServer
 }
 
 // CreateUserspaceTunnel creates a new user-space WireGuard tunnel.
 func CreateUserspaceTunnel(
 	ctx context.Context,
 	addr netip.Addr,
-	bind *wireguard.IceBind,
+	bind conn.Bind,
 	socksPort uint16,
 	packetCapturePath string,
 	verbose bool,
@@ -38,13 +37,6 @@ func CreateUserspaceTunnel(
 	if err != nil {
 		return nil, fmt.Errorf("could not generate private key: %w", err)
 	}
-
-	listenPort, err := utils.UnusedUDP4Port()
-	if err != nil {
-		return nil, fmt.Errorf("could not pick unused UDP port: %w", err)
-	}
-
-	slog.Debug("Listening for wireguard traffic", slog.Int("port", int(listenPort)))
 
 	wgNet, err := wireguard.Network(&wireguard.DeviceConfig{
 		PrivateKey:        ptr.To(privateKey.String()),
@@ -74,9 +66,8 @@ func CreateUserspaceTunnel(
 	}()
 
 	return &userspaceTunnel{
-		wgNet:      wgNet,
-		proxySrv:   proxySrv,
-		listenPort: listenPort,
+		wgNet:    wgNet,
+		proxySrv: proxySrv,
 	}, nil
 }
 
@@ -101,14 +92,10 @@ func (t *userspaceTunnel) PublicKey() string {
 	return t.wgNet.PublicKey()
 }
 
-func (t *userspaceTunnel) ExternalAddress() netip.AddrPort {
-	return t.wgNet.Endpoint()
-}
-
 func (t *userspaceTunnel) InternalAddress() netip.Prefix {
 	return t.wgNet.LocalAddresses()[0]
 }
 
-func (t *userspaceTunnel) ListenPort() uint16 {
-	return t.listenPort
+func (t *userspaceTunnel) ListenPort() (uint16, error) {
+	return t.wgNet.ListenPort()
 }
