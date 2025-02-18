@@ -171,7 +171,7 @@ func (r *tunnelPeerOfferReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 
 	var err error
 	isControlling := r.localTunnelNodeName > remoteName
-	peer, err = r.bind.NewPeer(ctx, isControlling)
+	peer, err = r.bind.NewPeer(isControlling)
 	if err != nil {
 		log.Error(err, "Failed to create ICE peer")
 		return ctrl.Result{}, err
@@ -237,7 +237,7 @@ func (r *tunnelPeerOfferReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 			log.Error(err, "Failed to update tunnel peer offer status")
 		}
 	}
-	if err := peer.Init(ctx); err != nil {
+	if err := peer.Init(); err != nil {
 		log.Error(err, "Failed to initialize ICE peer")
 		peer.Close()
 		return ctrl.Result{}, err

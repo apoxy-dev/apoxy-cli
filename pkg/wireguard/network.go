@@ -16,6 +16,7 @@ import (
 	"k8s.io/utils/ptr"
 
 	"github.com/apoxy-dev/apoxy-cli/pkg/network"
+	"github.com/apoxy-dev/apoxy-cli/pkg/utils"
 	"github.com/apoxy-dev/apoxy-cli/pkg/wireguard/netstack"
 	"github.com/apoxy-dev/apoxy-cli/pkg/wireguard/uapi"
 )
@@ -59,6 +60,15 @@ func Network(conf *DeviceConfig) (*WireGuardNetwork, error) {
 	bind := conf.Bind
 	if bind == nil {
 		bind = conn.NewStdNetBind()
+
+		if conf.ListenPort == nil {
+			listenPort, err := utils.UnusedUDP4Port()
+			if err != nil {
+				return nil, fmt.Errorf("could not pick unused UDP port: %w", err)
+			}
+
+			conf.ListenPort = ptr.To(listenPort)
+		}
 	}
 
 	dev := device.NewDevice(tun, bind, &device.Logger{
@@ -142,23 +152,22 @@ func (n *WireGuardNetwork) Peers() ([]PeerConfig, error) {
 
 // AddPeer adds, or updates, a peer to the WireGuard network.
 func (n *WireGuardNetwork) AddPeer(peerConf *PeerConfig) error {
-	//if peerConf.Endpoint != nil {
-	//	host, port, err := net.SplitHostPort(*peerConf.Endpoint)
-	//	if err != nil {
-	//		return fmt.Errorf("failed to parse peer endpoint: %w", err)
-	//	}
+	if peerConf.Endpoint != nil {
+		// If it's an address, resolve it. If it's a name pass it through unmodified.
+		host, port, err := net.SplitHostPort(*peerConf.Endpoint)
+		if err == nil {
+			if _, err := netip.ParseAddr(host); err != nil {
+				// If the endpoint is a hostname, resolve it.
+				ips, err := net.LookupHost(host)
+				if err != nil {
+					return fmt.Errorf("failed to resolve endpoint: %w", err)
+				}
 
-	//	if _, err := netip.ParseAddr(host); err != nil {
-	//		// If the endpoint is a hostname, resolve it.
-	//		ips, err := net.LookupHost(host)
-	//		if err != nil {
-	//			return fmt.Errorf("failed to resolve endpoint: %w", err)
-	//		}
-
-	//		// TODO: Use a proper IP address selection algorithm.
-	//		peerConf.Endpoint = ptr.To(net.JoinHostPort(ips[0], port))
-	//	}
-	//}
+				// TODO: Use a proper IP address selection algorithm.
+				peerConf.Endpoint = ptr.To(net.JoinHostPort(ips[0], port))
+			}
+		}
+	}
 
 	// Don't set the persistent keep-alive interval immediately.
 	var persistentKeepaliveIntervalSec *uint16
@@ -241,6 +250,30 @@ func (n *WireGuardNetwork) FowardToLoopback(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// ListenPort returns the local listen port of this end of the tunnel.
+func (n *WireGuardNetwork) ListenPort() (uint16, error) {
+	var uapiConf strings.Builder
+	if err := n.dev.IpcGetOperation(&uapiConf); err != nil {
+		return 0, fmt.Errorf("failed to get device config: %w", err)
+	}
+
+	entries := strings.Split(uapiConf.String(), "public_key=")
+	if len(entries) == 0 {
+		return 0, errors.New("no device config found")
+	}
+
+	var conf DeviceConfig
+	if err := uapi.Unmarshal(entries[0], &conf); err != nil {
+		return 0, fmt.Errorf("failed to unmarshal device config: %w", err)
+	}
+
+	if conf.ListenPort == nil {
+		return 0, errors.New("no listen port found")
+	}
+
+	return *conf.ListenPort, nil
 }
 
 func parseAddressList(addrs []string) ([]netip.Addr, error) {

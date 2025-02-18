@@ -4,7 +4,6 @@
 package tunnel_test
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"net"
@@ -37,7 +36,8 @@ func TestKernelTunnel(t *testing.T) {
 
 	// Create a new kernel tunnel.
 	projectID := uuid.New()
-	tun, err := tunnel.CreateKernelTunnel(context.Background(), projectID, "kernel-node", tunnel.DefaultSTUNServers)
+	wgAddress := tunnel.NewApoxy4To6Prefix(projectID, "kernel-node")
+	tun, err := tunnel.CreateKernelTunnel(wgAddress, nil, false)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, tun.Close())
@@ -50,7 +50,7 @@ func TestKernelTunnel(t *testing.T) {
 	listenPort, err := utils.UnusedUDP4Port()
 	require.NoError(t, err)
 
-	wgAddress := tunnel.NewApoxy4To6Prefix(projectID, "userspace-node")
+	wgAddress = tunnel.NewApoxy4To6Prefix(projectID, "userspace-node")
 
 	wgNet, err := wireguard.Network(&wireguard.DeviceConfig{
 		PrivateKey: ptr.To(privateKey.String()),
@@ -68,11 +68,15 @@ func TestKernelTunnel(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// Retrieve the listen port of the tunnel (if it has one).
+	listenPort, err = tun.ListenPort()
+	require.NoError(t, err)
+
 	// Add a peer to the wireguard network.
 	err = wgNet.AddPeer(&wireguard.PeerConfig{
 		PublicKey:  ptr.To(tun.PublicKey()),
 		AllowedIPs: []string{tun.InternalAddress().String()},
-		Endpoint:   ptr.To(net.JoinHostPort("localhost", strconv.Itoa(int(tun.ListenPort())))),
+		Endpoint:   ptr.To(net.JoinHostPort("localhost", strconv.Itoa(int(listenPort)))),
 	})
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

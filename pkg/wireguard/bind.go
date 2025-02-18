@@ -2,6 +2,7 @@ package wireguard
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/netip"
@@ -15,39 +16,26 @@ import (
 	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
 )
 
+const maxMessageSize = 65535
+
 type IceBind struct {
-	Conf *ice.AgentConfig
-
-	pctx      context.Context
-	ctx       context.Context
-	ctxCancel context.CancelFunc
-
-	recvCh chan *message
-
-	mu    sync.RWMutex
-	peers map[string]*IcePeer
-
+	conf    *ice.AgentConfig
+	pCtx    context.Context
+	ctx     context.Context
+	cancel  context.CancelFunc
+	recvCh  chan *message
+	mu      sync.RWMutex
+	peers   map[string]*IcePeer
 	msgPool sync.Pool
 }
 
-const (
-	maxMessageSize = 65535
-)
-
 // NewIceBind creates a new IceBind.
 func NewIceBind(ctx context.Context, conf *ice.AgentConfig) *IceBind {
-	cctx, ctxCancel := context.WithCancel(ctx)
 	return &IceBind{
-		Conf: conf,
-
-		pctx:      ctx,
-		ctx:       cctx,
-		ctxCancel: ctxCancel,
-
+		conf:   conf,
+		pCtx:   ctx,
 		recvCh: make(chan *message, 1000),
-
-		peers: make(map[string]*IcePeer),
-
+		peers:  make(map[string]*IcePeer),
 		msgPool: sync.Pool{
 			New: func() interface{} {
 				return &message{
@@ -66,8 +54,10 @@ func (b *IceBind) Close() error {
 		ep.agent.Close()
 	}
 	clear(b.peers)
-	//b.ctxCancel()
-	//b.ctx, b.ctxCancel = context.WithCancel(b.ctx)
+	if b.cancel != nil {
+		b.cancel()
+		b.cancel = nil
+	}
 	return nil
 }
 
@@ -76,8 +66,12 @@ type message struct {
 	dst string
 }
 
-func (b *IceBind) Open(port uint16) (fns []conn.ReceiveFunc, actualPort uint16, err error) {
-	log.Debugf("Opening port %d", port)
+func (b *IceBind) Open(_ uint16) (fns []conn.ReceiveFunc, actualPort uint16, err error) {
+	log.Debugf("Opening")
+
+	// Create a new context for each Open() call.
+	b.ctx, b.cancel = context.WithCancel(b.pCtx)
+
 	return []conn.ReceiveFunc{func(pkts [][]byte, sizes []int, eps []conn.Endpoint) (int, error) {
 		select {
 		case <-b.ctx.Done():
@@ -93,7 +87,7 @@ func (b *IceBind) Open(port uint16) (fns []conn.ReceiveFunc, actualPort uint16, 
 
 			return 1, nil
 		}
-	}}, port, nil
+	}}, 0, nil
 }
 
 func (b *IceBind) ParseEndpoint(s string) (conn.Endpoint, error) {
@@ -130,44 +124,42 @@ func (b *IceBind) SetMark(mark uint32) error {
 func (b *IceBind) BatchSize() int { return 1 }
 
 type IcePeer struct {
-	OnCandidate     func(candidate string)
-	OnConnected     func()
-	OnDisconnected  func(msg string)
-	OnCandidatePair func(local, remote string)
-
+	OnCandidate            func(candidate string)
+	OnConnected            func()
+	OnDisconnected         func(msg string)
+	OnCandidatePair        func(local, remote string)
+	bind                   *IceBind
+	agent                  *ice.Agent
 	ufrag, password        string
 	isControlling          bool
 	remoteUfrag, remotePwd string
 	dst                    string
-
-	bind  *IceBind
-	agent *ice.Agent
-	c     *ice.Conn
-
-	candMu     sync.RWMutex
-	candidates []string
+	c                      *ice.Conn
+	candMu                 sync.RWMutex
+	candidates             []string
 }
 
-func (b *IceBind) NewPeer(ctx context.Context, isControlling bool) (*IcePeer, error) {
-	agent, err := ice.NewAgent(b.Conf)
+func (b *IceBind) NewPeer(isControlling bool) (*IcePeer, error) {
+	agent, err := ice.NewAgent(b.conf)
 	if err != nil {
 		return nil, fmt.Errorf("could not create ICE agent: %w", err)
 	}
+
 	ufrag, pwd, err := agent.GetLocalUserCredentials()
 	if err != nil {
 		return nil, fmt.Errorf("could not get local user credentials: %w", err)
 	}
 
 	return &IcePeer{
+		bind:          b,
+		agent:         agent,
 		ufrag:         ufrag,
 		password:      pwd,
 		isControlling: isControlling,
-		bind:          b,
-		agent:         agent,
 	}, nil
 }
 
-func (p *IcePeer) Init(ctx context.Context) error {
+func (p *IcePeer) Init() error {
 	if err := p.agent.OnCandidate(func(c ice.Candidate) {
 		if c == nil {
 			return
@@ -175,31 +167,44 @@ func (p *IcePeer) Init(ctx context.Context) error {
 		p.candMu.Lock()
 		p.candidates = append(p.candidates, c.Marshal())
 		p.candMu.Unlock()
-		p.OnCandidate(c.Marshal())
+
+		if p.OnCandidate != nil {
+			p.OnCandidate(c.Marshal())
+		}
 	}); err != nil {
 		return fmt.Errorf("could not set ICE candidate handler: %w", err)
 	}
+
 	if err := p.agent.OnConnectionStateChange(func(c ice.ConnectionState) {
 		log.Debugf("ICE connection state: %v", c)
 		switch c {
 		case ice.ConnectionStateConnected:
-			p.OnConnected()
+			if p.OnConnected != nil {
+				p.OnConnected()
+			}
 		case ice.ConnectionStateDisconnected, ice.ConnectionStateFailed:
-			p.OnDisconnected(c.String())
+			if p.OnDisconnected != nil {
+				p.OnDisconnected(c.String())
+			}
 		}
 	}); err != nil {
-		return err
+		return fmt.Errorf("could not set ICE connection state handler: %w", err)
 	}
+
 	if err := p.agent.OnSelectedCandidatePairChange(func(local, remote ice.Candidate) {
 		log.Debugf("ICE selected candidate pair: %v, %v", local, remote)
-		//p.OnCandidatePair(local.Marshal(), remote.Marshal())
+
+		if p.OnCandidatePair != nil {
+			p.OnCandidatePair(local.Marshal(), remote.Marshal())
+		}
 	}); err != nil {
-		return err
+		return fmt.Errorf("could not set ICE selected candidate pair handler: %w", err)
 	}
 
 	if err := p.agent.GatherCandidates(); err != nil {
 		return fmt.Errorf("could not gather ICE candidates: %w", err)
 	}
+
 	return nil
 }
 
@@ -261,8 +266,8 @@ func (p *IcePeer) Connect(
 			msg := p.bind.msgPool.Get().(*message)
 			n, err := p.c.Read(msg.buf)
 			if err != nil {
-				if err != ice.ErrClosed {
-					log.Errorf("ICE connection closed for peer %v: %v", p, err)
+				if !errors.Is(err, ice.ErrClosed) {
+					log.Debugf("ICE connection closed for peer %v: %v", p, err)
 				} else {
 					log.Errorf("Error reading from ICE connection: %v", err)
 				}

@@ -1,38 +1,16 @@
-package alpha
+package stunserver
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 
-	"github.com/pion/stun"
-	"github.com/spf13/cobra"
-	"golang.org/x/exp/slog"
+	"github.com/pion/stun/v3"
 )
 
-var stunServerCmd = &cobra.Command{
-	Use:   "stunserver",
-	Short: "Run a minimal STUN server",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		cmd.SilenceUsage = true
-
-		listenAddr, err := cmd.Flags().GetString("listen")
-		if err != nil {
-			return fmt.Errorf("error getting listen address: %w", err)
-		}
-
-		return listenForSTUNRequests(cmd.Context(), listenAddr)
-	},
-}
-
-func init() {
-	stunServerCmd.Flags().StringP("listen", "l", "localhost:3478", "Address to listen on")
-
-	alphaCmd.AddCommand(stunServerCmd)
-}
-
-func listenForSTUNRequests(ctx context.Context, addr string) error {
+func ListenAndServe(ctx context.Context, addr string) error {
 	pc, err := net.ListenPacket("udp", addr)
 	if err != nil {
 		return fmt.Errorf("error setting up listener: %w", err)

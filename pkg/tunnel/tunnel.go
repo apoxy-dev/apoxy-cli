@@ -7,13 +7,6 @@ import (
 	"github.com/apoxy-dev/apoxy-cli/pkg/wireguard"
 )
 
-// DefaultSTUNServers is a list of default STUN servers to use for determining
-// the external address.
-var DefaultSTUNServers = []string{
-	"stun.l.google.com:19302",
-	"stun.cloudflare.com:3478",
-}
-
 // Tunnel is a WireGuard tunnel.
 type Tunnel interface {
 	io.Closer
@@ -25,10 +18,8 @@ type Tunnel interface {
 	RemovePeer(publicKey string) error
 	// PublicKey returns the public key of this end of the tunnel.
 	PublicKey() string
-	// ExternalAddress returns the external address of this end of the tunnel.
-	ExternalAddress() netip.AddrPort
 	// InternalAddress returns the internal address of this end of the tunnel.
 	InternalAddress() netip.Prefix
 	// ListenPort returns the local listen port of this end of the tunnel.
-	ListenPort() uint16
+	ListenPort() (uint16, error)
 }
