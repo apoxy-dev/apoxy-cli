@@ -36,11 +36,11 @@ import (
 
 const (
 	// https://www.envoyproxy.io/docs/envoy/latest/api-v3/config/listener/v3/listener.proto#envoy-v3-api-field-config-listener-v3-listener-per-connection-buffer-limit-bytes
-	tcpListenerPerConnectionBufferLimitBytes = 32768
+	tcpListenerPerConnectionBufferLimitBytes = 1048576 // 1 MiB
 	// https://www.envoyproxy.io/docs/envoy/latest/api-v3/config/core/v3/protocol.proto#envoy-v3-api-field-config-core-v3-http2protocoloptions-max-concurrent-streams
 	http2MaxConcurrentStreamsLimit = 100
 	// https://www.envoyproxy.io/docs/envoy/latest/api-v3/config/core/v3/protocol.proto#envoy-v3-api-field-config-core-v3-http2protocoloptions-initial-stream-window-size
-	http2InitialStreamWindowSize = 65536 // 64 KiB
+	http2InitialStreamWindowSize = 262144 // 256 KiB
 	// https://www.envoyproxy.io/docs/envoy/latest/api-v3/config/core/v3/protocol.proto#envoy-v3-api-field-config-core-v3-http2protocoloptions-initial-connection-window-size
 	http2InitialConnectionWindowSize = 1048576 // 1 MiB
 )
