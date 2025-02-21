@@ -281,10 +281,10 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 			rStatus.Phase = ctrlv1alpha1.ProxyReplicaPhaseStopped
 			rStatus.Reason = "Proxy terminated"
 			goto UpdateStatus
-		case ctrlv1alpha1.ProxyReplicaPhaseStopped:
-			goto UpdateStatus
-		case ctrlv1alpha1.ProxyReplicaPhaseFailed:
-			goto UpdateStatus
+		case ctrlv1alpha1.ProxyReplicaPhaseStopped, ctrlv1alpha1.ProxyReplicaPhaseFailed:
+			log.Info("Proxy is stopped or failed, restarting")
+			rStatus.Phase = ctrlv1alpha1.ProxyReplicaPhasePending
+			rStatus.Reason = "Restarting proxy"
 		default:
 			log.Error(nil, "Unexpected phase", "phase", rStatus.Phase)
 			rStatus.Phase = ctrlv1alpha1.ProxyReplicaPhaseFailed
