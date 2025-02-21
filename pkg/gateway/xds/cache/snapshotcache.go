@@ -253,7 +253,7 @@ func (s *snapshotCache) OnStreamRequest(streamID int64, req *discoveryv3.Discove
 		// Backoff for a bit before retrying.
 		s.nodeBackoffs[nodeID].lastAttempt = time.Now()
 		delay := s.nodeBackoffs[nodeID].backoff.Step()
-		log.Warnf("Backing off for retry after NACK for node %s", nodeID)
+		log.Warnf("Backing off for retry after NACK for node %s for %s", nodeID, delay)
 		time.Sleep(delay)
 	}
 
