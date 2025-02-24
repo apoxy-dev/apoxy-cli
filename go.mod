@@ -6,6 +6,7 @@ toolchain go1.23.2
 
 require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.23.2
+	github.com/avast/retry-go/v4 v4.6.1
 	github.com/buraksezer/olric v0.5.6
 	github.com/cncf/xds/go v0.0.0-20240905190251-b4127c9b8d78
 	github.com/coder/websocket v1.8.12
@@ -29,17 +30,21 @@ require (
 	github.com/google/go-cmp v0.6.0
 	github.com/google/go-containerregistry v0.19.1
 	github.com/google/go-github/v61 v61.0.0
+	github.com/google/nftables v0.3.0
 	github.com/google/uuid v1.6.0
 	github.com/hashicorp/go-discover v0.0.0-20240726212017-342faf50e5d4
 	github.com/jedib0t/go-pretty/v6 v6.4.9
 	github.com/k3s-io/kine v0.10.3
+	github.com/lorenzosaino/go-sysctl v0.3.1
 	github.com/metal-stack/go-ipam v1.14.7
 	github.com/miekg/dns v1.1.62
 	github.com/mitchellh/mapstructure v1.5.0
+	github.com/nxadm/tail v1.4.11
 	github.com/opencontainers/image-spec v1.1.0
 	github.com/opencontainers/runc v1.2.2
 	github.com/pion/ice/v4 v4.0.5
 	github.com/pion/logging v0.2.2
+	github.com/pion/stun/v2 v2.0.0
 	github.com/pion/stun/v3 v3.0.0
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
 	github.com/shirou/gopsutil v3.21.11+incompatible
@@ -51,7 +56,7 @@ require (
 	github.com/tetratelabs/wazero v1.7.3
 	github.com/things-go/go-socks5 v0.0.5
 	github.com/vishvananda/netlink v1.3.0
-	github.com/vishvananda/netns v0.0.4
+	github.com/vishvananda/netns v0.0.5
 	github.com/vmihailenco/msgpack v4.0.4+incompatible
 	go.opentelemetry.io/proto/otlp v1.2.0
 	go.temporal.io/api v1.29.2
@@ -104,6 +109,7 @@ require (
 	github.com/Azure/go-autorest/autorest/validation v0.3.0 // indirect
 	github.com/Azure/go-autorest/logger v0.2.1 // indirect
 	github.com/Azure/go-autorest/tracing v0.6.0 // indirect
+	github.com/BurntSushi/toml v1.4.1-0.20240526193622-a339e1f7089c // indirect
 	github.com/ClickHouse/ch-go v0.61.5 // indirect
 	github.com/NYTimes/gziphandler v1.1.1 // indirect
 	github.com/Rican7/retry v0.1.0 // indirect
@@ -114,7 +120,6 @@ require (
 	github.com/apparentlymart/go-cidr v1.1.0 // indirect
 	github.com/armon/go-metrics v0.0.0-20180917152333-f0300d1749da // indirect
 	github.com/asaskevich/govalidator v0.0.0-20200428143746-21a406dcc535 // indirect
-	github.com/avast/retry-go/v4 v4.6.0 // indirect
 	github.com/aws/aws-sdk-go v1.55.5 // indirect
 	github.com/benbjohnson/clock v1.3.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -220,7 +225,6 @@ require (
 	github.com/jmoiron/sqlx v1.4.0 // indirect
 	github.com/jonboulle/clockwork v0.2.2 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
-	github.com/josharian/native v1.1.0 // indirect
 	github.com/joyent/triton-go v0.0.0-20180628001255-830d2b111e62 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
@@ -237,9 +241,8 @@ require (
 	github.com/mattn/go-runewidth v0.0.15 // indirect
 	github.com/mattn/go-sqlite3 v1.14.22 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
-	github.com/mdlayher/genetlink v1.3.2 // indirect
-	github.com/mdlayher/netlink v1.7.2 // indirect
-	github.com/mdlayher/socket v0.4.1 // indirect
+	github.com/mdlayher/netlink v1.7.3-0.20250113171957-fbb4dce95f42 // indirect
+	github.com/mdlayher/socket v0.5.0 // indirect
 	github.com/minio/highwayhash v1.0.2 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/moby/sys/mountinfo v0.7.1 // indirect
@@ -269,9 +272,11 @@ require (
 	github.com/paulmach/orb v0.11.1 // indirect
 	github.com/pborman/uuid v1.2.1 // indirect
 	github.com/pierrec/lz4/v4 v4.1.21 // indirect
+	github.com/pion/dtls/v2 v2.2.7 // indirect
 	github.com/pion/dtls/v3 v3.0.4 // indirect
 	github.com/pion/mdns/v2 v2.0.7 // indirect
 	github.com/pion/randutil v0.1.0 // indirect
+	github.com/pion/transport/v2 v2.2.1 // indirect
 	github.com/pion/transport/v3 v3.0.7 // indirect
 	github.com/pion/turn/v4 v4.0.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
@@ -361,6 +366,8 @@ require (
 	go.uber.org/zap v1.27.0 // indirect
 	go4.org/netipx v0.0.0-20231129151722-fdeea329fbba // indirect
 	golang.org/x/crypto v0.32.0 // indirect
+	golang.org/x/exp/typeparams v0.0.0-20231108232855-2478ac86f678 // indirect
+	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
 	golang.org/x/mod v0.21.0 // indirect
 	golang.org/x/oauth2 v0.24.0 // indirect
 	golang.org/x/term v0.28.0 // indirect
@@ -377,7 +384,9 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/resty.v1 v1.12.0 // indirect
 	gopkg.in/square/go-jose.v2 v2.6.0 // indirect
+	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/validator.v2 v2.0.1 // indirect
+	honnef.co/go/tools v0.5.1 // indirect
 	k8s.io/apiextensions-apiserver v0.30.1 // indirect
 	k8s.io/component-base v0.30.1 // indirect
 	k8s.io/kms v0.30.1 // indirect

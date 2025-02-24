@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net"
 	"net/netip"
+	"strconv"
 	"strings"
 	"time"
 
@@ -231,13 +232,59 @@ func (n *WireGuardNetwork) RemovePeer(publicKey string) error {
 	return nil
 }
 
+// DialContext dials a host on the WireGuard network.
 func (n *WireGuardNetwork) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
 	slog.Debug("Dialing", slog.String("network", network), slog.String("addr", addr))
 	return n.tnet.DialContext(ctx, network, addr)
 }
 
+// DialContextHost dials a host on the WireGuard network.
 func (n *WireGuardNetwork) LookupContextHost(ctx context.Context, host string) ([]string, error) {
 	return n.tnet.LookupContextHost(ctx, host)
+}
+
+// Listen creates a new listener on the WireGuard network.
+func (n *WireGuardNetwork) Listen(network, addr string) (net.Listener, error) {
+	var addrPort netip.AddrPort
+
+	if addr != "" {
+		host, port, err := net.SplitHostPort(addr)
+		if err != nil {
+			return nil, fmt.Errorf("failed to split host and port: %w", err)
+		}
+
+		var ip netip.Addr
+		if host != "" {
+			ip, err = netip.ParseAddr(host)
+			if err != nil {
+				// If the address is a hostname, resolve it.
+				ips, err := net.LookupHost(host)
+				if err != nil {
+					return nil, fmt.Errorf("failed to resolve host: %w", err)
+				}
+
+				// TODO: Use a proper IP address selection algorithm.
+				ip = netip.MustParseAddr(ips[0])
+			}
+		}
+
+		portInt, err := strconv.Atoi(port)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse port: %w", err)
+		}
+
+		addrPort = netip.AddrPortFrom(ip, uint16(portInt))
+	}
+
+	switch strings.ToLower(network) {
+	case "tcp":
+		return n.tnet.ListenTCP(&net.TCPAddr{
+			IP:   addrPort.Addr().AsSlice(),
+			Port: int(addrPort.Port()),
+		})
+	default:
+		return nil, fmt.Errorf("unsupported network: %s", network)
+	}
 }
 
 // FowardToLoopback forwards all inbound traffic to the loopback interface.
