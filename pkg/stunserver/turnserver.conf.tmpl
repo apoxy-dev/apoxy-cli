@@ -1,0 +1,55 @@
+#
+# General server configuration
+#
+
+# IP address of the interface to bind the TURN server.
+listening-ip={{ or .ListenAddress "127.0.0.1" }}
+# Port number for incoming STUN/TURN requests.
+listening-port={{ or .ListenPort "3478" }}
+# Specifies the realm to be used for the TURN server.
+realm=turn.apoxy.dev
+# SQLite database file name.
+userdb=turndb
+# Log file location.
+log-file=coturn.log
+# Enable verbose server logging.
+verbose                 
+
+#
+# Authentication configuration
+#
+
+# Enforces the use of long-term credentials for authentication.
+lt-cred-mech
+# Set the username and password for the TURN server.
+{{ if .Password }}
+user={{ or .Username "apoxy" }}:{{ .Password }}
+cli-password={{ .Password }}
+# Require authentication for STUN binding requests.
+secure-stun
+{{ end }}
+
+#
+# Security features
+#
+
+# Enables fingerprinting mechanism for TURN messages.
+fingerprint
+
+#
+# Session and capacity management
+#
+
+# Total number of simultaneous allocation requests.
+total-quota=100
+# Maximum server capacity in bytes per second (0 for unlimited).
+bps-capacity=0
+
+#
+# TLS/DTLS settings
+#
+
+# Disable TLS support (NOT recommended for production).
+no-tls
+# Disable DTLS support (NOT recommended for production).
+no-dtls

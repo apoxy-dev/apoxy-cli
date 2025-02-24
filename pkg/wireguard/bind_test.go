@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"sync"
 	"testing"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/pion/ice/v4"
 	icelogging "github.com/pion/logging"
 	"github.com/pion/stun/v3"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 	"golang.zx2c4.com/wireguard/conn"
 	"k8s.io/utils/ptr"
@@ -50,8 +52,15 @@ func TestICEBind(t *testing.T) {
 		return stunserver.ListenAndServe(ctx, "localhost:3478")
 	})
 
-	offerFromController := make(chan *corev1alpha.ICEOffer)
-	offerFromControlled := make(chan *corev1alpha.ICEOffer)
+	offerFromController := make(chan *corev1alpha.ICEOffer, 10)
+	offerFromControlled := make(chan *corev1alpha.ICEOffer, 10)
+	t.Cleanup(func() {
+		close(offerFromController)
+		close(offerFromControlled)
+	})
+
+	var haveOffersFromBothSides sync.WaitGroup
+	haveOffersFromBothSides.Add(2)
 
 	// Controlling bind/peer.
 	g.Go(func() error {
@@ -66,15 +75,23 @@ func TestICEBind(t *testing.T) {
 		if err != nil {
 			return fmt.Errorf("failed to create peer: %w", err)
 		}
+		t.Cleanup(func() {
+			require.NoError(t, peer.Close())
+		})
 
 		peer.OnCandidate = func(c string) {
 			ufrag, pwd := peer.LocalUserCredentials()
 			cs := peer.LocalCandidates()
 
-			offerFromController <- &corev1alpha.ICEOffer{
+			select {
+			case <-ctx.Done():
+				return
+			case offerFromController <- &corev1alpha.ICEOffer{
 				Ufrag:      ufrag,
 				Password:   pwd,
 				Candidates: cs,
+			}:
+				return
 			}
 		}
 
@@ -87,6 +104,9 @@ func TestICEBind(t *testing.T) {
 		if err := peer.AddRemoteOffer(remoteOffer); err != nil {
 			return fmt.Errorf("failed to add remote offer: %w", err)
 		}
+
+		haveOffersFromBothSides.Done()
+		haveOffersFromBothSides.Wait()
 
 		if err := peer.Connect(ctx, "controlled"); err != nil {
 			return fmt.Errorf("failed to connect to controlled peer: %w", err)
@@ -119,15 +139,23 @@ func TestICEBind(t *testing.T) {
 		if err != nil {
 			return fmt.Errorf("failed to create peer: %w", err)
 		}
+		t.Cleanup(func() {
+			require.NoError(t, peer.Close())
+		})
 
 		peer.OnCandidate = func(c string) {
 			ufrag, pwd := peer.LocalUserCredentials()
 			cs := peer.LocalCandidates()
 
-			offerFromControlled <- &corev1alpha.ICEOffer{
+			select {
+			case <-ctx.Done():
+				return
+			case offerFromControlled <- &corev1alpha.ICEOffer{
 				Ufrag:      ufrag,
 				Password:   pwd,
 				Candidates: cs,
+			}:
+				return
 			}
 		}
 
@@ -140,6 +168,9 @@ func TestICEBind(t *testing.T) {
 		if err := peer.AddRemoteOffer(remoteOffer); err != nil {
 			return fmt.Errorf("failed to add remote offer: %w", err)
 		}
+
+		haveOffersFromBothSides.Done()
+		haveOffersFromBothSides.Wait()
 
 		if err := peer.Connect(ctx, "controller"); err != nil {
 			return fmt.Errorf("failed to connect to controller peer: %w", err)
