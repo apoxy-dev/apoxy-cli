@@ -164,6 +164,7 @@ func (p *IcePeer) Init() error {
 		if c == nil {
 			return
 		}
+
 		p.candMu.Lock()
 		p.candidates = append(p.candidates, c.Marshal())
 		p.candMu.Unlock()
