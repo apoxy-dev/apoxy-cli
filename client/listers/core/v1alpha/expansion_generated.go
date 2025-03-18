@@ -40,7 +40,3 @@ type ProxyListerExpansion interface{}
 // TunnelNodeListerExpansion allows custom methods to be added to
 // TunnelNodeLister.
 type TunnelNodeListerExpansion interface{}
-
-// TunnelPeerOfferListerExpansion allows custom methods to be added to
-// TunnelPeerOfferLister.
-type TunnelPeerOfferListerExpansion interface{}

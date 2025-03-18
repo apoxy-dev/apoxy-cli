@@ -28,5 +28,3 @@ type DomainZoneExpansion interface{}
 type ProxyExpansion interface{}
 
 type TunnelNodeExpansion interface{}
-
-type TunnelPeerOfferExpansion interface{}

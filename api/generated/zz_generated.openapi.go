@@ -41,6 +41,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.AddressList":                          schema_apoxy_cli_api_core_v1alpha_AddressList(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.AddressSpec":                          schema_apoxy_cli_api_core_v1alpha_AddressSpec(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.AddressStatus":                        schema_apoxy_cli_api_core_v1alpha_AddressStatus(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.AgentStatus":                          schema_apoxy_cli_api_core_v1alpha_AgentStatus(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.Backend":                              schema_apoxy_cli_api_core_v1alpha_Backend(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.BackendEndpoint":                      schema_apoxy_cli_api_core_v1alpha_BackendEndpoint(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.BackendList":                          schema_apoxy_cli_api_core_v1alpha_BackendList(ref),
@@ -53,7 +54,6 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainStatus":                         schema_apoxy_cli_api_core_v1alpha_DomainStatus(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainTLSSpec":                        schema_apoxy_cli_api_core_v1alpha_DomainTLSSpec(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainTargetDNS":                      schema_apoxy_cli_api_core_v1alpha_DomainTargetDNS(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainTargetRef":                      schema_apoxy_cli_api_core_v1alpha_DomainTargetRef(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainTargetSpec":                     schema_apoxy_cli_api_core_v1alpha_DomainTargetSpec(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainZone":                           schema_apoxy_cli_api_core_v1alpha_DomainZone(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainZoneList":                       schema_apoxy_cli_api_core_v1alpha_DomainZoneList(ref),
@@ -63,7 +63,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DynamicProxySpec":                     schema_apoxy_cli_api_core_v1alpha_DynamicProxySpec(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.FileAccessLog":                        schema_apoxy_cli_api_core_v1alpha_FileAccessLog(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.ForwardingRule":                       schema_apoxy_cli_api_core_v1alpha_ForwardingRule(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.ICEOffer":                             schema_apoxy_cli_api_core_v1alpha_ICEOffer(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.LocalObjectReference":                 schema_apoxy_cli_api_core_v1alpha_LocalObjectReference(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.PortRange":                            schema_apoxy_cli_api_core_v1alpha_PortRange(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.Proxy":                                schema_apoxy_cli_api_core_v1alpha_Proxy(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.ProxyList":                            schema_apoxy_cli_api_core_v1alpha_ProxyList(ref),
@@ -71,14 +71,8 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.ProxyStatus":                          schema_apoxy_cli_api_core_v1alpha_ProxyStatus(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNode":                           schema_apoxy_cli_api_core_v1alpha_TunnelNode(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNodeList":                       schema_apoxy_cli_api_core_v1alpha_TunnelNodeList(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNodeRef":                        schema_apoxy_cli_api_core_v1alpha_TunnelNodeRef(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNodeSpec":                       schema_apoxy_cli_api_core_v1alpha_TunnelNodeSpec(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNodeStatus":                     schema_apoxy_cli_api_core_v1alpha_TunnelNodeStatus(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelPeerOffer":                      schema_apoxy_cli_api_core_v1alpha_TunnelPeerOffer(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelPeerOfferList":                  schema_apoxy_cli_api_core_v1alpha_TunnelPeerOfferList(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelPeerOfferSpec":                  schema_apoxy_cli_api_core_v1alpha_TunnelPeerOfferSpec(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelPeerOfferStatus":                schema_apoxy_cli_api_core_v1alpha_TunnelPeerOfferStatus(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelRef":                            schema_apoxy_cli_api_core_v1alpha_TunnelRef(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunction":                  schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunction(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionCodeSource":        schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionCodeSource(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionList":              schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionList(ref),
@@ -961,6 +955,47 @@ func schema_apoxy_cli_api_core_v1alpha_AddressStatus(ref common.ReferenceCallbac
 	}
 }
 
+func schema_apoxy_cli_api_core_v1alpha_AgentStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Name is the name of the agent. Must be unique within the tunnel node.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"connectedAt": {
+						SchemaProps: spec.SchemaProps{
+							Description: "ConnectedAt is the time when the agent was connected to the tunnel node.",
+							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+						},
+					},
+					"privateAddress": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Overlay address of the agent that is routable on the internal Apoxy network.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"agentAddress": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Address of the agent (publicly routable) that it has connected with to establish a tunnel.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/apimachinery/pkg/apis/meta/v1.Time"},
+	}
+}
+
 func schema_apoxy_cli_api_core_v1alpha_Backend(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -1028,17 +1063,9 @@ func schema_apoxy_cli_api_core_v1alpha_BackendEndpoint(ref common.ReferenceCallb
 							Format:      "",
 						},
 					},
-					"tunnel": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Connect tunnels for this backend.",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelRef"),
-						},
-					},
 				},
 			},
 		},
-		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelRef"},
 	}
 }
 
@@ -1355,12 +1382,25 @@ func schema_apoxy_cli_api_core_v1alpha_DomainSpec(ref common.ReferenceCallback) 
 							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainForwardingSpec"),
 						},
 					},
+					"filters": {
+						SchemaProps: spec.SchemaProps{
+							Description: "EdgeFunction filters applied for the domain.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.LocalObjectReference"),
+									},
+								},
+							},
+						},
+					},
 				},
 				Required: []string{"target"},
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainForwardingSpec", "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainTLSSpec", "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainTargetSpec"},
+			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainForwardingSpec", "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainTLSSpec", "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainTargetSpec", "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.LocalObjectReference"},
 	}
 }
 
@@ -1616,43 +1656,6 @@ func schema_apoxy_cli_api_core_v1alpha_DomainTargetDNS(ref common.ReferenceCallb
 	}
 }
 
-func schema_apoxy_cli_api_core_v1alpha_DomainTargetRef(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
-				Properties: map[string]spec.Schema{
-					"group": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Group is the API Group of the target object.",
-							Default:     "",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"kind": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Kind is the kind of the target object. Currently supports Proxy, EdgeFunction, TunnelEndpoint kinds.",
-							Default:     "",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"name": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Name is the name of the target object.",
-							Default:     "",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-				},
-				Required: []string{"group", "kind", "name"},
-			},
-		},
-	}
-}
-
 func schema_apoxy_cli_api_core_v1alpha_DomainTargetSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -1667,15 +1670,15 @@ func schema_apoxy_cli_api_core_v1alpha_DomainTargetSpec(ref common.ReferenceCall
 					},
 					"ref": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Represent a target specified via a reference to another object within Apoxy (e.g. Proxy, EdgeFunction, TunnelEndpoint).",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainTargetRef"),
+							Description: "Represent a target specified via a reference to another object within Apoxy (e.g. Proxy, EdgeFunction (type=backend), TunnelEndpoint).",
+							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.LocalObjectReference"),
 						},
 					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainTargetDNS", "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainTargetRef"},
+			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainTargetDNS", "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.LocalObjectReference"},
 	}
 }
 
@@ -1954,42 +1957,39 @@ func schema_apoxy_cli_api_core_v1alpha_ForwardingRule(ref common.ReferenceCallba
 	}
 }
 
-func schema_apoxy_cli_api_core_v1alpha_ICEOffer(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_apoxy_cli_api_core_v1alpha_LocalObjectReference(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
+				Description: "LocalObjectReference identifies an API object.",
+				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
-					"candidates": {
+					"group": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Candidates is a list of ICE candidates in a string representation.",
-							Type:        []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: "",
-										Type:    []string{"string"},
-										Format:  "",
-									},
-								},
-							},
-						},
-					},
-					"ufrag": {
-						SchemaProps: spec.SchemaProps{
-							Description: "ice-ufrag (username fragment) of the ICE connection.",
+							Description: "Group is the API Group of the referenced object.",
+							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
-					"password": {
+					"kind": {
 						SchemaProps: spec.SchemaProps{
-							Description: "ice-pwd (password) of the ICE connection.",
+							Description: "Kind is the kind of the referenced object. e.g. Proxy, EdgeFunction, TunnelEndpoint.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Name is the name of the referenced object.",
+							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 				},
+				Required: []string{"group", "kind", "name"},
 			},
 		},
 	}
@@ -2334,49 +2334,13 @@ func schema_apoxy_cli_api_core_v1alpha_TunnelNodeList(ref common.ReferenceCallba
 	}
 }
 
-func schema_apoxy_cli_api_core_v1alpha_TunnelNodeRef(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
-				Properties: map[string]spec.Schema{
-					"name": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Name of the tunnel node.",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
 func schema_apoxy_cli_api_core_v1alpha_TunnelNodeSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
 				Type: []string{"object"},
-				Properties: map[string]spec.Schema{
-					"peers": {
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelRef"),
-									},
-								},
-							},
-						},
-					},
-				},
 			},
 		},
-		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelRef"},
 	}
 }
 
@@ -2386,209 +2350,37 @@ func schema_apoxy_cli_api_core_v1alpha_TunnelNodeStatus(ref common.ReferenceCall
 			SchemaProps: spec.SchemaProps{
 				Type: []string{"object"},
 				Properties: map[string]spec.Schema{
-					"phase": {
+					"addresses": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Phase of the node.",
+							Description: "One or more addresses used by agents to establish a tunnel.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
+					"credentials": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Credentials for the tunnel node proxy.",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
-					"conditions": {
+					"agents": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Conditions of the tunnel node.",
+							Description: "Agents is a list of agents connected to the tunnel node.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.Condition"),
-									},
-								},
-							},
-						},
-					},
-					"publicKey": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Public key of the node (base64 encoded).",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"internalAddress": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Internal address of the node. Always a /96 IPv6 address.",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"lastSynced": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Last time the tunnel node configuration was synced.",
-							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
-						},
-					},
-					"epoch": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Epoch is an opaque value that represents the current run of the tunnel node controller. TunnelPeerOffers created for this node will have core.apoxy.dev/tunnelnode-epoch=<epoch> set to this value.",
-							Default:     0,
-							Type:        []string{"integer"},
-							Format:      "int64",
-						},
-					},
-				},
-				Required: []string{"epoch"},
-			},
-		},
-		Dependencies: []string{
-			"k8s.io/apimachinery/pkg/apis/meta/v1.Condition", "k8s.io/apimachinery/pkg/apis/meta/v1.Time"},
-	}
-}
-
-func schema_apoxy_cli_api_core_v1alpha_TunnelPeerOffer(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "TunnelPeerOffer is a connection between two tunnel peers.",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"kind": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"apiVersion": {
-						SchemaProps: spec.SchemaProps{
-							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"metadata": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
-						},
-					},
-					"spec": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelPeerOfferSpec"),
-						},
-					},
-					"status": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelPeerOfferStatus"),
-						},
-					},
-				},
-			},
-		},
-		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelPeerOfferSpec", "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelPeerOfferStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
-	}
-}
-
-func schema_apoxy_cli_api_core_v1alpha_TunnelPeerOfferList(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "TunnelPeerOfferList contains a list of TunnelPeerOffer objects.",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"kind": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"apiVersion": {
-						SchemaProps: spec.SchemaProps{
-							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"metadata": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
-						},
-					},
-					"items": {
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelPeerOffer"),
-									},
-								},
-							},
-						},
-					},
-				},
-				Required: []string{"items"},
-			},
-		},
-		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelPeerOffer", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
-	}
-}
-
-func schema_apoxy_cli_api_core_v1alpha_TunnelPeerOfferSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
-				Properties: map[string]spec.Schema{
-					"remoteTunnelNodeName": {
-						SchemaProps: spec.SchemaProps{
-							Description: "RemoteTunnelNodeName is the name of the remote tunnel node that this offer is for.",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"iceOffer": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Offer is the ICE connection information.",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.ICEOffer"),
-						},
-					},
-				},
-			},
-		},
-		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.ICEOffer"},
-	}
-}
-
-func schema_apoxy_cli_api_core_v1alpha_TunnelPeerOfferStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
-				Properties: map[string]spec.Schema{
-					"phase": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Phase is the current aggregate phase of the tunnel peer offer. It may be represented by one or more conditions.",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"conditions": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Conditions is a list of conditions that apply to the tunnel peer offer.",
-							Type:        []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.Condition"),
+										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.AgentStatus"),
 									},
 								},
 							},
@@ -2598,33 +2390,7 @@ func schema_apoxy_cli_api_core_v1alpha_TunnelPeerOfferStatus(ref common.Referenc
 			},
 		},
 		Dependencies: []string{
-			"k8s.io/apimachinery/pkg/apis/meta/v1.Condition"},
-	}
-}
-
-func schema_apoxy_cli_api_core_v1alpha_TunnelRef(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
-				Properties: map[string]spec.Schema{
-					"tunnelNodeRef": {
-						SchemaProps: spec.SchemaProps{
-							Description: "TunnelNodeRef is a reference to an individual TunnelNode.",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNodeRef"),
-						},
-					},
-					"labelSelector": {
-						SchemaProps: spec.SchemaProps{
-							Description: "LabelSelector is a label selector to dynamically select multiple TunnelNode objects.",
-							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector"),
-						},
-					},
-				},
-			},
-		},
-		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNodeRef", "k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector"},
+			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.AgentStatus"},
 	}
 }
 
