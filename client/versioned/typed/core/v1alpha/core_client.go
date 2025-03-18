@@ -33,7 +33,6 @@ type CoreV1alphaInterface interface {
 	DomainZonesGetter
 	ProxiesGetter
 	TunnelNodesGetter
-	TunnelPeerOffersGetter
 }
 
 // CoreV1alphaClient is used to interact with features provided by the core.apoxy.dev group.
@@ -63,10 +62,6 @@ func (c *CoreV1alphaClient) Proxies() ProxyInterface {
 
 func (c *CoreV1alphaClient) TunnelNodes() TunnelNodeInterface {
 	return newTunnelNodes(c)
-}
-
-func (c *CoreV1alphaClient) TunnelPeerOffers() TunnelPeerOfferInterface {
-	return newTunnelPeerOffers(c)
 }
 
 // NewForConfig creates a new CoreV1alphaClient for the given config.

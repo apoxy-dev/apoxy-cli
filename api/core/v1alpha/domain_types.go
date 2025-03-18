@@ -60,6 +60,9 @@ type DomainSpec struct {
 	// (e.g. an EdgeFunction or a TunnelEndpoint).
 	// This is a Pro feature only.
 	ForwardingSpec *DomainForwardingSpec `json:"forwarding,omitempty"`
+
+	// EdgeFunction filters applied for the domain.
+	Filters []*LocalObjectReference `json:"filters,omitempty"`
 }
 
 type DomainTargetSpec struct {
@@ -67,8 +70,8 @@ type DomainTargetSpec struct {
 	DNS *DomainTargetDNS `json:"dns,omitempty"`
 
 	// Represent a target specified via a reference to another object
-	// within Apoxy (e.g. Proxy, EdgeFunction, TunnelEndpoint).
-	Ref *DomainTargetRef `json:"ref,omitempty"`
+	// within Apoxy (e.g. Proxy, EdgeFunction (type=backend), TunnelEndpoint).
+	Ref *LocalObjectReference `json:"ref,omitempty"`
 }
 
 type DomainTargetDNS struct {
@@ -160,26 +163,6 @@ type DomainTargetDNS struct {
 	// +kubebuilder:validation:Maximum=3600
 	// +optional
 	TTL *int32 `json:"ttl"`
-}
-
-type DomainTargetRef struct {
-	// Group is the API Group of the target object.
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:MinLength=1
-	// +kubebuilder:validation:MaxLength=253
-	Group string `json:"group"`
-
-	// Kind is the kind of the target object.
-	// Currently supports Proxy, EdgeFunction, TunnelEndpoint kinds.
-	// +kubebuilder:validation:Required
-	Kind string `json:"kind"`
-
-	// Name is the name of the target object.
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:MinLength=1
-	// +kubebuilder:validation:MaxLength=253
-	// +kubebuilder:validation:Pattern=`^[a-zA-Z0-9]([-a-zA-Z0-9]*[a-zA-Z0-9])?$`
-	Name string `json:"name"`
 }
 
 type DomainTLSSpec struct {
