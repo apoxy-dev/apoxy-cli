@@ -44,6 +44,59 @@ type ProxyListener struct {
 	Port gwapiv1.PortNumber `json:"port"`
 }
 
+type ProxyAccessLogs struct {
+	// If set, additional fields to add to the default Envoy access logs.
+	// Envoy [command operators](https://www.envoyproxy.io/docs/envoy/latest/configuration/observability/access_log/usage#command-operators)
+	// can be used as values for fields. Note that attempting to override
+	// default fields will not have any effect.
+	JSON map[string]string `json:"json,omitempty"`
+
+	// TODO: support additional sinks.
+}
+
+type ProxyContentLogs struct {
+	// Enable request body content logging.
+	RequestBodyEnabled bool `json:"requestBodyEnabled"`
+
+	// Enable response body content logging.
+	ResponseBodyEnabled bool `json:"responseBodyEnabled"`
+}
+
+type ProxyTracing struct {
+	// Enable tracing.
+	Enabled bool `json:"enabled"`
+
+	// Additional tags to populate on the traces.
+	Tags map[string]ProxyTracingTagValue `json:"tags,omitempty"`
+
+	// TODO: support additional sinks.
+}
+
+// ProxyTracingTagValue defines a tag value to populate on the traces.
+type ProxyTracingTagValue struct {
+	// Value is a string value for the tag.
+	// This may be set with a Header as a fallback/default value.
+	Value string `json:"value"`
+
+	// Header is a request header who's value should be set as this tag's value.
+	Header string `json:"header"`
+}
+
+// ProxyMonitoring defines the monitoring configuration for a Proxy.
+type ProxyMonitoring struct {
+	// AccessLogs configures how access logs are handled.
+	// Note that access logs cannot be disabled.
+	AccessLogs *ProxyAccessLogs `json:"accessLogs,omitempty"`
+
+	// ContentLogs configures how request and response body content are handled.
+	// Also refered to as Taps in Envoy. Disabled by default.
+	ContentLogs *ProxyContentLogs `json:"contentLogs,omitempty"`
+
+	// Tracing configures how tracing is handled.
+	// Disabled by default.
+	Tracing *ProxyTracing `json:"tracing,omitempty"`
+}
+
 // ProxySpec defines the desired specification of a Proxy.
 type ProxySpec struct {
 	// Provider is the infrastructure provider where the proxy will be deployed.
@@ -73,6 +126,10 @@ type ProxySpec struct {
 
 	// Config is the Starlark configuration for the proxy in the txtar format.
 	Config string `json:"config,omitempty"`
+
+	// Monitoring is the monitoring configuration for the proxy.
+	// +optional
+	Monitoring *ProxyMonitoring `json:"monitoring,omitempty"`
 }
 
 type ProxyPhase string
