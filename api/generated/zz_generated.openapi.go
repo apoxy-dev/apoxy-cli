@@ -31,11 +31,16 @@ import (
 func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenAPIDefinition {
 	return map[string]common.OpenAPIDefinition{
 		"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.Proxy":                        schema_apoxy_cli_api_controllers_v1alpha1_Proxy(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyAccessLogs":              schema_apoxy_cli_api_controllers_v1alpha1_ProxyAccessLogs(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyContentLogs":             schema_apoxy_cli_api_controllers_v1alpha1_ProxyContentLogs(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyList":                    schema_apoxy_cli_api_controllers_v1alpha1_ProxyList(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyListener":                schema_apoxy_cli_api_controllers_v1alpha1_ProxyListener(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyMonitoring":              schema_apoxy_cli_api_controllers_v1alpha1_ProxyMonitoring(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyReplicaStatus":           schema_apoxy_cli_api_controllers_v1alpha1_ProxyReplicaStatus(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxySpec":                    schema_apoxy_cli_api_controllers_v1alpha1_ProxySpec(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyStatus":                  schema_apoxy_cli_api_controllers_v1alpha1_ProxyStatus(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyTracing":                 schema_apoxy_cli_api_controllers_v1alpha1_ProxyTracing(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyTracingTagValue":         schema_apoxy_cli_api_controllers_v1alpha1_ProxyTracingTagValue(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.AccessLog":                            schema_apoxy_cli_api_core_v1alpha_AccessLog(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.Address":                              schema_apoxy_cli_api_core_v1alpha_Address(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.AddressList":                          schema_apoxy_cli_api_core_v1alpha_AddressList(ref),
@@ -518,6 +523,63 @@ func schema_apoxy_cli_api_controllers_v1alpha1_Proxy(ref common.ReferenceCallbac
 	}
 }
 
+func schema_apoxy_cli_api_controllers_v1alpha1_ProxyAccessLogs(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"json": {
+						SchemaProps: spec.SchemaProps{
+							Description: "If set, additional fields to add to the default Envoy access logs. Envoy [command operators](https://www.envoyproxy.io/docs/envoy/latest/configuration/observability/access_log/usage#command-operators) can be used as values for fields. Note that attempting to override default fields will not have any effect.",
+							Type:        []string{"object"},
+							AdditionalProperties: &spec.SchemaOrBool{
+								Allows: true,
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func schema_apoxy_cli_api_controllers_v1alpha1_ProxyContentLogs(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"requestBodyEnabled": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Enable request body content logging.",
+							Default:     false,
+							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
+					"responseBodyEnabled": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Enable response body content logging.",
+							Default:     false,
+							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
+				},
+				Required: []string{"requestBodyEnabled", "responseBodyEnabled"},
+			},
+		},
+	}
+}
+
 func schema_apoxy_cli_api_controllers_v1alpha1_ProxyList(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -594,6 +656,39 @@ func schema_apoxy_cli_api_controllers_v1alpha1_ProxyListener(ref common.Referenc
 				Required: []string{"protocol", "port"},
 			},
 		},
+	}
+}
+
+func schema_apoxy_cli_api_controllers_v1alpha1_ProxyMonitoring(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "ProxyMonitoring defines the monitoring configuration for a Proxy.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"accessLogs": {
+						SchemaProps: spec.SchemaProps{
+							Description: "AccessLogs configures how access logs are handled. Note that access logs cannot be disabled.",
+							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyAccessLogs"),
+						},
+					},
+					"contentLogs": {
+						SchemaProps: spec.SchemaProps{
+							Description: "ContentLogs configures how request and response body content are handled. Also refered to as Taps in Envoy. Disabled by default.",
+							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyContentLogs"),
+						},
+					},
+					"tracing": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Tracing configures how tracing is handled. Disabled by default.",
+							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyTracing"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyAccessLogs", "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyContentLogs", "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyTracing"},
 	}
 }
 
@@ -706,12 +801,18 @@ func schema_apoxy_cli_api_controllers_v1alpha1_ProxySpec(ref common.ReferenceCal
 							Format:      "",
 						},
 					},
+					"monitoring": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Monitoring is the monitoring configuration for the proxy.",
+							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyMonitoring"),
+						},
+					},
 				},
 				Required: []string{"listeners"},
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyListener", "k8s.io/apimachinery/pkg/apis/meta/v1.Duration"},
+			"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyListener", "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyMonitoring", "k8s.io/apimachinery/pkg/apis/meta/v1.Duration"},
 	}
 }
 
@@ -769,6 +870,74 @@ func schema_apoxy_cli_api_controllers_v1alpha1_ProxyStatus(ref common.ReferenceC
 		},
 		Dependencies: []string{
 			"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyReplicaStatus"},
+	}
+}
+
+func schema_apoxy_cli_api_controllers_v1alpha1_ProxyTracing(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"enabled": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Enable tracing.",
+							Default:     false,
+							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
+					"tags": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Additional tags to populate on the traces.",
+							Type:        []string{"object"},
+							AdditionalProperties: &spec.SchemaOrBool{
+								Allows: true,
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyTracingTagValue"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"enabled"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyTracingTagValue"},
+	}
+}
+
+func schema_apoxy_cli_api_controllers_v1alpha1_ProxyTracingTagValue(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "ProxyTracingTagValue defines a tag value to populate on the traces.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"value": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Value is a string value for the tag. This may be set with a Header as a fallback/default value.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"header": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Header is a request header who's value should be set as this tag's value.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+				Required: []string{"value", "header"},
+			},
+		},
 	}
 }
 
