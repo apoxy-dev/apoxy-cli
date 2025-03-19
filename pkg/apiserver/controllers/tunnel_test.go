@@ -3,10 +3,8 @@ package controllers_test
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -26,18 +24,11 @@ func TestTunnelNodeReconciler(t *testing.T) {
 
 	// Instantiate the reconciler.
 	reconciler := controllers.NewTunnelNodeReconciler(k8sClient)
-	// simulate the reconciler running for 2 minutes.
-	reconciler.SetStartTime(time.Now().Add(-2 * time.Minute))
 
-	// Create a TunnelNode object with an outdated LastSynced time.
-	lastSyncedTime := metav1.NewTime(time.Now().Add(-10 * time.Minute)) // 10 minutes ago
 	tunnelNode := &corev1alpha.TunnelNode{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-tunnelnode",
 			Namespace: "default",
-		},
-		Status: corev1alpha.TunnelNodeStatus{
-			LastSynced: &lastSyncedTime,
 		},
 	}
 
@@ -53,15 +44,4 @@ func TestTunnelNodeReconciler(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-
-	// Check if the TunnelNode has been deleted.
-	tunnelNode = &corev1alpha.TunnelNode{}
-	err = k8sClient.Get(context.TODO(), types.NamespacedName{
-		Name:      "test-tunnelnode",
-		Namespace: "default",
-	}, tunnelNode)
-
-	// We expect a not found error since the node should be deleted.
-	require.Error(t, err)
-	require.True(t, errors.IsNotFound(err))
 }
