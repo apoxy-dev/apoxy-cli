@@ -2,12 +2,14 @@ package runc
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"github.com/coredns/coredns/plugin"
 	"github.com/miekg/dns"
 
 	"github.com/apoxy-dev/apoxy-cli/pkg/edgefunc"
+	"github.com/apoxy-dev/apoxy-cli/pkg/edgefunc/runc/network"
 	"github.com/apoxy-dev/apoxy-cli/pkg/log"
 )
 
@@ -36,10 +38,19 @@ func (r *runtime) Resolver(next plugin.Handler) plugin.Handler {
 		s, err := r.net.Status(ctx, name)
 		if err != nil {
 			log.Debugf("failed to get status for %v: %v", name, err)
-			return dns.RcodeNameError, nil
+			if errors.Is(err, network.ErrSandboxNotFound) {
+				msg := new(dns.Msg)
+				msg.SetRcode(req, dns.RcodeNameError)
+				msg.Authoritative = true
+				msg.Ns = []dns.RR{new(dns.NS)}
+				msg.Answer = []dns.RR{new(dns.A)}
+				w.WriteMsg(msg)
+				return dns.RcodeNameError, nil
+			}
+			return dns.RcodeServerFailure, err
 		}
 
-		log.Debugf("found container %v, resovling to %v", name, s.IP)
+		log.Debugf("found container %v, resolving to %v", name, s.IP)
 
 		msg := new(dns.Msg)
 		msg.SetReply(req)
