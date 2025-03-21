@@ -6,6 +6,7 @@ package tunnel_test
 import (
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/netip"
@@ -25,10 +26,12 @@ import (
 )
 
 func TestKernelTunnel(t *testing.T) {
-	//	slog.SetLogLoggerLevel(slog.LevelDebug)
+	if testing.Verbose() {
+		slog.SetLogLoggerLevel(slog.LevelDebug)
+	}
 
 	// Check if we have the NET_ADMIN capability.
-	netAdmin, err := hasNetAdminCapability()
+	netAdmin, err := hasCapability(CAP_NET_ADMIN)
 	require.NoError(t, err)
 	if !netAdmin {
 		t.Skip("requires NET_ADMIN capability")
@@ -138,7 +141,9 @@ func TestKernelTunnel(t *testing.T) {
 	require.Equal(t, *knownPeers[0].PublicKey, privateKey.PublicKey().String())
 }
 
-func hasNetAdminCapability() (bool, error) {
+const CAP_NET_ADMIN = 12
+
+func hasCapability(capability int) (bool, error) {
 	// Check if we are running as root
 	if unix.Geteuid() == 0 {
 		return true, nil
@@ -157,10 +162,9 @@ func hasNetAdminCapability() (bool, error) {
 		return false, fmt.Errorf("failed to get capabilities: %v", err)
 	}
 
-	// Check if the NET_ADMIN capability is present
-	const CAP_NET_ADMIN = 12
-	netAdminMask := uint32(1) << (CAP_NET_ADMIN % 32)
-	if capData.Effective&(netAdminMask) != 0 {
+	// Check if the capability is present
+	capabilityMask := uint32(1) << (capability % 32)
+	if capData.Effective&(capabilityMask) != 0 {
 		return true, nil
 	}
 

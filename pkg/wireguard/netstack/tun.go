@@ -289,6 +289,39 @@ func (tun *NetTun) LookupContextHost(ctx context.Context, host string) ([]string
 	return resolver.LookupHost(ctx, host)
 }
 
+// ListenTCP listens for incoming TCP connections on the specified address.
+func (tun *NetTun) ListenTCP(addr *net.TCPAddr) (*gonet.TCPListener, error) {
+	// If the IP address is nil, bind to the unspecified address.
+	if addr.IP == nil {
+		localAddrs := tun.LocalAddresses()
+
+		isIPV6 := false
+		for _, localAddr := range localAddrs {
+			if localAddr.Addr().Is6() {
+				isIPV6 = true
+				break
+			}
+		}
+
+		if isIPV6 {
+			addr.IP = net.IPv6zero
+		} else {
+			addr.IP = net.IPv4zero
+		}
+	}
+
+	ip, ok := netip.AddrFromSlice(addr.IP)
+	if !ok {
+		return nil, fmt.Errorf("could not parse IP address")
+	}
+
+	// Convert to a netstack address.
+	fa, pn := tun.convertToFullAddr(netip.AddrPortFrom(ip, uint16(addr.Port)))
+
+	// Listen for incoming TCP connections.
+	return gonet.ListenTCP(tun.stack, fa, pn)
+}
+
 // EnableForwarding enables packet forwarding on the network interface.
 // Promiscuous mode should be enabled if the network interface is expected
 // to forward packets with a destination address different from the address
