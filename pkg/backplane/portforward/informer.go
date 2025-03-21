@@ -77,6 +77,24 @@ func findReplicaStatus(p *ctrlv1alpha1.Proxy, rname string) (*ctrlv1alpha1.Proxy
 	return nil, false
 }
 
+func (pf *PortForwarder) doForward(protocol gwapiv1.ProtocolType, port int32) error {
+	log.Debugf("forwarding %s/%d", protocol, port)
+	pname := fmt.Sprintf("%s/%d", protocol, port)
+	if _, ok := pf.portStopCh[pname]; !ok {
+		stopCh := make(chan struct{})
+		switch protocol {
+		case gwapiv1.TCPProtocolType, gwapiv1.HTTPProtocolType, gwapiv1.HTTPSProtocolType:
+			fmt.Printf("Listening on %s\n", pname)
+			go drivers.ForwardTCP(stopCh, pf.cname, int(port), int(port))
+		default:
+			return fmt.Errorf("invalid protocol %q", protocol)
+		}
+
+		pf.portStopCh[pname] = stopCh
+	}
+	return nil
+}
+
 func (pf *PortForwarder) sync(key string) error {
 	obj, exists, err := pf.informer.GetIndexer().GetByKey(key)
 	if err != nil {
@@ -104,22 +122,19 @@ func (pf *PortForwarder) sync(key string) error {
 	}
 
 	for _, l := range proxy.Spec.Listeners {
-		log.Debugf("forwarding %s/%d", l.Protocol, l.Port)
-		pname := fmt.Sprintf("%s/%d", l.Protocol, l.Port)
-		if _, ok := pf.portStopCh[pname]; !ok {
-			stopCh := make(chan struct{})
-			switch l.Protocol {
-			case gwapiv1.TCPProtocolType, gwapiv1.HTTPProtocolType, gwapiv1.HTTPSProtocolType:
-				fmt.Printf("Listening on %s\n", pname)
-				go drivers.ForwardTCP(stopCh, pf.cname, int(l.Port), int(l.Port))
-			default:
-				return fmt.Errorf("invalid protocol %q", l.Protocol)
-			}
-
-			pf.portStopCh[pname] = stopCh
+		if err := pf.doForward(l.Protocol, int32(l.Port)); err != nil {
+			return err
 		}
 	}
+	// Always forward the Admin port as well.
+	if err := pf.doForward(gwapiv1.TCPProtocolType, 19000); err != nil {
+		return err
+	}
 	for pname, stopCh := range pf.portStopCh {
+		// Ignore the admin port.
+		if pname == "TCP/19000" {
+			continue
+		}
 		if !slices.ContainsFunc(proxy.Spec.Listeners, func(l ctrlv1alpha1.ProxyListener) bool {
 			ss := strings.Split(pname, "/")
 			if len(ss) != 2 {
@@ -139,7 +154,7 @@ func (pf *PortForwarder) sync(key string) error {
 		}) {
 			delete(pf.portStopCh, pname)
 			close(stopCh)
-			fmt.Printf("Stopped listening on :%s\n", pname)
+			fmt.Printf("Stopped listening on %s\n", pname)
 		}
 	}
 
