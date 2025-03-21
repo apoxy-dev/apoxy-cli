@@ -106,17 +106,30 @@ func (m *ApoxyCli) BuilderContainer(ctx context.Context, src *dagger.Directory) 
 func (m *ApoxyCli) BuildCLI(
 	ctx context.Context,
 	src *dagger.Directory,
-	platform, tag, sha string,
+	// +optional
+	platform string,
+	// +optional
+	tag string,
+	// +optional
+	sha string,
 ) *dagger.Container {
+	if platform == "" {
+		platform = runtime.GOOS + "/" + runtime.GOARCH
+	}
+	if tag == "" {
+		tag = "latest"
+	}
+	if sha == "" {
+		sha = "unknown"
+	}
 	p := dagger.Platform(platform)
 	goarch := archOf(p)
 	os := osOf(p)
 
 	pkg := "github.com/apoxy-dev/apoxy-cli"
-	date := fmt.Sprintf("%d-%02d-%02dT%02d:%02d:%02d", time.Now().Year(), time.Now().Month(), time.Now().Day(), time.Now().Hour(), time.Now().Minute(), time.Now().Second())
 	ldFlags := []string{
 		fmt.Sprintf("-X '%s/build.BuildVersion=%s'", pkg, tag),
-		fmt.Sprintf("-X '%s/build.BuildDate=%s'", pkg, date),
+		fmt.Sprintf("-X '%s/build.BuildDate=%s'", pkg, time.Now().Format("2006-01-02T15:04:05Z")),
 		fmt.Sprintf("-X '%s/build.CommitHash=%s'", pkg, sha),
 		"-w", // disable DWARF
 		// Before you think about adding -s here, see https://github.com/ziglang/zig/issues/22844
