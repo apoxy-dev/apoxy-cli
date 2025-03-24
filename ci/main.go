@@ -132,8 +132,8 @@ func (m *ApoxyCli) BuildCLI(
 
 	if os == "darwin" {
 		builder = builder.
-			WithExec([]string{ "apt-get", "update" }).
-			WithExec([]string{ "apt-get", "install", "-yq", "gcc", "g++", "zlib1g-dev", "libmpc-dev", "libmpfr-dev", "libgmp-dev"}).
+			WithExec([]string{"apt-get", "update"}).
+			WithExec([]string{"apt-get", "install", "-yq", "gcc", "g++", "zlib1g-dev", "libmpc-dev", "libmpfr-dev", "libgmp-dev"}).
 			WithExec([]string{
 				"wget", fmt.Sprintf("https://apoxy-public-build-tools.s3.us-west-2.amazonaws.com/MacOSX14.sdk.tar.xz"),
 			}).
@@ -295,6 +295,7 @@ func (m *ApoxyCli) BuildBackplane(
 
 	bpOut := filepath.Join("build", "backplane-"+goarch)
 	dsOut := filepath.Join("build", "dial-stdio-"+goarch)
+	otelOut := filepath.Join("build", "otel-collector-"+goarch)
 
 	builder := m.BuilderContainer(ctx, src).
 		WithEnvVariable("GOARCH", goarch).
@@ -306,7 +307,12 @@ func (m *ApoxyCli) BuildBackplane(
 		WithEnvVariable("CGO_ENABLED", "1").
 		WithEnvVariable("CC", fmt.Sprintf("zig-wrapper cc --target=%s-linux-musl", canonArchFromGoArch(goarch))).
 		WithExec([]string{"go", "build", "-ldflags", "-v -linkmode=external", "-o", bpOut, "./cmd/backplane"}).
-		WithExec([]string{"go", "build", "-ldflags", "-v -linkmode=external", "-o", dsOut, "./cmd/dial-stdio"})
+		WithExec([]string{"go", "build", "-ldflags", "-v -linkmode=external", "-o", dsOut, "./cmd/dial-stdio"}).
+		WithExec([]string{"mkdir", "-p", "$GOPATH/src/github.com/apoxy-dev/otel-collector"}).
+		WithExec([]string{"wget", "https://github.com/apoxy-dev/otel-collector/archive/refs/tags/v1.0.0.tar.gz"}).
+		WithExec([]string{"tar", "-xvf", "v1.0.0.tar.gz", "-C", "$GOPATH/src/github.com/apoxy-dev/otel-collector"}).
+		WithWorkdir("$GOPATH/src/github.com/apoxy-dev/otel-collector/otelcol-apoxy").
+		WithExec([]string{"go", "build", "-o", otelOut})
 
 	runtimeCtr := m.PullEdgeRuntime(ctx, platform)
 
