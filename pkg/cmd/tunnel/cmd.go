@@ -214,7 +214,6 @@ func init() {
 	createCmd.Flags().StringVarP(&tunnelNodeFile, "file", "f", "", "Path to the TunnelNode file to create.")
 	updateCmd.Flags().StringVarP(&tunnelNodeFile, "file", "f", "", "Path to the TunnelNode file to update.")
 	tunnelRunCmd.Flags().StringVarP(&tunnelNodeFile, "file", "f", "", "Path to the TunnelNode file to create.")
-	tunnelRunCmd.Flags().StringVarP(&tunnelNodeName, "name", "n", "", "Name of the TunnelNode to run.")
 
 	tunnelCmd.AddCommand(createCmd)
 	tunnelCmd.AddCommand(getCmd)
