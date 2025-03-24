@@ -13,8 +13,7 @@ import (
 
 	"github.com/apoxy-dev/apoxy-cli/config"
 	"github.com/apoxy-dev/apoxy-cli/pkg/cmd/alpha"
-	// TODO: bring this back
-	//"github.com/apoxy-dev/apoxy-cli/pkg/cmd/tunnel"
+	"github.com/apoxy-dev/apoxy-cli/pkg/cmd/tunnel"
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -42,8 +41,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&config.ProjectID, "project", "", "The project ID to use.")
 
 	rootCmd.AddCommand(alpha.Cmd())
-	// TODO: bring this back
-	//rootCmd.AddCommand(tunnel.Cmd())
+	rootCmd.AddCommand(tunnel.Cmd())
 }
 
 // GenerateDocs generates the docs in the docs folder.
