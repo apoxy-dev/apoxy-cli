@@ -684,11 +684,17 @@ func schema_apoxy_cli_api_controllers_v1alpha1_ProxyMonitoring(ref common.Refere
 							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyTracing"),
 						},
 					},
+					"otelCollectorConfig": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Custom OpenTelemetry collector configuration. Only supported for unmanaged proxies. This must be a ConfigMap or a Secret in the same namespace as Backplane.",
+							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.LocalObjectReference"),
+						},
+					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyAccessLogs", "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyContentLogs", "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyTracing"},
+			"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyAccessLogs", "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyContentLogs", "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyTracing", "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.LocalObjectReference"},
 	}
 }
 
@@ -759,21 +765,6 @@ func schema_apoxy_cli_api_controllers_v1alpha1_ProxySpec(ref common.ReferenceCal
 							Format:      "",
 						},
 					},
-					"locations": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Locations is the list of locations where the proxy will be deployed: * cloud provider:\n - global: Deploy the proxy in the global network.\n - <region>: Deploy the proxy in the specified region (e.g \"europe\")\n - <pop>: Deploy the proxy in the specified point of presence.\n* kubernetes provider - The list of kubernetes clusters where the proxy will be deployed. * unmanaged provider - Ignored.",
-							Type:        []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: "",
-										Type:    []string{"string"},
-										Format:  "",
-									},
-								},
-							},
-						},
-					},
 					"listeners": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Listeners is the list of logical endpoints that the Proxy will receive traffic on. At least one listener MUST be specified. If used with Gateway API, the listeners here must be a superset of the listeners defined in the corresponding Gateway object.",
@@ -792,13 +783,6 @@ func schema_apoxy_cli_api_controllers_v1alpha1_ProxySpec(ref common.ReferenceCal
 						SchemaProps: spec.SchemaProps{
 							Description: "How long to drain connections before terminating the proxy. Defaults to 30s. For HTTP/1 Envoy will send a connection: close header to the client, for HTTP/2 Envoy will send a GOAWAY frame to the client.",
 							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Duration"),
-						},
-					},
-					"config": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Config is the Starlark configuration for the proxy in the txtar format.",
-							Type:        []string{"string"},
-							Format:      "",
 						},
 					},
 					"monitoring": {

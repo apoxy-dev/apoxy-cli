@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"context"
-	"crypto/sha256"
 	"crypto/tls"
 	goerrors "errors"
 	"fmt"
@@ -148,11 +147,6 @@ func findReplicaStatus(p *ctrlv1alpha1.Proxy, rname string) (*ctrlv1alpha1.Proxy
 	return nil, false
 }
 
-func nodeID(p *ctrlv1alpha1.Proxy) string {
-	configSHA := sha256.Sum256([]byte(p.Spec.Config))
-	return fmt.Sprintf("%s-%x", p.Name, configSHA[:8])
-}
-
 func adminUDSPath(nodeID string) string {
 	return fmt.Sprintf("/tmp/admin_%s.sock", nodeID)
 }
@@ -292,18 +286,10 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 			goto UpdateStatus
 		}
 
-		var (
-			cfg string
-			err error
+		cfg, err := bootstrap.GetRenderedBootstrapConfig(
+			bootstrap.WithXdsServerHost(r.apiServerHost),
+			// TODO(dilyevsky): Add TLS config from r.options.apiServerTLSConfig.
 		)
-		if p.Spec.Config != "" {
-			cfg, err = validateBootstrapConfig(nodeID(p), p.Spec.Config)
-		} else {
-			cfg, err = bootstrap.GetRenderedBootstrapConfig(
-				bootstrap.WithXdsServerHost(r.apiServerHost),
-				// TODO(dilyevsky): Add TLS config from r.options.apiServerTLSConfig.
-			)
-		}
 		if err != nil {
 			// If the config is invalid, we can't start the proxy.
 			log.Error(err, "failed to validate proxy config")
