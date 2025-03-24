@@ -310,7 +310,8 @@ func (m *ApoxyCli) BuildBackplane(
 		WithExec([]string{"go", "build", "-ldflags", "-v -linkmode=external", "-o", dsOut, "./cmd/dial-stdio"}).
 		WithExec([]string{"mkdir", "-p", "$GOPATH/src/github.com/apoxy-dev/otel-collector"}).
 		WithExec([]string{"wget", "https://github.com/apoxy-dev/otel-collector/archive/refs/tags/v1.0.0.tar.gz"}).
-		WithExec([]string{"tar", "-xvf", "v1.0.0.tar.gz", "-C", "$GOPATH/src/github.com/apoxy-dev/otel-collector"}).
+		WithExec([]string{"tar", "-xvf", "v1.0.0.tar.gz"}).
+		WithExec([]string{"mv", "otel-collector-1.0.0", "$GOPATH/src/github.com/apoxy-dev/otel-collector"}).
 		WithWorkdir("$GOPATH/src/github.com/apoxy-dev/otel-collector/otelcol-apoxy").
 		WithExec([]string{"go", "build", "-o", otelOut})
 
