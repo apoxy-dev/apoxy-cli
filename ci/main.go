@@ -301,8 +301,12 @@ func osOf(p dagger.Platform) string {
 func (m *ApoxyCli) BuildBackplane(
 	ctx context.Context,
 	src *dagger.Directory,
+	// +optional
 	platform string,
 ) *dagger.Container {
+	if platform == "" {
+		platform = runtime.GOOS + "/" + runtime.GOARCH
+	}
 	p := dagger.Platform(platform)
 	goarch := archOf(p)
 
