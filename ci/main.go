@@ -313,7 +313,9 @@ func (m *ApoxyCli) BuildBackplane(
 		WithExec([]string{"mkdir", "-p", "/src/github.com/apoxy-dev"}).
 		WithExec([]string{"mv", "otel-collector-1.0.0", "/src/github.com/apoxy-dev/otel-collector"}).
 		WithEnvVariable("CGO_ENABLED", "0").
-		WithExec([]string{"cd", "/src/github.com/apoxy-dev/otel-collector/otelcol-apoxy", "&&", "go", "build", "-o", otelOut})
+		WithWorkdir("/src/github.com/apoxy-dev/otel-collector/otelcol-apoxy").
+		WithExec([]string{"go", "build", "-o", otelOut}).
+		WithWorkdir("/src")
 
 	runtimeCtr := m.PullEdgeRuntime(ctx, platform)
 
