@@ -2,9 +2,7 @@ package gatewayapi
 
 import (
 	apoxy_v1alpha1 "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
-	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/otel"
 	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/ir"
-	"github.com/apoxy-dev/apoxy-cli/pkg/log"
 	envoy_v1alpha1 "github.com/envoyproxy/gateway/api/v1alpha1"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
@@ -15,35 +13,31 @@ import (
 // to emit data to localhost:4317. The Tags set in the ProxyTracing struct
 // are mapped to appropriate CustomTags.
 func (t *Translator) processTracing(gateway *gwapiv1.Gateway, proxies []*apoxy_v1alpha1.Proxy) *ir.Tracing {
-	if gateway.Spec.Infrastructure == nil ||
-		gateway.Spec.Infrastructure.ParametersRef == nil ||
-		gateway.Spec.Infrastructure.ParametersRef.Kind != "Proxy" {
-		return nil
-	}
 	for _, proxy := range proxies {
-		if proxy.Name != gateway.Spec.Infrastructure.ParametersRef.Name {
+		// Find the proxy that corresponds to this gateway
+		if proxy.Name != gateway.Name {
 			continue
 		}
-		if proxy.Spec.Monitoring == nil ||
-			proxy.Spec.Monitoring.Tracing == nil ||
-			!proxy.Spec.Monitoring.Tracing.Enabled {
+
+		// Check if monitoring and tracing are configured and enabled
+		if proxy.Spec.Monitoring == nil || proxy.Spec.Monitoring.Tracing == nil || !proxy.Spec.Monitoring.Tracing.Enabled {
 			return nil
 		}
-		log.Infof("Enabling tracing for proxy %s", proxy.Name)
+
+		// Create the tracing configuration
 		tracing := &ir.Tracing{
 			ServiceName: "envoy-backplane",
 			Provider: envoy_v1alpha1.TracingProvider{
 				Type: envoy_v1alpha1.TracingProviderTypeOpenTelemetry,
 			},
 			Destination: ir.RouteDestination{
-				Name: "otel_collector",
+				Name: "otel-collector",
 				Settings: []*ir.DestinationSetting{
 					{
-						Protocol: ir.HTTP2,
 						Endpoints: []*ir.DestinationEndpoint{
 							{
-								Host: "127.0.0.1",
-								Port: otel.DefaultCollectorPort,
+								Host: "localhost",
+								Port: 4317,
 							},
 						},
 					},

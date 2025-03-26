@@ -302,7 +302,11 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 
 		bsOpts := []bootstrap.BootstrapOption{
 			bootstrap.WithXdsServerHost(r.apiServerHost),
-			// TODO(dilyevsky): Add TLS config from r.options.apiServerTLSConfig.
+		}
+		if p.Spec.Monitoring != nil {
+			if p.Spec.Monitoring.Tracing != nil && p.Spec.Monitoring.Tracing.Enabled {
+				bsOpts = append(bsOpts, bootstrap.WithEnabledOtelCollector())
+			}
 		}
 		cfg, err := bootstrap.GetRenderedBootstrapConfig(bsOpts...)
 		if err != nil {
