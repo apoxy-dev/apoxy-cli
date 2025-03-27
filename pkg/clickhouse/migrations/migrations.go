@@ -3,13 +3,15 @@ package migrations
 
 import (
 	"bytes"
+	"context"
+	"database/sql"
 	"embed"
 	"fmt"
 	"html/template"
 	"io/fs"
 	"strings"
 
-	_ "github.com/ClickHouse/clickhouse-go/v2"
+	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/apoxy-dev/apoxy-cli/pkg/log"
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/clickhouse"
@@ -70,7 +72,7 @@ func (f *tmplFile) Read(p []byte) (n int, err error) {
 		return 0, fmt.Errorf("buffer is too small")
 	}
 
-	log.Debugf("read %d bytes from file", n)
+	log.Infof("read %d bytes from file", n)
 
 	tmpl, err := template.New("").Parse(string(f.buf[:n]))
 	if err != nil {
@@ -83,7 +85,7 @@ func (f *tmplFile) Read(p []byte) (n int, err error) {
 		return 0, err
 	}
 
-	log.Debugf("rendered template: %s", buf.String())
+	log.Infof("rendered template: %s", buf.String())
 
 	if len(p) < buf.Len() {
 		return 0, fmt.Errorf("buffer is too small")
@@ -110,8 +112,30 @@ type migrationData struct {
 	TapsTTL int
 }
 
+func ensureDatabaseExists(host, orgID string) error {
+	chConn, err := clickhouse.Open(&clickhouse.Options{
+		Addr: []string{host},
+	})
+	if err != nil {
+		return err
+	}
+	defer chConn.Close()
+	var exists bool
+	err = chConn.QueryRow(context.Background(), `SELECT 1 FROM system.databases WHERE name = ?`, orgID).Scan(&exists)
+	if err != nil && err != sql.ErrNoRows {
+		return err
+	}
+	if exists {
+		return nil
+	}
+	return chConn.Exec(context.Background(), `CREATE DATABASE IF NOT EXISTS `+orgID)
+}
+
 // Run performs ClickHouse database migrations using github.com/golang-migrate/migrate/v4 package.
 func Run(host string, orgID uuid.UUID) error {
+	if err := ensureDatabaseExists(host, chOrgID(orgID)); err != nil {
+		return err
+	}
 	tf := tmplFS{
 		src: migrationsFS,
 		data: migrationData{
@@ -127,7 +151,7 @@ func Run(host string, orgID uuid.UUID) error {
 	m, err := migrate.NewWithSourceInstance(
 		"iofs",
 		migrations,
-		fmt.Sprintf("clickhouse://%s?x-multi-statement=true", host),
+		fmt.Sprintf("clickhouse://%s/%s?x-multi-statement=true", host, chOrgID(orgID)),
 	)
 	if err != nil {
 		return err

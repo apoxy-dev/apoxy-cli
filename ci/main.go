@@ -69,7 +69,7 @@ case "$*" in
 esac
 `
 
-// BuilderContainer builds a CLI binary.
+// BuilderContainer builds a containers for compiling go binaries.
 func (m *ApoxyCli) BuilderContainer(ctx context.Context, src *dagger.Directory) *dagger.Container {
 	return dag.Container().
 		From("golang:1.23-bookworm").
@@ -100,6 +100,22 @@ func (m *ApoxyCli) BuilderContainer(ctx context.Context, src *dagger.Directory) 
 				Exclude: []string{"secrets/**"}, // exclude secrets from build context
 			}).
 		WithWorkdir("/src")
+}
+
+// PublishBuilderContainer publishes a container for compiling go binaries.
+func (m *ApoxyCli) PublishBuilderContainer(
+	ctx context.Context,
+	src *dagger.Directory,
+	registryPassword *dagger.Secret,
+) error {
+	_, err := m.BuilderContainer(ctx, src).
+		WithRegistryAuth(
+			"registry-1.docker.io",
+			"apoxy",
+			registryPassword,
+		).
+		Publish(ctx, "docker.io/apoxy/gobuilder:latest")
+	return err
 }
 
 // BuildCLI builds a CLI binary.
@@ -341,6 +357,7 @@ func (m *ApoxyCli) BuildBackplane(
 		WithExec([]string{"apk", "add", "-u", "iptables", "iproute2", "net-tools"}).
 		WithFile("/bin/backplane", builder.File(bpOut)).
 		WithFile("/bin/dial-stdio", builder.File(dsOut)).
+		WithFile("/bin/otel-collector", builder.File(otelOut)).
 		WithFile("/bin/edge-runtime", runtimeCtr.File("/usr/local/bin/edge-runtime")).
 		WithExec([]string{
 			"/bin/backplane",

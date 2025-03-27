@@ -62,7 +62,7 @@ func handleConnection(
 	}
 }
 
-// ForwardTCP forwards locaPort on host to a remotePort on a container cname.
+// ForwardTCP forwards localPort on host to a remotePort on a container cname.
 func ForwardTCP(
 	stopCh <-chan struct{},
 	cname string,
