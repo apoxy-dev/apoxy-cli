@@ -21,9 +21,13 @@ import (
 
 // NewKineStorage creates a new kine storage.
 func NewKineStorage(ctx context.Context, dsn string) (rest.StoreFn, error) {
+	tmpDir := os.Getenv("KINE_TMPDIR")
+	if tmpDir == "" {
+		tmpDir = os.TempDir()
+	}
 	etcdConfig, err := endpoint.Listen(ctx, endpoint.Config{
 		Endpoint: dsn,
-		Listener: "unix://" + os.TempDir() + "/apiserver-kine.sock",
+		Listener: "unix://" + tmpDir + "/apiserver-kine.sock",
 		ConnectionPoolConfig: driversgeneric.ConnectionPoolConfig{
 			MaxOpen: goruntime.NumCPU(),
 		},

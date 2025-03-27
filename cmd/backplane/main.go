@@ -67,6 +67,7 @@ var (
 	apiServerAddr   = flag.String("apiserver_addr", "host.docker.internal:8443", "APIServer address.")
 	healthProbePort = flag.Int("health_probe_port", 8080, "Port for the health probe.")
 	readyProbePort  = flag.Int("ready_probe_port", 8083, "Port for the ready probe.")
+	metricsPort     = flag.Int("metrics_port", 8081, "Port for the metrics endpoint.")
 
 	chAddrs  = flag.String("ch_addrs", "", "Comma-separated list of ClickHouse host:port addresses.")
 	chSecure = flag.Bool("ch_secure", false, "Whether to connect to Clickhouse using TLS.")
@@ -242,7 +243,7 @@ func main() {
 		Scheme:         scheme,
 		LeaderElection: false,
 		Metrics: metricsserver.Options{
-			BindAddress: ":8081",
+			BindAddress: fmt.Sprintf(":%d", *metricsPort),
 		},
 		HealthProbeBindAddress: fmt.Sprintf(":%d", *healthProbePort),
 	})

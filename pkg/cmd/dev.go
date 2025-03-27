@@ -37,6 +37,7 @@ import (
 	bpdrivers "github.com/apoxy-dev/apoxy-cli/pkg/backplane/drivers"
 	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/portforward"
 	chdrivers "github.com/apoxy-dev/apoxy-cli/pkg/clickhouse/drivers"
+	"github.com/apoxy-dev/apoxy-cli/pkg/clickhouse/migrations"
 	"github.com/apoxy-dev/apoxy-cli/pkg/gateway"
 	"github.com/apoxy-dev/apoxy-cli/pkg/log"
 
@@ -44,14 +45,20 @@ import (
 )
 
 var (
-	rs           = runtime.NewScheme()
-	codecFactory = serializer.NewCodecFactory(rs)
-	decodeFn     = codecFactory.UniversalDeserializer().Decode
+	rs             = runtime.NewScheme()
+	codecFactory   = serializer.NewCodecFactory(rs)
+	decodeFn       = codecFactory.UniversalDeserializer().Decode
+	useSubprocess  bool
+	clickhouseAddr string
 )
 
 func init() {
 	utilruntime.Must(corev1alpha.Install(rs))
 
+	devCmd.PersistentFlags().
+		BoolVar(&useSubprocess, "use-subprocess", false, "Use subprocess for backplane.")
+	devCmd.PersistentFlags().
+		StringVar(&clickhouseAddr, "clickhouse-addr", "", "ClickHouse address (host only, port 9000 will be used).")
 	rootCmd.AddCommand(devCmd)
 }
 
@@ -231,7 +238,6 @@ func watchAndReloadConfig(ctx context.Context, proxyNameOverride, pathOrURL stri
 			if !ev.Has(fsnotify.Write) {
 				continue
 			}
-
 			// Reload the proxy configuration
 			if err := updateFromFile(ctx, proxyNameOverride, watchPath); err != nil {
 				return err
@@ -369,62 +375,65 @@ var devCmd = &cobra.Command{
 			return nil
 		}
 
-		/*
-			rlDriver, err := ratelimitdrivers.GetDriver("docker")
+		if len(clickhouseAddr) == 0 {
+			chDriver, err := chdrivers.GetDriver("docker")
 			if err != nil {
 				return err
 			}
-			if err := rlDriver.Start(
-				ctx,
-				projID,
-				fmt.Sprintf("host.docker.internal:%d", apiserverpolicy.XDSPort),
-			); err != nil {
+			if err := chDriver.Start(ctx, projectID); err != nil {
 				return err
 			}
-		*/
+			clickhouseAddr, err = chDriver.GetAddr(ctx)
+			if err != nil {
+				return err
+			}
+		} else {
+			log.Infof("clickhouse server is already running: %s", clickhouseAddr)
+			log.Infof("running clickhouse migrations for project id: %s", projectID)
+			if err := migrations.Run(clickhouseAddr+":9000", projectID); err != nil {
+				return fmt.Errorf("failed to run clickhouse migrations: %w", err)
+			}
+		}
 
-		chDriver, err := chdrivers.GetDriver("docker")
+		backplaneDriver := "docker"
+		if useSubprocess {
+			backplaneDriver = "supervisor"
+		}
+		bpDriver, err := bpdrivers.GetDriver(backplaneDriver)
 		if err != nil {
 			return err
 		}
 
-		if err := chDriver.Start(ctx, projectID); err != nil {
-			return err
-		}
-		chAddr, err := chDriver.GetAddr(ctx)
-		if err != nil {
-			return err
+		// Common arguments for all drivers
+		driverArgs := []string{
+			"--ch_addrs", clickhouseAddr + ":9000",
+			"--dev", "true",
 		}
 
-		bpDriver, err := bpdrivers.GetDriver("docker")
-		if err != nil {
-			return err
-		}
 		cname, err := bpDriver.Start(
 			ctx,
 			projectID,
 			proxyName,
-			bpdrivers.WithArgs(
-				"--ch_addrs", chAddr+":9000",
-				"--dev", "true",
-			),
+			bpdrivers.WithArgs(driverArgs...),
 		)
 		if err != nil {
 			return err
 		}
 		defer bpDriver.Stop(projectID, proxyName)
 
-		rc := apiserver.NewClientConfig()
-		fwd, err := portforward.NewPortForwarder(rc, proxyName, proxyName, cname)
-		if err != nil {
-			return err
-		}
-		go func() {
-			if err := fwd.Run(ctx); err != nil {
-				ctxCancel(&runError{Err: err})
+		if !useSubprocess {
+			rc := apiserver.NewClientConfig()
+			fwd, err := portforward.NewPortForwarder(rc, proxyName, proxyName, cname)
+			if err != nil {
+				return err
 			}
-			// If err is nil, it means context has been cancelled.
-		}()
+			go func() {
+				if err := fwd.Run(ctx); err != nil {
+					ctxCancel(&runError{Err: err})
+				}
+				// If err is nil, it means context has been cancelled.
+			}()
+		}
 
 		fmt.Printf("Watching %s for Proxy configurations...\n", path)
 
