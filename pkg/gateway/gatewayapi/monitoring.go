@@ -13,18 +13,20 @@ import (
 // to emit data to localhost:4317. The Tags set in the ProxyTracing struct
 // are mapped to appropriate CustomTags.
 func (t *Translator) processTracing(gateway *gwapiv1.Gateway, proxies []*apoxy_v1alpha1.Proxy) *ir.Tracing {
+	if gateway.Spec.Infrastructure == nil ||
+		gateway.Spec.Infrastructure.ParametersRef == nil ||
+		gateway.Spec.Infrastructure.ParametersRef.Kind != "Proxy" {
+		return nil
+	}
 	for _, proxy := range proxies {
-		// Find the proxy that corresponds to this gateway
-		if proxy.Name != gateway.Name {
+		if proxy.Name != gateway.Spec.Infrastructure.ParametersRef.Name {
 			continue
 		}
-
-		// Check if monitoring and tracing are configured and enabled
-		if proxy.Spec.Monitoring == nil || proxy.Spec.Monitoring.Tracing == nil || !proxy.Spec.Monitoring.Tracing.Enabled {
+		if proxy.Spec.Monitoring == nil ||
+			proxy.Spec.Monitoring.Tracing == nil ||
+			!proxy.Spec.Monitoring.Tracing.Enabled {
 			return nil
 		}
-
-		// Create the tracing configuration
 		tracing := &ir.Tracing{
 			ServiceName: "envoy-backplane",
 			Provider: envoy_v1alpha1.TracingProvider{
