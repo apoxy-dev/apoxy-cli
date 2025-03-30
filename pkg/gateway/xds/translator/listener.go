@@ -234,7 +234,8 @@ func (t *Translator) addXdsHTTPFilterChain(xdsListener *listenerv3.Listener, irL
 		CommonHttpProtocolOptions: &corev3.HttpProtocolOptions{
 			HeadersWithUnderscoresAction: corev3.HttpProtocolOptions_REJECT_REQUEST,
 		},
-		Tracing: hcmTracing,
+		GenerateRequestId: &wrappers.BoolValue{Value: hcmTracing != nil},
+		Tracing:           hcmTracing,
 	}
 
 	if irListener.Timeout != nil && irListener.Timeout.HTTP != nil && irListener.Timeout.HTTP.RequestReceivedTimeout != nil {
