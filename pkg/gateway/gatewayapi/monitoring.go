@@ -3,6 +3,7 @@ package gatewayapi
 import (
 	apoxy_v1alpha1 "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
 	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/ir"
+	"github.com/apoxy-dev/apoxy-cli/pkg/log"
 	envoy_v1alpha1 "github.com/envoyproxy/gateway/api/v1alpha1"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
@@ -27,13 +28,14 @@ func (t *Translator) processTracing(gateway *gwapiv1.Gateway, proxies []*apoxy_v
 			!proxy.Spec.Monitoring.Tracing.Enabled {
 			return nil
 		}
+		log.Infof("Enabling tracing for proxy %s", proxy.Name)
 		tracing := &ir.Tracing{
 			ServiceName: "envoy-backplane",
 			Provider: envoy_v1alpha1.TracingProvider{
 				Type: envoy_v1alpha1.TracingProviderTypeOpenTelemetry,
 			},
 			Destination: ir.RouteDestination{
-				Name: "otel-collector",
+				Name: "otel_collector",
 				Settings: []*ir.DestinationSetting{
 					{
 						Endpoints: []*ir.DestinationEndpoint{

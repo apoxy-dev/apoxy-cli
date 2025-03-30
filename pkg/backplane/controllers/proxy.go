@@ -303,11 +303,6 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 		bsOpts := []bootstrap.BootstrapOption{
 			bootstrap.WithXdsServerHost(r.apiServerHost),
 		}
-		if p.Spec.Monitoring != nil {
-			if p.Spec.Monitoring.Tracing != nil && p.Spec.Monitoring.Tracing.Enabled {
-				bsOpts = append(bsOpts, bootstrap.WithEnabledOtelCollector())
-			}
-		}
 		cfg, err := bootstrap.GetRenderedBootstrapConfig(bsOpts...)
 		if err != nil {
 			// If the config is invalid, we can't start the proxy.
@@ -343,9 +338,7 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 
 		if p.Spec.Monitoring != nil {
 			if p.Spec.Monitoring.Tracing != nil && p.Spec.Monitoring.Tracing.Enabled {
-				opts = append(opts, envoy.WithOtelCollector(&otel.Collector{
-					ClickHouseOpts: r.options.chOpts,
-				}))
+				opts = append(opts, envoy.WithOtelCollector())
 			}
 		}
 

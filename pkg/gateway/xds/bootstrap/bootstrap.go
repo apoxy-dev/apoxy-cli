@@ -59,8 +59,8 @@ type bootstrapParameters struct {
 	EnablePrometheus bool
 	// OtelMetricSinks defines the configuration of the OpenTelemetry sinks.
 	OtelMetricSinks []metricSink
-	// EnableOtelCollector defines whether to enable the OpenTelemetry collector.
-	EnableOtelCollector bool
+	// EnableStatConfig defines whether to to customize the Envoy proxy stats.
+	EnableStatConfig bool
 	// StatsMatcher is to control creation of custom Envoy stats with prefix,
 	// suffix, and regex expressions match on the name of the stats.
 	StatsMatcher *StatsMatcherParameters
@@ -121,8 +121,6 @@ type BootstrapConfig struct {
 	XdsServerHost string
 	// XdsServerPort is the port of the Xds Server within Envoy Gateway.
 	XdsServerPort int32
-	// EnableOtelCollector enables the OpenTelemetry collector.
-	EnableOtelCollector bool
 }
 
 func defaultBootstrapConfig() *BootstrapConfig {
@@ -150,13 +148,6 @@ func WithXdsServerPort(port int32) BootstrapOption {
 	}
 }
 
-// WithEnabledOtelCollector enables the OpenTelemetry collector.
-func WithEnabledOtelCollector() BootstrapOption {
-	return func(cfg *BootstrapConfig) {
-		cfg.EnableOtelCollector = true
-	}
-}
-
 // GetRenderedBootstrapConfig renders the bootstrap YAML string.
 func GetRenderedBootstrapConfig(opts ...BootstrapOption) (string, error) {
 	sOpts := defaultBootstrapConfig()
@@ -179,7 +170,6 @@ func GetRenderedBootstrapConfig(opts ...BootstrapOption) (string, error) {
 				Port:          EnvoyReadinessPort,
 				ReadinessPath: EnvoyReadinessPath,
 			},
-			EnableOtelCollector: sOpts.EnableOtelCollector,
 		},
 	}
 

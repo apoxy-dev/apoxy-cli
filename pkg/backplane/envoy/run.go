@@ -102,12 +102,9 @@ func WithDrainTimeout(timeout *time.Duration) Option {
 	}
 }
 
-// WithLogsDir sets the directory where Envoy logs will be written.
-// If this option is set, logs will be piped to files in the format
-// envoy.<pid>.<pipe>.log in the specified directory.
-func WithLogsDir(dir string) Option {
+func WithOtelCollector() Option {
 	return func(r *Runtime) {
-		r.envoyLogsDir = dir
+		r.otelCollector = &otel.Collector{}
 	}
 }
 
@@ -129,7 +126,6 @@ type Runtime struct {
 	stopCh        chan struct{}
 	cmd           *exec.Cmd
 	logs          logs.LogsCollector
-	envoyLogsDir  string
 	otelCollector *otel.Collector
 	goPluginDir   string
 	adminHost     string
@@ -464,53 +460,96 @@ func (r *Runtime) getTotalConnections() (*int, error) {
 
 // Shutdown gracefully drains connections and shuts down the Envoy process.
 func (r *Runtime) Shutdown(ctx context.Context) error {
-	if r.cmd == nil {
+	r.mu.Lock()
+	if r.stopCh == nil {
+		r.mu.Unlock()
+		return nil
+	}
+	stopCh := r.stopCh
+	r.stopCh = nil
+	r.mu.Unlock()
+
+	close(stopCh)
+
+	if r.cmd == nil || r.cmd.Process == nil {
 		return nil
 	}
 
-	log.Infof("shutting down envoy with drain timeout %s", r.drainTimeout)
-
-	startTime := time.Now()
-
-	if err := r.postEnvoyAdminAPI("healthcheck/fail"); err != nil {
-		log.Errorf("error failing active health checks: %v", err)
-	}
-
-	if err := r.postEnvoyAdminAPI("drain_listeners?graceful&skip_exit"); err != nil {
-		log.Errorf("error initiating graceful drain: %v", err)
-	}
-
-	for {
-		conn, err := r.getTotalConnections()
-		if err != nil {
-			log.Errorf("error getting total connections: %v", err)
-		}
-
-		if time.Since(startTime) > *r.drainTimeout {
-			log.Infof("drain timeout reached")
-			break
-		} else if conn != nil && *conn <= 0 {
-			log.Infof("all connections drained")
-			break
-		}
-
-		select {
-		case <-time.After(1 * time.Second):
-		case <-ctx.Done():
-			log.Infof("context done while draining")
-			break
-		}
-	}
-
+	// Use sync.OnceValue to ensure the shutdown process only executes once
 	stopOnce := sync.OnceValue(func() error {
-		close(r.stopCh)
-		if r.otelCollector != nil {
-			if err := r.otelCollector.Stop(ctx); err != nil {
-				log.Errorf("error shutting down otel collector: %v", err)
+		log.Infof("Shutting down Envoy with drain timeout %s", *r.drainTimeout)
+
+		// First fail health checks to stop receiving new traffic
+		if err := r.postEnvoyAdminAPI("healthcheck/fail"); err != nil {
+			log.Warnf("Failed to fail active health checks: %v", err)
+			// Continue with shutdown even if this fails
+		}
+
+		drainCtx, cancel := context.WithTimeout(ctx, *r.drainTimeout)
+		defer cancel()
+
+		// Initiate graceful drain but tell Envoy not to exit automatically
+		if err := r.postEnvoyAdminAPI("drain_listeners?graceful&skip_exit"); err != nil {
+			log.Warnf("Failed to initiate graceful drain: %v", err)
+			// Continue with shutdown even if drain fails
+		}
+
+		// Wait for connections to drain
+		drainStart := time.Now()
+		for {
+			if time.Since(drainStart) > *r.drainTimeout {
+				log.Warnf("Drain timeout exceeded, proceeding with shutdown")
+				break
+			}
+
+			conns, err := r.getTotalConnections()
+			if err != nil {
+				log.Warnf("Failed to get connection count: %v", err)
+				break
+			}
+
+			if conns == nil || *conns == 0 {
+				log.Infof("All connections drained")
+				break
+			}
+
+			log.Infof("Waiting for %d connections to drain", *conns)
+			select {
+			case <-drainCtx.Done():
+				log.Warnf("Drain context canceled, proceeding with shutdown")
+				break
+			case <-time.After(1 * time.Second):
+				// Continue waiting
 			}
 		}
-		return r.cmd.Process.Kill()
+
+		// Shutdown Envoy process
+		log.Infof("Shutting down Envoy process")
+		if err := r.cmd.Process.Signal(os.Interrupt); err != nil {
+			log.Warnf("Failed to send interrupt signal to Envoy: %v", err)
+			if err := r.cmd.Process.Kill(); err != nil {
+				return fmt.Errorf("failed to kill Envoy process: %w", err)
+			}
+		}
+
+		// Wait for process to exit
+		if err := r.cmd.Wait(); err != nil {
+			log.Warnf("Envoy process exited with error: %v", err)
+		}
+
+		// Shutdown OpenTelemetry collector if it was started
+		if r.otelCollector != nil {
+			log.Infof("Shutting down OpenTelemetry collector")
+			shutdownCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+			defer cancel()
+			if err := r.otelCollector.Stop(shutdownCtx); err != nil {
+				log.Warnf("Failed to stop OpenTelemetry collector: %v", err)
+			}
+		}
+
+		return nil
 	})
+
 	return stopOnce()
 }
 

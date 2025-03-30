@@ -137,26 +137,6 @@ static_resources:
                 address: {{ $sink.Address }}
                 port_value: {{ $sink.Port }}
   {{- end }}
-  {{- if .EnableOtelCollector }}
-  - name: otel_collector
-    connect_timeout: 0.250s
-    type: STRICT_DNS
-    typed_extension_protocol_options:
-      envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
-        "@type": "type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions"
-        explicit_http_config:
-          http2_protocol_options: {}
-    lb_policy: ROUND_ROBIN
-    load_assignment:
-      cluster_name: otel_collector
-      endpoints:
-      - lb_endpoints:
-        - endpoint:
-            address:
-              socket_address:
-                address: localhost
-                port_value: 4317
-  {{- end }}
   - name: xds_cluster
     connect_timeout: 10s
     type: STRICT_DNS
