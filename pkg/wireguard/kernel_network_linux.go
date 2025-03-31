@@ -23,7 +23,7 @@ import (
 var _ Network = (*KernelModeNetwork)(nil)
 
 type KernelModeNetwork struct {
-	*network.HostNetwork
+	*network.FilteredNetwork
 	privateKey wgtypes.Key
 	ifaceName  string
 	listenPort uint16
@@ -112,11 +112,14 @@ func NewKernelModeNetwork(
 	}
 
 	return &KernelModeNetwork{
-		HostNetwork: network.Host(),
-		privateKey:  privateKey,
-		ifaceName:   ifaceName,
-		listenPort:  *conf.ListenPort,
-		wgClient:    wgClient,
+		FilteredNetwork: network.Filtered(&network.FilteredNetworkConfig{
+			AllowedDestinations: localAddresses,
+			Upstream:            network.Host(),
+		}),
+		privateKey: privateKey,
+		ifaceName:  ifaceName,
+		listenPort: *conf.ListenPort,
+		wgClient:   wgClient,
 	}, nil
 }
 
@@ -234,6 +237,8 @@ func (n *KernelModeNetwork) AddPeer(peerConf *PeerConfig) error {
 		if err := netlink.RouteAdd(route); err != nil {
 			return fmt.Errorf("could not add route to %s: %w", allowedIP, err)
 		}
+
+		n.FilteredNetwork.AddAllowedDestination(prefix)
 	}
 
 	return nil
@@ -276,6 +281,9 @@ func (n *KernelModeNetwork) RemovePeer(publicKey string) error {
 		if err := netlink.RouteDel(route); err != nil {
 			return fmt.Errorf("could not remove route to %s: %w", allowedIP.String(), err)
 		}
+
+		addr, _ := netip.AddrFromSlice(allowedIP.IP)
+		n.FilteredNetwork.RemoveAllowedDestination(netip.PrefixFrom(addr, len(allowedIP.Mask)*8))
 	}
 
 	peer := wgtypes.PeerConfig{

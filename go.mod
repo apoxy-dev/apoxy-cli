@@ -14,7 +14,7 @@ require (
 	github.com/dgraph-io/badger/v4 v4.5.0
 	github.com/docker/docker v27.2.0+incompatible
 	github.com/dpeckett/contextio v0.5.1
-	github.com/dpeckett/network v0.2.3
+	github.com/dpeckett/network v0.3.1
 	github.com/envoyproxy/gateway v0.5.0-rc.1.0.20240618131507-bdff5d56b59d
 	github.com/envoyproxy/go-control-plane v0.13.0
 	github.com/envoyproxy/ratelimit v1.4.1-0.20230427142404-e2a87f41d3a7
