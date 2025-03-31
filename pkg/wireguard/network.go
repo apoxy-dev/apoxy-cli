@@ -10,9 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/netstack"
-	"github.com/apoxy-dev/apoxy-cli/pkg/utils"
-	"github.com/apoxy-dev/apoxy-cli/pkg/wireguard/uapi"
 	"github.com/dpeckett/network"
 	"golang.zx2c4.com/wireguard/conn"
 	"golang.zx2c4.com/wireguard/device"
@@ -20,6 +17,10 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/transport/tcp"
 	"k8s.io/utils/ptr"
+
+	"github.com/apoxy-dev/apoxy-cli/pkg/netstack"
+	"github.com/apoxy-dev/apoxy-cli/pkg/utils"
+	"github.com/apoxy-dev/apoxy-cli/pkg/wireguard/uapi"
 )
 
 var _ network.Network = (*WireGuardNetwork)(nil)
