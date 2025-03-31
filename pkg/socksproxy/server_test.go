@@ -2,22 +2,36 @@ package socksproxy_test
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
+	"net/netip"
 	"os"
 	"testing"
 
+	"github.com/dpeckett/network"
+	"github.com/dpeckett/network/nettest"
 	"github.com/stretchr/testify/require"
 	proxyclient "golang.org/x/net/proxy"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/network"
 	"github.com/apoxy-dev/apoxy-cli/pkg/socksproxy"
 )
 
 func TestProxyServer(t *testing.T) {
+	if testing.Verbose() {
+		slog.SetLogLoggerLevel(slog.LevelDebug)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	srv := socksproxy.NewServer("localhost:9050", network.Host())
+	stack, err := nettest.NewStack(netip.MustParseAddr("100.64.0.1"), "")
+	require.NoError(t, err)
+	t.Cleanup(stack.Close)
+
+	privateNet := network.Netstack(stack.Stack, stack.NICID, nil)
+	publicNet := network.Host()
+
+	srv := socksproxy.NewServer("localhost:9050", privateNet, publicNet)
 	go func() {
 		if err := srv.ListenAndServe(ctx); err != nil {
 			os.Exit(1)

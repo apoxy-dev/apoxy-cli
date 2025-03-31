@@ -5,3 +5,4 @@ apoxy
 /dial-stdio
 dist/
 /main
+*.pcap

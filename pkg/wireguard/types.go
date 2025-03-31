@@ -1,7 +1,5 @@
 package wireguard
 
-import "golang.zx2c4.com/wireguard/conn"
-
 // DeviceConfig represents the configuration of a WireGuard device.
 // This is the [Interface] section of a wg-quick(8) compatible INI configuration file.
 type DeviceConfig struct {
@@ -33,10 +31,8 @@ type DeviceConfig struct {
 	PostDown []string `ini:"PostDown"`
 
 	// Apoxy specific fields.
-	// Packet capture file to write to.
+	// Packet capture file to write to (only supported in userspace mode).
 	PacketCapturePath string
-	// Bind to use for the device. If nil, the default bind is used.
-	Bind conn.Bind
 	// Verbose logging.
 	Verbose *bool
 }
