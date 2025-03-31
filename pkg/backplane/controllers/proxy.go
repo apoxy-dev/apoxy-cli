@@ -217,7 +217,6 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 	}
 
 	log := log.FromContext(ctx, "app", string(p.UID), "name", p.Name, "replica", r.replicaName)
-	log.Info("Reconciling Proxy")
 
 	rStatus, found := findReplicaStatus(p, r.replicaName)
 	if !found {
