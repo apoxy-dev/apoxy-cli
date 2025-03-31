@@ -31,7 +31,7 @@ type DeviceConfig struct {
 	PostDown []string `ini:"PostDown"`
 
 	// Apoxy specific fields.
-	// Packet capture file to write to.
+	// Packet capture file to write to (only supported in userspace mode).
 	PacketCapturePath string
 	// Verbose logging.
 	Verbose *bool

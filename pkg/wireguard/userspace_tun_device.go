@@ -36,7 +36,7 @@ type tunDevice struct {
 	mtu            int
 }
 
-func newTunDevice(localAddresses []netip.Addr, mtu *int, pcapPath string) (*tunDevice, error) {
+func newTunDevice(localAddresses []netip.Prefix, mtu *int, pcapPath string) (*tunDevice, error) {
 	opts := stack.Options{
 		NetworkProtocols: []stack.NetworkProtocolFactory{
 			ipv4.NewProtocol,
@@ -102,16 +102,19 @@ func newTunDevice(localAddresses []netip.Addr, mtu *int, pcapPath string) (*tunD
 	})
 
 	// Add the local addresses to the NIC.
-	for _, ip := range localAddresses {
+	for _, prefix := range localAddresses {
 		var protoNumber tcpip.NetworkProtocolNumber
-		if ip.Is4() {
+		if prefix.Addr().Is4() {
 			protoNumber = ipv4.ProtocolNumber
-		} else if ip.Is6() {
+		} else if prefix.Addr().Is6() {
 			protoNumber = ipv6.ProtocolNumber
 		}
 		protoAddr := tcpip.ProtocolAddress{
-			Protocol:          protoNumber,
-			AddressWithPrefix: tcpip.AddrFromSlice(ip.AsSlice()).WithPrefix(),
+			Protocol: protoNumber,
+			AddressWithPrefix: tcpip.AddressWithPrefix{
+				Address:   tcpip.AddrFromSlice(prefix.Addr().AsSlice()),
+				PrefixLen: prefix.Bits(),
+			},
 		}
 		tcpipErr := ipstack.AddProtocolAddress(nicID, protoAddr, stack.AddressProperties{})
 		if tcpipErr != nil {

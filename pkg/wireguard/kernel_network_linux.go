@@ -1,50 +1,61 @@
 //go:build linux
 // +build linux
 
-package tunnel
+package wireguard
 
 import (
 	"errors"
 	"fmt"
-	"log/slog"
 	"net"
 	"net/netip"
 	"strconv"
 	"time"
 
+	"github.com/dpeckett/network"
 	"github.com/vishvananda/netlink"
 	"golang.zx2c4.com/wireguard/wgctrl"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	"k8s.io/utils/ptr"
 
 	"github.com/apoxy-dev/apoxy-cli/pkg/utils"
-	"github.com/apoxy-dev/apoxy-cli/pkg/wireguard"
 )
 
-var _ Tunnel = (*kernelTunnel)(nil)
+var _ Network = (*KernelModeNetwork)(nil)
 
-type kernelTunnel struct {
+type KernelModeNetwork struct {
+	*network.HostNetwork
 	privateKey wgtypes.Key
 	ifaceName  string
 	listenPort uint16
 	wgClient   *wgctrl.Client
 }
 
-// CreateKernelTunnel creates a new kernel tunnel interface (WireGuard).
-func CreateKernelTunnel(
-	addr netip.Prefix,
-) (*kernelTunnel, error) {
-	privateKey, err := wgtypes.GeneratePrivateKey()
-	if err != nil {
-		return nil, fmt.Errorf("could not generate private key: %w", err)
+// NewKernelModeNetwork returns a new kernel mode wireguard network.
+func NewKernelModeNetwork(
+	conf *DeviceConfig,
+) (*KernelModeNetwork, error) {
+	if conf.PrivateKey == nil {
+		return nil, errors.New("private key is required")
 	}
 
-	listenPort, err := utils.UnusedUDP4Port()
+	privateKey, err := wgtypes.ParseKey(*conf.PrivateKey)
 	if err != nil {
-		return nil, fmt.Errorf("could not pick unused UDP port: %w", err)
+		return nil, fmt.Errorf("failed to parse private key: %w", err)
 	}
 
-	slog.Debug("Listening for wireguard traffic", slog.Int("port", int(listenPort)))
+	localAddresses, err := parseAddressList(conf.Address)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse local addresses: %w", err)
+	}
+
+	if conf.ListenPort == nil {
+		listenPort, err := utils.UnusedUDP4Port()
+		if err != nil {
+			return nil, fmt.Errorf("could not pick unused UDP port: %w", err)
+		}
+
+		conf.ListenPort = ptr.To(listenPort)
+	}
 
 	// Find the next available network interface index, e.g., wg0, wg1, etc.
 	ifaceName, err := findNextAvailableInterface()
@@ -56,7 +67,7 @@ func CreateKernelTunnel(
 	link := &netlink.GenericLink{
 		LinkAttrs: netlink.LinkAttrs{
 			Name: ifaceName,
-			MTU:  wireguard.DefaultMTU,
+			MTU:  DefaultMTU,
 		},
 		LinkType: "wireguard",
 	}
@@ -66,15 +77,17 @@ func CreateKernelTunnel(
 	}
 
 	// Set the address of the kernel tunnel interface.
-	nlAddr := &netlink.Addr{
-		IPNet: &net.IPNet{
-			IP:   addr.Addr().AsSlice(),
-			Mask: net.CIDRMask(addr.Bits(), len(addr.Addr().AsSlice())*8),
-		},
-		Label: ifaceName,
-	}
-	if err := netlink.AddrAdd(link, nlAddr); err != nil {
-		return nil, fmt.Errorf("could not assign address to interface %s: %w", ifaceName, err)
+	for _, prefix := range localAddresses {
+		nlAddr := &netlink.Addr{
+			IPNet: &net.IPNet{
+				IP:   prefix.Addr().AsSlice(),
+				Mask: net.CIDRMask(prefix.Bits(), len(prefix.Addr().AsSlice())*8),
+			},
+			Label: ifaceName,
+		}
+		if err := netlink.AddrAdd(link, nlAddr); err != nil {
+			return nil, fmt.Errorf("could not assign address to interface %s: %w", ifaceName, err)
+		}
 	}
 
 	// Bring the interface up.
@@ -91,45 +104,46 @@ func CreateKernelTunnel(
 	// Configure the WireGuard device with the private key.
 	wgConfig := wgtypes.Config{
 		PrivateKey: &privateKey,
-		ListenPort: ptr.To(int(listenPort)),
+		ListenPort: ptr.To(int(*conf.ListenPort)),
 	}
 
 	if err := wgClient.ConfigureDevice(ifaceName, wgConfig); err != nil {
 		return nil, fmt.Errorf("could not configure WireGuard device: %w", err)
 	}
 
-	return &kernelTunnel{
-		privateKey: privateKey,
-		ifaceName:  ifaceName,
-		listenPort: listenPort,
-		wgClient:   wgClient,
+	return &KernelModeNetwork{
+		HostNetwork: network.Host(),
+		privateKey:  privateKey,
+		ifaceName:   ifaceName,
+		listenPort:  *conf.ListenPort,
+		wgClient:    wgClient,
 	}, nil
 }
 
-func (t *kernelTunnel) Close() error {
-	defer t.wgClient.Close()
+func (n *KernelModeNetwork) Close() error {
+	defer n.wgClient.Close()
 
-	link, err := netlink.LinkByName(t.ifaceName)
+	link, err := netlink.LinkByName(n.ifaceName)
 	if err != nil {
-		return fmt.Errorf("could not find interface %s: %w", t.ifaceName, err)
+		return fmt.Errorf("could not find interface %s: %w", n.ifaceName, err)
 	}
 
 	if err := netlink.LinkDel(link); err != nil {
-		return fmt.Errorf("could not delete interface %s: %w", t.ifaceName, err)
+		return fmt.Errorf("could not delete interface %s: %w", n.ifaceName, err)
 	}
 
 	return nil
 }
 
-func (t *kernelTunnel) Peers() ([]wireguard.PeerConfig, error) {
-	device, err := t.wgClient.Device(t.ifaceName)
+func (n *KernelModeNetwork) Peers() ([]PeerConfig, error) {
+	device, err := n.wgClient.Device(n.ifaceName)
 	if err != nil {
 		return nil, fmt.Errorf("could not fetch WireGuard device info: %w", err)
 	}
 
-	peers := make([]wireguard.PeerConfig, len(device.Peers))
+	peers := make([]PeerConfig, len(device.Peers))
 	for i, peer := range device.Peers {
-		peerConf := wireguard.PeerConfig{
+		peerConf := PeerConfig{
 			PublicKey:                      ptr.To(peer.PublicKey.String()),
 			PresharedKey:                   ptr.To(peer.PresharedKey.String()),
 			Endpoint:                       ptr.To(peer.Endpoint.String()),
@@ -147,7 +161,7 @@ func (t *kernelTunnel) Peers() ([]wireguard.PeerConfig, error) {
 	return peers, nil
 }
 
-func (t *kernelTunnel) AddPeer(peerConf *wireguard.PeerConfig) error {
+func (n *KernelModeNetwork) AddPeer(peerConf *PeerConfig) error {
 	publicKey, err := wgtypes.ParseKey(*peerConf.PublicKey)
 	if err != nil {
 		return fmt.Errorf("invalid public key: %w", err)
@@ -191,16 +205,16 @@ func (t *kernelTunnel) AddPeer(peerConf *wireguard.PeerConfig) error {
 		peer.PersistentKeepaliveInterval = ptr.To(time.Duration(*peerConf.PersistentKeepaliveIntervalSec) * time.Second)
 	}
 
-	if err := t.wgClient.ConfigureDevice(t.ifaceName, wgtypes.Config{
+	if err := n.wgClient.ConfigureDevice(n.ifaceName, wgtypes.Config{
 		Peers: []wgtypes.PeerConfig{peer},
 	}); err != nil {
-		return fmt.Errorf("could not add peer to interface %s: %w", t.ifaceName, err)
+		return fmt.Errorf("could not add peer to interface %s: %w", n.ifaceName, err)
 	}
 
 	// Add route to the peer's allowed IPs
-	link, err := netlink.LinkByName(t.ifaceName)
+	link, err := netlink.LinkByName(n.ifaceName)
 	if err != nil {
-		return fmt.Errorf("could not find interface %s: %w", t.ifaceName, err)
+		return fmt.Errorf("could not find interface %s: %w", n.ifaceName, err)
 	}
 
 	for _, allowedIP := range peerConf.AllowedIPs {
@@ -225,14 +239,14 @@ func (t *kernelTunnel) AddPeer(peerConf *wireguard.PeerConfig) error {
 	return nil
 }
 
-func (t *kernelTunnel) RemovePeer(publicKey string) error {
+func (n *KernelModeNetwork) RemovePeer(publicKey string) error {
 	parsedKey, err := wgtypes.ParseKey(publicKey)
 	if err != nil {
 		return fmt.Errorf("invalid public key: %w", err)
 	}
 
 	// Remove route to the peer's allowed IPs
-	device, err := t.wgClient.Device(t.ifaceName)
+	device, err := n.wgClient.Device(n.ifaceName)
 	if err != nil {
 		return fmt.Errorf("could not fetch WireGuard device info: %w", err)
 	}
@@ -245,9 +259,9 @@ func (t *kernelTunnel) RemovePeer(publicKey string) error {
 		}
 	}
 
-	link, err := netlink.LinkByName(t.ifaceName)
+	link, err := netlink.LinkByName(n.ifaceName)
 	if err != nil {
-		return fmt.Errorf("could not find interface %s: %w", t.ifaceName, err)
+		return fmt.Errorf("could not find interface %s: %w", n.ifaceName, err)
 	}
 
 	for _, allowedIP := range peerAllowedIPs {
@@ -269,44 +283,45 @@ func (t *kernelTunnel) RemovePeer(publicKey string) error {
 		Remove:    true,
 	}
 
-	if err := t.wgClient.ConfigureDevice(t.ifaceName, wgtypes.Config{
+	if err := n.wgClient.ConfigureDevice(n.ifaceName, wgtypes.Config{
 		Peers: []wgtypes.PeerConfig{peer},
 	}); err != nil {
-		return fmt.Errorf("could not remove peer from interface %s: %w", t.ifaceName, err)
+		return fmt.Errorf("could not remove peer from interface %s: %w", n.ifaceName, err)
 	}
 
 	return nil
 }
 
-func (t *kernelTunnel) PublicKey() string {
-	return t.privateKey.PublicKey().String()
+func (n *KernelModeNetwork) PublicKey() string {
+	return n.privateKey.PublicKey().String()
 }
 
-func (t *kernelTunnel) InternalAddress() netip.Prefix {
-	link, err := netlink.LinkByName(t.ifaceName)
+func (n *KernelModeNetwork) LocalAddresses() ([]netip.Prefix, error) {
+	link, err := netlink.LinkByName(n.ifaceName)
 	if err != nil {
-		return netip.Prefix{}
+		return nil, fmt.Errorf("could not find interface %s: %w", n.ifaceName, err)
 	}
 
 	addrs, err := netlink.AddrList(link, netlink.FAMILY_ALL)
 	if err != nil {
-		return netip.Prefix{}
+		return nil, fmt.Errorf("failed to list addresses: %w", err)
 	}
 
-	if len(addrs) == 0 {
-		return netip.Prefix{}
+	var prefixes []netip.Prefix
+	for _, addr := range addrs {
+		prefix, err := netip.ParsePrefix(addr.IPNet.String())
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse address: %w", err)
+		}
+
+		prefixes = append(prefixes, prefix)
 	}
 
-	prefix, _ := netip.ParsePrefix(addrs[0].IPNet.String())
-	return prefix
+	return prefixes, nil
 }
 
-func (t *kernelTunnel) ListenPort() (uint16, error) {
-	return t.listenPort, nil
-}
-
-func (t *kernelTunnel) InterfaceName() string {
-	return t.ifaceName
+func (n *KernelModeNetwork) ListenPort() (uint16, error) {
+	return n.listenPort, nil
 }
 
 func findNextAvailableInterface() (string, error) {

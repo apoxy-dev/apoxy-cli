@@ -1,14 +1,14 @@
 //go:build linux
 // +build linux
 
-package tunnel_test
+package wireguard_test
 
 import (
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
-	"net/netip"
 	"strconv"
 	"testing"
 	"time"
@@ -24,8 +24,10 @@ import (
 	"github.com/apoxy-dev/apoxy-cli/pkg/wireguard"
 )
 
-func TestKernelTunnel(t *testing.T) {
-	//	slog.SetLogLoggerLevel(slog.LevelDebug)
+func TestKernelModeNetwork(t *testing.T) {
+	if testing.Verbose() {
+		slog.SetLogLoggerLevel(slog.LevelDebug)
+	}
 
 	// Check if we have the NET_ADMIN capability.
 	netAdmin, err := hasNetAdminCapability()
@@ -35,12 +37,18 @@ func TestKernelTunnel(t *testing.T) {
 	}
 
 	// Create a new kernel tunnel.
+	kernelPrivateKey, err := wgtypes.GeneratePrivateKey()
+	require.NoError(t, err)
+
 	projectID := uuid.New()
 	wgAddress := tunnel.NewApoxy4To6Prefix(projectID, "kernel-node")
-	tun, err := tunnel.CreateKernelTunnel(wgAddress)
+	kernelWGNet, err := wireguard.NewKernelModeNetwork(&wireguard.DeviceConfig{
+		PrivateKey: ptr.To(kernelPrivateKey.String()),
+		Address:    []string{wgAddress.String()},
+	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		require.NoError(t, tun.Close())
+		require.NoError(t, kernelWGNet.Close())
 	})
 
 	// Create a new userspace wireguard network.
@@ -52,16 +60,18 @@ func TestKernelTunnel(t *testing.T) {
 
 	wgAddress = tunnel.NewApoxy4To6Prefix(projectID, "userspace-node")
 
-	wgNet, err := wireguard.Network(&wireguard.DeviceConfig{
+	wgNet, err := wireguard.NewUserspaceNetwork(&wireguard.DeviceConfig{
 		PrivateKey: ptr.To(privateKey.String()),
 		ListenPort: ptr.To(listenPort),
 		Address:    []string{wgAddress.String()},
 	})
 	require.NoError(t, err)
-	t.Cleanup(wgNet.Close)
+	t.Cleanup(func() {
+		require.NoError(t, wgNet.Close())
+	})
 
 	// Add a peer to the tunnel.
-	err = tun.AddPeer(&wireguard.PeerConfig{
+	err = kernelWGNet.AddPeer(&wireguard.PeerConfig{
 		PublicKey:  ptr.To(privateKey.PublicKey().String()),
 		AllowedIPs: []string{wgAddress.String()},
 		Endpoint:   ptr.To(net.JoinHostPort("localhost", strconv.Itoa(int(listenPort)))),
@@ -69,13 +79,17 @@ func TestKernelTunnel(t *testing.T) {
 	require.NoError(t, err)
 
 	// Retrieve the listen port of the tunnel (if it has one).
-	listenPort, err = tun.ListenPort()
+	listenPort, err = kernelWGNet.ListenPort()
 	require.NoError(t, err)
 
 	// Add a peer to the wireguard network.
+	kernelWGAddrs, err := kernelWGNet.LocalAddresses()
+	require.NoError(t, err)
+	require.NotEmpty(t, kernelWGAddrs)
+
 	err = wgNet.AddPeer(&wireguard.PeerConfig{
-		PublicKey:  ptr.To(tun.PublicKey()),
-		AllowedIPs: []string{tun.InternalAddress().String()},
+		PublicKey:  ptr.To(kernelWGNet.PublicKey()),
+		AllowedIPs: []string{kernelWGAddrs[0].String()},
 		Endpoint:   ptr.To(net.JoinHostPort("localhost", strconv.Itoa(int(listenPort)))),
 	})
 	require.NoError(t, err)
@@ -89,7 +103,7 @@ func TestKernelTunnel(t *testing.T) {
 	})
 
 	// Get the first ip of the tun internal CIDR
-	firstAddr := netip.MustParsePrefix(tun.InternalAddress().String()).Addr()
+	firstAddr := kernelWGAddrs[0].Addr()
 
 	// Start an HTTP server listening on the tunnel interface.
 	srv := &http.Server{
@@ -132,7 +146,7 @@ func TestKernelTunnel(t *testing.T) {
 
 	require.Equal(t, "Hello, World!", string(body))
 
-	knownPeers, err := tun.Peers()
+	knownPeers, err := kernelWGNet.Peers()
 	require.NoError(t, err)
 
 	require.Len(t, knownPeers, 1)
