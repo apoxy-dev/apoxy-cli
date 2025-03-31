@@ -6,7 +6,6 @@ toolchain go1.23.2
 
 require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.23.2
-	github.com/alphadose/haxmap v1.4.1
 	github.com/buraksezer/olric v0.5.6
 	github.com/cncf/xds/go v0.0.0-20240905190251-b4127c9b8d78
 	github.com/coder/websocket v1.8.12
@@ -39,10 +38,7 @@ require (
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/opencontainers/image-spec v1.1.0
 	github.com/opencontainers/runc v1.2.2
-	github.com/pion/stun/v3 v3.0.0
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
-	github.com/quic-go/connect-ip-go v0.0.0-20241112091351-321f13c3d203
-	github.com/quic-go/quic-go v0.48.1
 	github.com/shirou/gopsutil v3.21.11+incompatible
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.8.1
@@ -54,7 +50,6 @@ require (
 	github.com/vishvananda/netlink v1.3.0
 	github.com/vishvananda/netns v0.0.4
 	github.com/vmihailenco/msgpack v4.0.4+incompatible
-	github.com/yosida95/uritemplate v2.0.0+incompatible
 	go.opentelemetry.io/proto/otlp v1.2.0
 	go.temporal.io/api v1.29.2
 	go.temporal.io/sdk v1.26.0
@@ -150,7 +145,6 @@ require (
 	github.com/docker/cli v24.0.6+incompatible // indirect
 	github.com/docker/distribution v2.8.2+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.7.0 // indirect
-	github.com/dunglas/httpsfv v1.0.2 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/emicklei/go-restful/v3 v3.12.0 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.1.0 // indirect
@@ -273,9 +267,6 @@ require (
 	github.com/paulmach/orb v0.11.1 // indirect
 	github.com/pborman/uuid v1.2.1 // indirect
 	github.com/pierrec/lz4/v4 v4.1.21 // indirect
-	github.com/pion/dtls/v3 v3.0.4 // indirect
-	github.com/pion/logging v0.2.2 // indirect
-	github.com/pion/transport/v3 v3.0.7 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
@@ -283,7 +274,7 @@ require (
 	github.com/prometheus/client_model v0.6.1 // indirect
 	github.com/prometheus/common v0.60.1 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
-	github.com/quic-go/qpack v0.5.1 // indirect
+	github.com/quic-go/quic-go v0.48.1 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
 	github.com/redis/go-redis/v9 v9.6.1 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
@@ -324,12 +315,10 @@ require (
 	github.com/vmihailenco/msgpack/v5 v5.3.5 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	github.com/vmware/govmomi v0.18.0 // indirect
-	github.com/wlynxg/anet v0.0.3 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/scram v1.1.2 // indirect
 	github.com/xdg-go/stringprep v1.0.4 // indirect
 	github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2 // indirect
-	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.etcd.io/bbolt v1.3.8 // indirect
