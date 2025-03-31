@@ -37,7 +37,7 @@ func TestKernelTunnel(t *testing.T) {
 	// Create a new kernel tunnel.
 	projectID := uuid.New()
 	wgAddress := tunnel.NewApoxy4To6Prefix(projectID, "kernel-node")
-	tun, err := tunnel.CreateKernelTunnel(wgAddress, nil, false)
+	tun, err := tunnel.CreateKernelTunnel(wgAddress)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, tun.Close())
@@ -78,6 +78,7 @@ func TestKernelTunnel(t *testing.T) {
 		AllowedIPs: []string{tun.InternalAddress().String()},
 		Endpoint:   ptr.To(net.JoinHostPort("localhost", strconv.Itoa(int(listenPort)))),
 	})
+	require.NoError(t, err)
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)

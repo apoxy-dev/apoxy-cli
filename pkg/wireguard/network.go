@@ -10,25 +10,26 @@ import (
 	"strings"
 	"time"
 
+	"github.com/apoxy-dev/apoxy-cli/pkg/netstack"
+	"github.com/apoxy-dev/apoxy-cli/pkg/utils"
+	"github.com/apoxy-dev/apoxy-cli/pkg/wireguard/uapi"
+	"github.com/dpeckett/network"
 	"golang.zx2c4.com/wireguard/conn"
 	"golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
+	"gvisor.dev/gvisor/pkg/tcpip"
+	"gvisor.dev/gvisor/pkg/tcpip/transport/tcp"
 	"k8s.io/utils/ptr"
-
-	"github.com/apoxy-dev/apoxy-cli/pkg/network"
-	"github.com/apoxy-dev/apoxy-cli/pkg/utils"
-	"github.com/apoxy-dev/apoxy-cli/pkg/wireguard/netstack"
-	"github.com/apoxy-dev/apoxy-cli/pkg/wireguard/uapi"
 )
 
 var _ network.Network = (*WireGuardNetwork)(nil)
 
 // WireGuardNetwork is a user-space network implementation that uses WireGuard.
 type WireGuardNetwork struct {
+	network.NetstackNetwork
+	tun        *tunDevice
 	dev        *device.Device
-	tnet       *netstack.NetTun
 	privateKey wgtypes.Key
-	endpoint   netip.AddrPort
 }
 
 // Network returns a new WireGuardNetwork.
@@ -47,28 +48,20 @@ func Network(conf *DeviceConfig) (*WireGuardNetwork, error) {
 		return nil, fmt.Errorf("failed to parse local addresses: %w", err)
 	}
 
-	dnsServers, err := parseAddressList(conf.DNS)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse DNS servers: %w", err)
-	}
-
-	tun, tnet, err := netstack.CreateNetTUN(localAddresses, dnsServers, conf.MTU, conf.PacketCapturePath)
+	tun, err := newTunDevice(localAddresses, conf.MTU, conf.PacketCapturePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create netstack device: %w", err)
 	}
 
-	bind := conf.Bind
-	if bind == nil {
-		bind = conn.NewStdNetBind()
+	bind := conn.NewStdNetBind()
 
-		if conf.ListenPort == nil {
-			listenPort, err := utils.UnusedUDP4Port()
-			if err != nil {
-				return nil, fmt.Errorf("could not pick unused UDP port: %w", err)
-			}
-
-			conf.ListenPort = ptr.To(listenPort)
+	if conf.ListenPort == nil {
+		listenPort, err := utils.UnusedUDP4Port()
+		if err != nil {
+			return nil, fmt.Errorf("could not pick unused UDP port: %w", err)
 		}
+
+		conf.ListenPort = ptr.To(listenPort)
 	}
 
 	dev := device.NewDevice(tun, bind, &device.Logger{
@@ -96,17 +89,21 @@ func Network(conf *DeviceConfig) (*WireGuardNetwork, error) {
 		return nil, err
 	}
 
-	ep, _ := netip.ParseAddrPort("0.0.0.0:0")
+	// TODO: allow configuring ndots/search etc.
+	resolveConf := &network.ResolveConfig{
+		Nameservers: conf.DNS,
+	}
+
 	return &WireGuardNetwork{
-		dev:        dev,
-		tnet:       tnet,
-		privateKey: privateKey,
-		endpoint:   ep,
+		NetstackNetwork: *network.Netstack(tun.stack, tun.nicID, resolveConf),
+		tun:             tun,
+		dev:             dev,
+		privateKey:      privateKey,
 	}, nil
 }
 
 func (n *WireGuardNetwork) Close() {
-	n.dev.Close()
+	n.dev.Close() // Closes tun device internally.
 }
 
 // PublicKey returns the public key for this peer on the WireGuard network.
@@ -114,14 +111,64 @@ func (n *WireGuardNetwork) PublicKey() string {
 	return n.privateKey.PublicKey().String()
 }
 
-// LocalAddresses returns the list of local addresses assigned to the WireGuard network.
-func (n *WireGuardNetwork) LocalAddresses() []netip.Prefix {
-	return n.tnet.LocalAddresses()
+// ListenPort returns the local listen port of this end of the tunnel.
+func (n *WireGuardNetwork) ListenPort() (uint16, error) {
+	var uapiConf strings.Builder
+	if err := n.dev.IpcGetOperation(&uapiConf); err != nil {
+		return 0, fmt.Errorf("failed to get device config: %w", err)
+	}
+
+	entries := strings.Split(uapiConf.String(), "public_key=")
+	if len(entries) == 0 {
+		return 0, errors.New("no device config found")
+	}
+
+	var conf DeviceConfig
+	if err := uapi.Unmarshal(entries[0], &conf); err != nil {
+		return 0, fmt.Errorf("failed to unmarshal device config: %w", err)
+	}
+
+	if conf.ListenPort == nil {
+		return 0, errors.New("no listen port found")
+	}
+
+	return *conf.ListenPort, nil
 }
 
-// Endpoint returns the external endpoint of the WireGuard network.
-func (n *WireGuardNetwork) Endpoint() netip.AddrPort {
-	return n.endpoint
+// LocalAddresses returns the list of local addresses assigned to the WireGuard network.
+func (n *WireGuardNetwork) LocalAddresses() []netip.Prefix {
+	nic := n.tun.stack.NICInfo()[n.tun.nicID]
+
+	var addrs []netip.Prefix
+	for _, assignedAddr := range nic.ProtocolAddresses {
+		addrs = append(addrs, netip.PrefixFrom(
+			addrFromNetstackIP(assignedAddr.AddressWithPrefix.Address),
+			assignedAddr.AddressWithPrefix.PrefixLen,
+		))
+	}
+
+	return addrs
+}
+
+// FowardToLoopback forwards all inbound traffic to the loopback interface.
+func (n *WireGuardNetwork) FowardToLoopback(ctx context.Context) error {
+	// Allow outgoing packets to have a source address different from the address
+	// assigned to the NIC.
+	if tcpipErr := n.tun.stack.SetSpoofing(n.tun.nicID, true); tcpipErr != nil {
+		return fmt.Errorf("failed to enable spoofing: %v", tcpipErr)
+	}
+
+	// Allow incoming packets to have a destination address different from the
+	// address assigned to the NIC.
+	if tcpipErr := n.tun.stack.SetPromiscuousMode(n.tun.nicID, true); tcpipErr != nil {
+		return fmt.Errorf("failed to enable promiscuous mode: %v", tcpipErr)
+	}
+
+	tcpForwarder := netstack.TCPForwarder(ctx, n.tun.stack, network.Loopback())
+
+	n.tun.stack.SetTransportProtocolHandler(tcp.ProtocolNumber, tcpForwarder)
+
+	return nil
 }
 
 // Peers returns the list of public keys for all peers on the WireGuard network.
@@ -231,51 +278,6 @@ func (n *WireGuardNetwork) RemovePeer(publicKey string) error {
 	return nil
 }
 
-func (n *WireGuardNetwork) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
-	slog.Debug("Dialing", slog.String("network", network), slog.String("addr", addr))
-	return n.tnet.DialContext(ctx, network, addr)
-}
-
-func (n *WireGuardNetwork) LookupContextHost(ctx context.Context, host string) ([]string, error) {
-	return n.tnet.LookupContextHost(ctx, host)
-}
-
-// FowardToLoopback forwards all inbound traffic to the loopback interface.
-func (n *WireGuardNetwork) FowardToLoopback(ctx context.Context) error {
-	if err := n.tnet.EnableForwarding(netstack.TCPForwarder(ctx, &netstack.TCPForwarderConfig{
-		AllowedDestinations: n.tnet.LocalAddresses(),
-		Upstream:            network.Loopback(),
-	}), false); err != nil {
-		return fmt.Errorf("failed to enable forwarding: %w", err)
-	}
-
-	return nil
-}
-
-// ListenPort returns the local listen port of this end of the tunnel.
-func (n *WireGuardNetwork) ListenPort() (uint16, error) {
-	var uapiConf strings.Builder
-	if err := n.dev.IpcGetOperation(&uapiConf); err != nil {
-		return 0, fmt.Errorf("failed to get device config: %w", err)
-	}
-
-	entries := strings.Split(uapiConf.String(), "public_key=")
-	if len(entries) == 0 {
-		return 0, errors.New("no device config found")
-	}
-
-	var conf DeviceConfig
-	if err := uapi.Unmarshal(entries[0], &conf); err != nil {
-		return 0, fmt.Errorf("failed to unmarshal device config: %w", err)
-	}
-
-	if conf.ListenPort == nil {
-		return 0, errors.New("no listen port found")
-	}
-
-	return *conf.ListenPort, nil
-}
-
 func parseAddressList(addrs []string) ([]netip.Addr, error) {
 	var parsed []netip.Addr
 	for _, addr := range addrs {
@@ -294,4 +296,16 @@ func parseAddressList(addrs []string) ([]netip.Addr, error) {
 	}
 
 	return parsed, nil
+}
+
+func addrFromNetstackIP(ip tcpip.Address) netip.Addr {
+	switch ip.Len() {
+	case 4:
+		ip := ip.As4()
+		return netip.AddrFrom4([4]byte{ip[0], ip[1], ip[2], ip[3]})
+	case 16:
+		ip := ip.As16()
+		return netip.AddrFrom16(ip).Unmap()
+	}
+	return netip.Addr{}
 }

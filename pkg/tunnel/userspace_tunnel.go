@@ -9,12 +9,12 @@ import (
 	"net"
 	"net/netip"
 
-	"golang.zx2c4.com/wireguard/conn"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	"k8s.io/utils/ptr"
 
 	"github.com/apoxy-dev/apoxy-cli/pkg/socksproxy"
 	"github.com/apoxy-dev/apoxy-cli/pkg/wireguard"
+	"github.com/dpeckett/network"
 )
 
 var _ Tunnel = (*userspaceTunnel)(nil)
@@ -28,7 +28,6 @@ type userspaceTunnel struct {
 func CreateUserspaceTunnel(
 	ctx context.Context,
 	addr netip.Addr,
-	bind conn.Bind,
 	socksPort uint16,
 	packetCapturePath string,
 	verbose bool,
@@ -43,7 +42,6 @@ func CreateUserspaceTunnel(
 		Verbose:           ptr.To(verbose),
 		PacketCapturePath: packetCapturePath,
 		Address:           []string{addr.String()},
-		Bind:              bind,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("could not create WireGuard network: %w", err)
@@ -56,7 +54,7 @@ func CreateUserspaceTunnel(
 	}
 
 	// Create a SOCKS5 proxy server for outbound traffic.
-	proxySrv := socksproxy.NewServer(net.JoinHostPort("localhost", fmt.Sprint(socksPort)), wgNet)
+	proxySrv := socksproxy.NewServer(net.JoinHostPort("localhost", fmt.Sprint(socksPort)), wgNet, network.Host())
 
 	// Start the proxy server (will be closed when the wireguard network is torn down).
 	go func() {
