@@ -29,15 +29,16 @@ const (
 	// DefaultConfigPath is the default path to the otel-collector config file
 	DefaultConfigPath = "/etc/otelcol/config.yaml"
 
-	// DefaultConfigContent is the default content for the otel-collector config file
-	DefaultConfigContent = `receivers:
+	// Default collector port
+	DefaultCollectorPort = 4317
+)
+
+// DefaultConfigContent is the default content for the otel-collector config file
+var DefaultConfigContent = fmt.Sprintf(`receivers:
   otlp:
     protocols:
       grpc:
-        endpoint: 0.0.0.0:4317
-
-processors:
-  batch:
+        endpoint: 0.0.0.0:%d
 
 exporters:
   debug:
@@ -53,12 +54,9 @@ service:
     traces:
       receivers:
       - otlp
-      processors:
-      - batch
       exporters:
       - debug
-`
-)
+`, DefaultCollectorPort)
 
 // Option configures a Collector.
 type Option func(*Collector)
@@ -271,8 +269,12 @@ func (c *Collector) Start(ctx context.Context, opts ...Option) error {
 			log.Infof("OpenTelemetry collector process exited successfully")
 		}
 
-		// Signal that the process has stopped
-		close(c.stopCh)
+		// Signal that the process has stopped if that hasn't already been signalled.
+		select {
+		case <-c.stopCh:
+		default:
+			close(c.stopCh)
+		}
 	}()
 
 	return nil

@@ -118,6 +118,12 @@ func buildHCMTracing(tracing *ir.Tracing) (*hcm.HttpConnectionManager_Tracing, e
 		return tags[i].Tag < tags[j].Tag
 	})
 
+	// Default to 100% sampling if a rate is not specified.
+	samplingRate := tracing.SamplingRate
+	if samplingRate == 0 {
+		samplingRate = 100.0
+	}
+
 	return &hcm.HttpConnectionManager_Tracing{
 		ClientSampling: &xdstype.Percent{
 			Value: 100.0,
@@ -126,7 +132,7 @@ func buildHCMTracing(tracing *ir.Tracing) (*hcm.HttpConnectionManager_Tracing, e
 			Value: 100.0,
 		},
 		RandomSampling: &xdstype.Percent{
-			Value: tracing.SamplingRate,
+			Value: samplingRate,
 		},
 		Provider: &tracecfg.Tracing_Http{
 			Name: providerName,
