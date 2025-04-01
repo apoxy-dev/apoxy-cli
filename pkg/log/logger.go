@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -120,6 +121,24 @@ func WithAlsoLogToStderr() Option {
 func WithLevel(level LogLevel) Option {
 	return func(o *options) {
 		o.level = level
+	}
+}
+
+// WithLevelString sets the log level.
+func WithLevelString(level string) Option {
+	return func(o *options) {
+		switch strings.ToLower(level) {
+		case "debug":
+			o.level = DebugLevel
+		case "info":
+			o.level = InfoLevel
+		case "warn":
+			o.level = WarnLevel
+		case "error":
+			o.level = ErrorLevel
+		default:
+			o.level = InfoLevel
+		}
 	}
 }
 
