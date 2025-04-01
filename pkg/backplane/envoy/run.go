@@ -346,10 +346,8 @@ func (e FatalError) Error() string {
 // Start starts the Envoy binary.
 func (r *Runtime) Start(ctx context.Context, opts ...Option) error {
 	status := r.RuntimeStatus()
-	if status.Starting {
-		return errors.New("envoy already starting")
-	} else if status.Running {
-		return errors.New("envoy already running")
+	if status.Starting || status.Running {
+		return nil
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
