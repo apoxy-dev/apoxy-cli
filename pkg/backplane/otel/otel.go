@@ -149,13 +149,7 @@ func (c *Collector) setOptions(opts ...Option) {
 
 	// Set defaults if not provided
 	if c.CollectorBinary == "" {
-		// Use the default binary path relative to the current working directory
-		cwd, err := os.Getwd()
-		if err == nil {
-			c.CollectorBinary = filepath.Join(cwd, DefaultCollectorBinary)
-		} else {
-			c.CollectorBinary = DefaultCollectorBinary
-		}
+		c.CollectorBinary = DefaultCollectorBinary
 	}
 
 	if c.LogsDir == "" {
