@@ -229,6 +229,11 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 		return reconcile.Result{}, nil
 	}
 	ps := r.RuntimeStatus()
+	if ps.Running {
+		log.Info("envoy is running", "procstate", ps.ProcState.String())
+	} else {
+		log.Info("envoy is not running", "procstate", ps.ProcState.String())
+	}
 
 	if !p.ObjectMeta.DeletionTimestamp.IsZero() { // The object is being deleted
 		log.Info("Proxy is being deleted")
@@ -311,6 +316,7 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 			envoy.WithGoPluginDir(r.options.goPluginDir),
 			envoy.WithDrainTimeout(&p.Spec.DrainTimeout.Duration),
 			envoy.WithAdminHost(adminHost),
+			envoy.WithLogsDir("/var/log/apoxy"),
 		}
 		if r.options.releaseURL != "" {
 			opts = append(opts, envoy.WithRelease(&envoy.URLRelease{
