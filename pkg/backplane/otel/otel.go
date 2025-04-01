@@ -21,7 +21,7 @@ import (
 
 const (
 	// DefaultCollectorBinary is the default path to the otel-collector binary
-	DefaultCollectorBinary = "run/bin/otel-collector"
+	DefaultCollectorBinary = "/bin/otel-collector"
 
 	// DefaultLogsDir is the default directory for logs
 	DefaultLogsDir = "/var/log/apoxy"
@@ -223,8 +223,11 @@ func (c *Collector) Start(ctx context.Context, opts ...Option) error {
 			if otlpTracesProtocol == "" {
 				otlpTracesProtocol = os.Getenv("OTEL_EXPORTER_OTLP_PROTOCOL")
 				if otlpTracesProtocol == "" {
-					otlpTracesProtocol = "http/protobuf"
+					otlpTracesProtocol = "grpc"
 				}
+			}
+			if otlpTracesProtocol != "grpc" {
+				return fmt.Errorf("unsupported protocol: %s", otlpTracesProtocol)
 			}
 			otlpTracesInsecure := false
 			if insecureStr := os.Getenv("OTEL_EXPORTER_OTLP_TRACES_INSECURE"); insecureStr != "" {
