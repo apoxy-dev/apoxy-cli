@@ -118,13 +118,6 @@ func WithOtelCollector(c *otel.Collector) Option {
 	}
 }
 
-// WithOtelCollector sets the OpenTelemetry collector.
-func WithOtelCollector(c *otel.Collector) Option {
-	return func(r *Runtime) {
-		r.otelCollector = c
-	}
-}
-
 type Runtime struct {
 	EnvoyPath           string
 	BootstrapConfigYAML string
