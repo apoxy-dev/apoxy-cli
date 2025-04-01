@@ -2,6 +2,7 @@ package gatewayapi
 
 import (
 	apoxy_v1alpha1 "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
+	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/otel"
 	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/ir"
 	"github.com/apoxy-dev/apoxy-cli/pkg/log"
 	envoy_v1alpha1 "github.com/envoyproxy/gateway/api/v1alpha1"
@@ -38,10 +39,11 @@ func (t *Translator) processTracing(gateway *gwapiv1.Gateway, proxies []*apoxy_v
 				Name: "otel_collector",
 				Settings: []*ir.DestinationSetting{
 					{
+						Protocol: ir.HTTP2,
 						Endpoints: []*ir.DestinationEndpoint{
 							{
-								Host: "localhost",
-								Port: 4317,
+								Host: "127.0.0.1",
+								Port: otel.DefaultCollectorPort,
 							},
 						},
 					},
