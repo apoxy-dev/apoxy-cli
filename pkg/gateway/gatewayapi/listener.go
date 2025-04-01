@@ -34,8 +34,8 @@ func (t *Translator) ProcessListeners(gateways []*GatewayContext, xdsIR XdsIRMap
 		irKey := t.getIRKey(gateway.Gateway)
 
 		// TODO(dsky): Merge config from Proxy object here.
+		xdsIR[irKey].Tracing = t.processTracing(gateway.Gateway, resources.Proxies)
 		//xdsIR[irKey].AccessLog = processAccessLog(infraIR[irKey].Proxy.Config)
-		//xdsIR[irKey].Tracing = processTracing(gateway.Gateway, infraIR[irKey].Proxy.Config)
 		//xdsIR[irKey].Metrics = processMetrics(infraIR[irKey].Proxy.Config)
 
 		for _, listener := range gateway.listeners {

@@ -167,13 +167,14 @@ func main() {
 	}
 
 	var chConn chdriver.Conn
+	var chOpts *clickhouse.Options
 	if *chAddrs != "" {
 		projUUID, err := uuid.Parse(*projectID)
 		if err != nil {
 			log.Fatalf("invalid project UUID: %v", err)
 		}
 		log.Infof("Connecting to ClickHouse at %v", *chAddrs)
-		chOpts := &clickhouse.Options{
+		chOpts = &clickhouse.Options{
 			Addr: strings.Split(*chAddrs, ","),
 			Auth: clickhouse.Auth{
 				Database: strings.ReplaceAll(projUUID.String(), "-", ""),
@@ -269,7 +270,7 @@ func main() {
 		bpctrl.WithGoPluginDir(*goPluginDir),
 	}
 	if chConn != nil {
-		proxyOpts = append(proxyOpts, bpctrl.WithClickHouseConn(chConn))
+		proxyOpts = append(proxyOpts, bpctrl.WithClickHouseConn(chConn), bpctrl.WithClickHouseOptions(chOpts))
 	}
 	if *envoyReleaseURL != "" {
 		proxyOpts = append(proxyOpts, bpctrl.WithURLRelease(*envoyReleaseURL))

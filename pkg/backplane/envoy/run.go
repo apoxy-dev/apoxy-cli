@@ -19,6 +19,7 @@ import (
 
 	"github.com/apoxy-dev/apoxy-cli/config"
 	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/logs"
+	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/otel"
 	"github.com/apoxy-dev/apoxy-cli/pkg/log"
 )
 
@@ -110,6 +111,13 @@ func WithLogsDir(dir string) Option {
 	}
 }
 
+// WithOtelCollector sets the OpenTelemetry collector.
+func WithOtelCollector(c *otel.Collector) Option {
+	return func(r *Runtime) {
+		r.otelCollector = c
+	}
+}
+
 type Runtime struct {
 	EnvoyPath           string
 	BootstrapConfigYAML string
@@ -118,13 +126,14 @@ type Runtime struct {
 	// Args are additional arguments to pass to Envoy.
 	Args []string
 
-	stopCh       chan struct{}
-	cmd          *exec.Cmd
-	logs         logs.LogsCollector
-	envoyLogsDir string
-	goPluginDir  string
-	adminHost    string
-	drainTimeout *time.Duration
+	stopCh        chan struct{}
+	cmd           *exec.Cmd
+	logs          logs.LogsCollector
+	envoyLogsDir  string
+	otelCollector *otel.Collector
+	goPluginDir   string
+	adminHost     string
+	drainTimeout  *time.Duration
 
 	mu     sync.RWMutex
 	status RuntimeStatus
@@ -150,6 +159,14 @@ func (r *Runtime) run(ctx context.Context) error {
 	id := uuid.New().String()
 	configYAML := fmt.Sprintf(`node: { id: "%s", cluster: "%s" }`, id, r.Cluster)
 	log.Infof("envoy YAML config: %s", configYAML)
+
+	// Start OpenTelemetry collector if configured
+	if r.otelCollector != nil {
+		log.Infof("Starting OpenTelemetry collector before Envoy")
+		if err := r.otelCollector.Start(ctx); err != nil {
+			return fmt.Errorf("failed to start OpenTelemetry collector: %w", err)
+		}
+	}
 
 	args := []string{
 		"--config-yaml", configYAML,
@@ -487,6 +504,11 @@ func (r *Runtime) Shutdown(ctx context.Context) error {
 
 	stopOnce := sync.OnceValue(func() error {
 		close(r.stopCh)
+		if r.otelCollector != nil {
+			if err := r.otelCollector.Stop(ctx); err != nil {
+				log.Errorf("error shutting down otel collector: %v", err)
+			}
+		}
 		return r.cmd.Process.Kill()
 	})
 	return stopOnce()
