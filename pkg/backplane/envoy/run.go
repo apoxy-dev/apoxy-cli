@@ -19,7 +19,6 @@ import (
 
 	"github.com/apoxy-dev/apoxy-cli/config"
 	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/logs"
-	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/otel"
 	"github.com/apoxy-dev/apoxy-cli/pkg/log"
 )
 
@@ -102,18 +101,12 @@ func WithDrainTimeout(timeout *time.Duration) Option {
 	}
 }
 
-func WithOtelCollector() Option {
-	return func(r *Runtime) {
-		r.otelCollector = &otel.Collector{}
-	}
-}
-
 // WithLogsDir sets the directory where Envoy logs will be written.
 // If this option is set, logs will be piped to files in the format
 // envoy.<pid>.<pipe>.log in the specified directory.
 func WithLogsDir(dir string) Option {
 	return func(r *Runtime) {
-		r.logsDir = dir
+		r.envoyLogsDir = dir
 	}
 }
 
@@ -125,14 +118,13 @@ type Runtime struct {
 	// Args are additional arguments to pass to Envoy.
 	Args []string
 
-	stopCh        chan struct{}
-	cmd           *exec.Cmd
-	logs          logs.LogsCollector
-	otelCollector *otel.Collector
-	goPluginDir   string
-	adminHost     string
-	drainTimeout  *time.Duration
-	logsDir       string
+	stopCh       chan struct{}
+	cmd          *exec.Cmd
+	logs         logs.LogsCollector
+	envoyLogsDir string
+	goPluginDir  string
+	adminHost    string
+	drainTimeout *time.Duration
 
 	mu     sync.RWMutex
 	status RuntimeStatus
@@ -158,14 +150,6 @@ func (r *Runtime) run(ctx context.Context) error {
 	id := uuid.New().String()
 	configYAML := fmt.Sprintf(`node: { id: "%s", cluster: "%s" }`, id, r.Cluster)
 	log.Infof("envoy YAML config: %s", configYAML)
-
-	// Start OpenTelemetry collector if configured
-	if r.otelCollector != nil {
-		log.Infof("Starting OpenTelemetry collector before Envoy")
-		if err := r.otelCollector.Start(ctx); err != nil {
-			return fmt.Errorf("failed to start OpenTelemetry collector: %w", err)
-		}
-	}
 
 	args := []string{
 		"--config-yaml", configYAML,
@@ -223,20 +207,19 @@ func (r *Runtime) run(ctx context.Context) error {
 	r.cmd = exec.CommandContext(rCtx, r.envoyPath(), args...)
 	r.cmd.Dir = runDir
 
-	// Configure stdout/stderr based on logsDir setting
-	if r.logsDir != "" {
+	if r.envoyLogsDir != "" {
 		// Create logs directory if it doesn't exist
-		if err := os.MkdirAll(r.logsDir, 0755); err != nil {
+		if err := os.MkdirAll(r.envoyLogsDir, 0755); err != nil {
 			return fmt.Errorf("failed to create logs directory: %w", err)
 		}
 
 		// Create a temporary file for stdout and stderr
 		// We'll rename these files after the process starts and we have the PID
-		tmpStdoutFile, err := os.CreateTemp(r.logsDir, "envoy.stdout.*")
+		tmpStdoutFile, err := os.CreateTemp(r.envoyLogsDir, "envoy.stdout.*")
 		if err != nil {
 			return fmt.Errorf("failed to create temporary stdout file: %w", err)
 		}
-		tmpStderrFile, err := os.CreateTemp(r.logsDir, "envoy.stderr.*")
+		tmpStderrFile, err := os.CreateTemp(r.envoyLogsDir, "envoy.stderr.*")
 		if err != nil {
 			tmpStdoutFile.Close()
 			os.Remove(tmpStdoutFile.Name())
@@ -256,8 +239,8 @@ func (r *Runtime) run(ctx context.Context) error {
 
 		pid := r.cmd.Process.Pid
 		log.Infof("envoy started with PID %d", pid)
-		stdoutLogPath := filepath.Join(r.logsDir, fmt.Sprintf("envoy.%d.stdout.log", pid))
-		stderrLogPath := filepath.Join(r.logsDir, fmt.Sprintf("envoy.%d.stderr.log", pid))
+		stdoutLogPath := filepath.Join(r.envoyLogsDir, fmt.Sprintf("envoy.%d.stdout.log", pid))
+		stderrLogPath := filepath.Join(r.envoyLogsDir, fmt.Sprintf("envoy.%d.stderr.log", pid))
 
 		// Rename the temporary files to their final names
 		if err := os.Rename(tmpStdoutFile.Name(), stdoutLogPath); err != nil {
@@ -466,96 +449,48 @@ func (r *Runtime) getTotalConnections() (*int, error) {
 
 // Shutdown gracefully drains connections and shuts down the Envoy process.
 func (r *Runtime) Shutdown(ctx context.Context) error {
-	r.mu.Lock()
-	if r.stopCh == nil {
-		r.mu.Unlock()
-		return nil
-	}
-	stopCh := r.stopCh
-	r.stopCh = nil
-	r.mu.Unlock()
-
-	close(stopCh)
-
-	if r.cmd == nil || r.cmd.Process == nil {
+	if r.cmd == nil {
 		return nil
 	}
 
-	// Use sync.OnceValue to ensure the shutdown process only executes once
+	log.Infof("shutting down envoy with drain timeout %s", r.drainTimeout)
+
+	startTime := time.Now()
+
+	if err := r.postEnvoyAdminAPI("healthcheck/fail"); err != nil {
+		log.Errorf("error failing active health checks: %v", err)
+	}
+
+	if err := r.postEnvoyAdminAPI("drain_listeners?graceful&skip_exit"); err != nil {
+		log.Errorf("error initiating graceful drain: %v", err)
+	}
+
+	for {
+		conn, err := r.getTotalConnections()
+		if err != nil {
+			log.Errorf("error getting total connections: %v", err)
+		}
+
+		if time.Since(startTime) > *r.drainTimeout {
+			log.Infof("drain timeout reached")
+			break
+		} else if conn != nil && *conn <= 0 {
+			log.Infof("all connections drained")
+			break
+		}
+
+		select {
+		case <-time.After(1 * time.Second):
+		case <-ctx.Done():
+			log.Infof("context done while draining")
+			break
+		}
+	}
+
 	stopOnce := sync.OnceValue(func() error {
-		log.Infof("Shutting down Envoy with drain timeout %s", *r.drainTimeout)
-
-		// First fail health checks to stop receiving new traffic
-		if err := r.postEnvoyAdminAPI("healthcheck/fail"); err != nil {
-			log.Warnf("Failed to fail active health checks: %v", err)
-			// Continue with shutdown even if this fails
-		}
-
-		drainCtx, cancel := context.WithTimeout(ctx, *r.drainTimeout)
-		defer cancel()
-
-		// Initiate graceful drain but tell Envoy not to exit automatically
-		if err := r.postEnvoyAdminAPI("drain_listeners?graceful&skip_exit"); err != nil {
-			log.Warnf("Failed to initiate graceful drain: %v", err)
-			// Continue with shutdown even if drain fails
-		}
-
-		// Wait for connections to drain
-		drainStart := time.Now()
-		for {
-			if time.Since(drainStart) > *r.drainTimeout {
-				log.Warnf("Drain timeout exceeded, proceeding with shutdown")
-				break
-			}
-
-			conns, err := r.getTotalConnections()
-			if err != nil {
-				log.Warnf("Failed to get connection count: %v", err)
-				break
-			}
-
-			if conns == nil || *conns == 0 {
-				log.Infof("All connections drained")
-				break
-			}
-
-			log.Infof("Waiting for %d connections to drain", *conns)
-			select {
-			case <-drainCtx.Done():
-				log.Warnf("Drain context canceled, proceeding with shutdown")
-				break
-			case <-time.After(1 * time.Second):
-				// Continue waiting
-			}
-		}
-
-		// Shutdown Envoy process
-		log.Infof("Shutting down Envoy process")
-		if err := r.cmd.Process.Signal(os.Interrupt); err != nil {
-			log.Warnf("Failed to send interrupt signal to Envoy: %v", err)
-			if err := r.cmd.Process.Kill(); err != nil {
-				return fmt.Errorf("failed to kill Envoy process: %w", err)
-			}
-		}
-
-		// Wait for process to exit
-		if err := r.cmd.Wait(); err != nil {
-			log.Warnf("Envoy process exited with error: %v", err)
-		}
-
-		// Shutdown OpenTelemetry collector if it was started
-		if r.otelCollector != nil {
-			log.Infof("Shutting down OpenTelemetry collector")
-			shutdownCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-			defer cancel()
-			if err := r.otelCollector.Stop(shutdownCtx); err != nil {
-				log.Warnf("Failed to stop OpenTelemetry collector: %v", err)
-			}
-		}
-
-		return nil
+		close(r.stopCh)
+		return r.cmd.Process.Kill()
 	})
-
 	return stopOnce()
 }
 

@@ -316,7 +316,6 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 			envoy.WithGoPluginDir(r.options.goPluginDir),
 			envoy.WithDrainTimeout(&p.Spec.DrainTimeout.Duration),
 			envoy.WithAdminHost(adminHost),
-			envoy.WithLogsDir("/var/log/apoxy"),
 		}
 		if r.options.releaseURL != "" {
 			opts = append(opts, envoy.WithRelease(&envoy.URLRelease{
