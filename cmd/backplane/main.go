@@ -62,7 +62,8 @@ var (
 	envoyReleaseURL = flag.String("envoy_release_url", "", "URL to the Envoy release tarball.")
 	downloadEnvoy   = flag.Bool("download_envoy_only", false, "Whether to just download Envoy from the release URL and exit.")
 
-	devMode = flag.Bool("dev", false, "Enable development mode.")
+	devMode  = flag.Bool("dev", false, "Enable development mode.")
+	logLevel = flag.String("log_level", "info", "Log level.")
 
 	apiServerAddr   = flag.String("apiserver_addr", "host.docker.internal:8443", "APIServer address.")
 	healthProbePort = flag.Int("health_probe_port", 8080, "Port for the health probe.")
@@ -137,6 +138,8 @@ func main() {
 	var lOpts []log.Option
 	if *devMode {
 		lOpts = append(lOpts, log.WithDevMode(), log.WithAlsoLogToStderr())
+	} else if *logLevel != "" {
+		lOpts = append(lOpts, log.WithLevelString(*logLevel))
 	}
 	log.Init(lOpts...)
 	ctx := context.Background()
@@ -198,6 +201,9 @@ func main() {
 
 	log.Infof("Setting up K/V store")
 	kv := kvstore.New(*k8sKVNamespace, *k8sKVPeerSelector)
+	if *devMode {
+		kv = kvstore.NewDev()
+	}
 	kvStarted := make(chan struct{})
 	go func() {
 		if err := kv.Start(kvStarted); err != nil {
