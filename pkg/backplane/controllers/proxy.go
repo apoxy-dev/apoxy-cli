@@ -291,10 +291,10 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 			goto UpdateStatus
 		}
 
-		cfg, err := bootstrap.GetRenderedBootstrapConfig(
+		bsOpts := []bootstrap.BootstrapOption{
 			bootstrap.WithXdsServerHost(r.apiServerHost),
-			// TODO(dilyevsky): Add TLS config from r.options.apiServerTLSConfig.
-		)
+		}
+		cfg, err := bootstrap.GetRenderedBootstrapConfig(bsOpts...)
 		if err != nil {
 			// If the config is invalid, we can't start the proxy.
 			log.Error(err, "failed to validate proxy config")
@@ -325,6 +325,12 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 			opts = append(opts, envoy.WithRelease(&envoy.GitHubRelease{
 				Contrib: r.options.useEnvoyContrib,
 			}))
+		}
+
+		if p.Spec.Monitoring != nil {
+			if p.Spec.Monitoring.Tracing != nil && p.Spec.Monitoring.Tracing.Enabled {
+				opts = append(opts, envoy.WithOtelCollector())
+			}
 		}
 
 		if r.options.healthChecker != nil {

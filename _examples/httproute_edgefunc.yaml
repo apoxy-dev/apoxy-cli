@@ -7,6 +7,9 @@ spec:
   listeners:
     - protocol: TCP
       port: 10000
+  monitoring:
+    tracing:
+      enabled: true
 ---
 apiVersion: gateway.apoxy.dev/v1
 kind: GatewayClass
