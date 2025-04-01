@@ -64,12 +64,7 @@ func defaultNetworkOptions() []Option {
 	return []Option{
 		WithCIDR("192.168.0.0/16"),
 		WithSubnetPrefixSize(30),
-		WithIpamDBPath(func() string {
-			if tmpDir := os.Getenv("TMPDIR"); tmpDir != "" {
-				return filepath.Join(tmpDir, "ipam.db")
-			}
-			return "/var/lib/apoxy/ipam.db"
-		}()),
+		WithIpamDBPath("/var/lib/apoxy/ipam.db"),
 		WithExtIfc("eth0"),
 	}
 }

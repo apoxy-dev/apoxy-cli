@@ -29,12 +29,16 @@ const (
 	// DefaultConfigPath is the default path to the otel-collector config file
 	DefaultConfigPath = "/etc/otelcol/config.yaml"
 
-	// DefaultConfigContent is the default content for the otel-collector config file
-	DefaultConfigContent = `receivers:
+	// Default collector port
+	DefaultCollectorPort = 4317
+)
+
+// DefaultConfigContent is the default content for the otel-collector config file
+var DefaultConfigContent = fmt.Sprintf(`receivers:
   otlp:
     protocols:
       grpc:
-        endpoint: 0.0.0.0:4317
+        endpoint: 0.0.0.0:%d
 
 exporters:
   debug:
@@ -52,8 +56,7 @@ service:
       - otlp
       exporters:
       - debug
-`
-)
+`, DefaultCollectorPort)
 
 // Option configures a Collector.
 type Option func(*Collector)
