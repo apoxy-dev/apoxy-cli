@@ -32,6 +32,7 @@ import (
 	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/envoy"
 	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/healthchecker"
 	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/logs"
+	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/otel"
 	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/xds/bootstrap"
 	alog "github.com/apoxy-dev/apoxy-cli/pkg/log"
 
@@ -59,6 +60,7 @@ type ProxyReconciler struct {
 
 type options struct {
 	chConn                   clickhouse.Conn
+	chOpts                   *clickhouse.Options
 	apiServerTLSClientConfig *tls.Config
 	goPluginDir              string
 	releaseURL               string
@@ -74,6 +76,13 @@ type Option func(*options)
 func WithClickHouseConn(chConn clickhouse.Conn) Option {
 	return func(o *options) {
 		o.chConn = chConn
+	}
+}
+
+// WithClickHouseOptions sets the ClickHouse options for the ProxyReconciler.
+func WithClickHouseOptions(opts *clickhouse.Options) Option {
+	return func(o *options) {
+		o.chOpts = opts
 	}
 }
 
@@ -330,7 +339,9 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 
 		if p.Spec.Monitoring != nil {
 			if p.Spec.Monitoring.Tracing != nil && p.Spec.Monitoring.Tracing.Enabled {
-				opts = append(opts, envoy.WithOtelCollector())
+				opts = append(opts, envoy.WithOtelCollector(&otel.Collector{
+					ClickHouseOpts: r.options.chOpts,
+				}))
 			}
 		}
 

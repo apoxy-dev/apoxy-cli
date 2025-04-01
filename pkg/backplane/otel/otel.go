@@ -2,13 +2,19 @@
 package otel
 
 import (
+	"bytes"
 	"context"
+	"embed"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
+	"text/template"
 	"time"
+
+	"github.com/ClickHouse/clickhouse-go/v2"
 
 	"github.com/apoxy-dev/apoxy-cli/pkg/log"
 )
@@ -33,30 +39,36 @@ const (
 	DefaultCollectorPort = 4317
 )
 
-// DefaultConfigContent is the default content for the otel-collector config file
-var DefaultConfigContent = fmt.Sprintf(`receivers:
-  otlp:
-    protocols:
-      grpc:
-        endpoint: 0.0.0.0:%d
+// TemplateVars represents the variables used in the OpenTelemetry collector config template
+type TemplateVars struct {
+	OTLPPort           int
+	ClickHouseAddr     string
+	ClickHouseDatabase string
+	EnableClickHouse   bool
+}
 
-exporters:
-  debug:
+//go:embed config_template.yaml
+var configTemplate embed.FS
 
-extensions:
-  zpages:
-    endpoint: 0.0.0.0:55679
+// RenderConfigTemplate renders the OpenTelemetry collector config template with the provided variables
+func RenderConfigTemplate(vars TemplateVars) (string, error) {
+	tmplContent, err := configTemplate.ReadFile("config_template.yaml")
+	if err != nil {
+		return "", fmt.Errorf("failed to read config template: %w", err)
+	}
 
-service:
-  extensions:
-  - zpages
-  pipelines:
-    traces:
-      receivers:
-      - otlp
-      exporters:
-      - debug
-`, DefaultCollectorPort)
+	tmpl, err := template.New("otel-config").Parse(string(tmplContent))
+	if err != nil {
+		return "", fmt.Errorf("failed to parse config template: %w", err)
+	}
+
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, vars); err != nil {
+		return "", fmt.Errorf("failed to render config template: %w", err)
+	}
+
+	return buf.String(), nil
+}
 
 // Option configures a Collector.
 type Option func(*Collector)
@@ -99,11 +111,14 @@ type Collector struct {
 	ConfigPath string
 	// Args are additional arguments to pass to the otel-collector
 	Args []string
+	// ClickHouseOpts are the options for the ClickHouse exporter
+	ClickHouseOpts *clickhouse.Options
 
-	cmd    *exec.Cmd
-	stopCh chan struct{}
-	mu     sync.RWMutex
-	status CollectorStatus
+	cmd         *exec.Cmd
+	stopCh      chan struct{}
+	mu          sync.RWMutex
+	status      CollectorStatus
+	wroteConfig bool
 }
 
 // CollectorStatus represents the status of the otel-collector process.
@@ -177,10 +192,35 @@ func (c *Collector) Start(ctx context.Context, opts ...Option) error {
 				return fmt.Errorf("failed to create config directory %s: %w", filepath.Dir(DefaultConfigPath), err)
 			}
 
-			// Create default config file
-			if err := os.WriteFile(DefaultConfigPath, []byte(DefaultConfigContent), 0644); err != nil {
+			chAddrs := []string{}
+			chAddr := ""
+			clickHouseDatabase := "default"
+			enableClickHouse := false
+			if c.ClickHouseOpts != nil {
+				enableClickHouse = true
+				for _, addr := range c.ClickHouseOpts.Addr {
+					chAddrs = append(chAddrs, fmt.Sprintf("clickhouse://%s", addr))
+				}
+				chAddr = strings.Join(chAddrs, ",")
+				if c.ClickHouseOpts.Auth.Database != "" {
+					clickHouseDatabase = c.ClickHouseOpts.Auth.Database
+				}
+			}
+			vars := TemplateVars{
+				OTLPPort:           DefaultCollectorPort,
+				EnableClickHouse:   enableClickHouse,
+				ClickHouseAddr:     chAddr,
+				ClickHouseDatabase: clickHouseDatabase,
+			}
+			configContent, err := RenderConfigTemplate(vars)
+			if err != nil {
+				return fmt.Errorf("failed to render config template: %w", err)
+			}
+
+			if err := os.WriteFile(DefaultConfigPath, []byte(configContent), 0644); err != nil {
 				return fmt.Errorf("failed to create default config file %s: %w", DefaultConfigPath, err)
 			}
+			c.wroteConfig = true
 			log.Infof("Created default OpenTelemetry collector config at %s", DefaultConfigPath)
 		} else if err != nil {
 			return fmt.Errorf("failed to check if config file exists %s: %w", DefaultConfigPath, err)
@@ -267,6 +307,13 @@ func (c *Collector) Start(ctx context.Context, opts ...Option) error {
 			log.Errorf("OpenTelemetry collector process exited with error: %v", err)
 		} else {
 			log.Infof("OpenTelemetry collector process exited successfully")
+		}
+
+		if c.wroteConfig {
+			// Clean up the config file if we wrote it.
+			if err := os.Remove(c.ConfigPath); err != nil {
+				log.Errorf("Failed to remove config file %s: %v", c.ConfigPath, err)
+			}
 		}
 
 		// Signal that the process has stopped if that hasn't already been signalled.

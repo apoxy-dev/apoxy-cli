@@ -112,9 +112,9 @@ func WithLogsDir(dir string) Option {
 }
 
 // WithOtelCollector sets the OpenTelemetry collector.
-func WithOtelCollector() Option {
+func WithOtelCollector(c *otel.Collector) Option {
 	return func(r *Runtime) {
-		r.otelCollector = &otel.Collector{}
+		r.otelCollector = c
 	}
 }
 
