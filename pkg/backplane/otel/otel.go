@@ -36,9 +36,6 @@ const (
       grpc:
         endpoint: 0.0.0.0:4317
 
-processors:
-  batch:
-
 exporters:
   debug:
 
@@ -53,8 +50,6 @@ service:
     traces:
       receivers:
       - otlp
-      processors:
-      - batch
       exporters:
       - debug
 `
@@ -271,8 +266,12 @@ func (c *Collector) Start(ctx context.Context, opts ...Option) error {
 			log.Infof("OpenTelemetry collector process exited successfully")
 		}
 
-		// Signal that the process has stopped
-		close(c.stopCh)
+		// Signal that the process has stopped if that hasn't already been signalled.
+		select {
+		case <-c.stopCh:
+		default:
+			close(c.stopCh)
+		}
 	}()
 
 	return nil

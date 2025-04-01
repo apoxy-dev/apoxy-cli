@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/encoding/protojson"
 	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
@@ -222,7 +223,6 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 			Phase:     ctrlv1alpha1.ProxyReplicaPhasePending,
 			Reason:    "Created by Backplane",
 		})
-
 		if err := r.Status().Update(ctx, p); err != nil {
 			return reconcile.Result{}, fmt.Errorf("failed to update Proxy status: %w", err)
 		}
@@ -230,9 +230,9 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 	}
 	ps := r.RuntimeStatus()
 	if ps.Running {
-		log.Info("envoy is running", "procstate", ps.ProcState.String())
+		log.V(1).Info("envoy is running")
 	} else {
-		log.Info("envoy is not running", "procstate", ps.ProcState.String())
+		log.V(1).Info("envoy is not running", "procstate", ps.ProcState.String())
 	}
 
 	if !p.ObjectMeta.DeletionTimestamp.IsZero() { // The object is being deleted
@@ -388,6 +388,7 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 		rStatus.Phase = ctrlv1alpha1.ProxyReplicaPhasePending
 		rStatus.Reason = "Proxy replica is being created"
 		if err := r.Status().Update(ctx, p); err != nil {
+			log.Info("Failed to update proxy replica status to pending")
 			return reconcile.Result{}, fmt.Errorf("failed to update proxy replica status: %w", err)
 		}
 
@@ -405,7 +406,6 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 			if err := r.Runtime.Shutdown(ctx); err != nil {
 				rStatus.Reason = fmt.Sprintf("Failed to shutdown proxy: %v", err)
 			}
-
 			r.options.healthChecker.Unregister(p.Name + "-admin")
 		case ctrlv1alpha1.ProxyReplicaPhaseStopped:
 			// Replica is stopped but the process still running.
@@ -444,6 +444,9 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 
 UpdateStatus:
 	if err := r.Status().Update(ctx, p); err != nil {
+		if apierrors.IsConflict(err) {
+			return reconcile.Result{Requeue: true}, nil
+		}
 		return reconcile.Result{}, fmt.Errorf("failed to update proxy replica status: %w", err)
 	}
 

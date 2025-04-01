@@ -38,9 +38,10 @@ func (t *Translator) processTracing(gateway *gwapiv1.Gateway, proxies []*apoxy_v
 				Name: "otel_collector",
 				Settings: []*ir.DestinationSetting{
 					{
+						Protocol: ir.HTTP2,
 						Endpoints: []*ir.DestinationEndpoint{
 							{
-								Host: "localhost",
+								Host: "127.0.0.1",
 								Port: 4317,
 							},
 						},
