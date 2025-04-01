@@ -339,7 +339,9 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 
 		if p.Spec.Monitoring != nil {
 			if p.Spec.Monitoring.Tracing != nil && p.Spec.Monitoring.Tracing.Enabled {
-				opts = append(opts, envoy.WithOtelCollector())
+				opts = append(opts, envoy.WithOtelCollector(&otel.Collector{
+					ClickHouseOpts: r.options.chOpts,
+				}))
 			}
 		}
 
