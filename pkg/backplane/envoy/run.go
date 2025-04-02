@@ -19,6 +19,7 @@ import (
 
 	"github.com/apoxy-dev/apoxy-cli/config"
 	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/logs"
+	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/otel"
 	"github.com/apoxy-dev/apoxy-cli/pkg/log"
 )
 
@@ -101,6 +102,22 @@ func WithDrainTimeout(timeout *time.Duration) Option {
 	}
 }
 
+// WithLogsDir sets the directory where Envoy logs will be written.
+// If this option is set, logs will be piped to files in the format
+// envoy.<pid>.<pipe>.log in the specified directory.
+func WithLogsDir(dir string) Option {
+	return func(r *Runtime) {
+		r.envoyLogsDir = dir
+	}
+}
+
+// WithOtelCollector sets the OpenTelemetry collector.
+func WithOtelCollector(c *otel.Collector) Option {
+	return func(r *Runtime) {
+		r.otelCollector = c
+	}
+}
+
 type Runtime struct {
 	EnvoyPath           string
 	BootstrapConfigYAML string
@@ -109,12 +126,14 @@ type Runtime struct {
 	// Args are additional arguments to pass to Envoy.
 	Args []string
 
-	stopCh       chan struct{}
-	cmd          *exec.Cmd
-	logs         logs.LogsCollector
-	goPluginDir  string
-	adminHost    string
-	drainTimeout *time.Duration
+	stopCh        chan struct{}
+	cmd           *exec.Cmd
+	logs          logs.LogsCollector
+	envoyLogsDir  string
+	otelCollector *otel.Collector
+	goPluginDir   string
+	adminHost     string
+	drainTimeout  *time.Duration
 
 	mu     sync.RWMutex
 	status RuntimeStatus
@@ -140,6 +159,14 @@ func (r *Runtime) run(ctx context.Context) error {
 	id := uuid.New().String()
 	configYAML := fmt.Sprintf(`node: { id: "%s", cluster: "%s" }`, id, r.Cluster)
 	log.Infof("envoy YAML config: %s", configYAML)
+
+	// Start OpenTelemetry collector if configured
+	if r.otelCollector != nil {
+		log.Infof("Starting OpenTelemetry collector before Envoy")
+		if err := r.otelCollector.Start(ctx); err != nil {
+			return fmt.Errorf("failed to start OpenTelemetry collector: %w", err)
+		}
+	}
 
 	args := []string{
 		"--config-yaml", configYAML,
@@ -196,11 +223,58 @@ func (r *Runtime) run(ctx context.Context) error {
 	args = append(args, r.Args...)
 	r.cmd = exec.CommandContext(rCtx, r.envoyPath(), args...)
 	r.cmd.Dir = runDir
-	r.cmd.Stdout = os.Stdout
-	r.cmd.Stderr = os.Stderr
 
-	if err := r.cmd.Start(); err != nil {
-		return fmt.Errorf("failed to start envoy: %w", err)
+	if r.envoyLogsDir != "" {
+		// Create logs directory if it doesn't exist
+		if err := os.MkdirAll(r.envoyLogsDir, 0755); err != nil {
+			return fmt.Errorf("failed to create logs directory: %w", err)
+		}
+
+		// Create a temporary file for stdout and stderr
+		// We'll rename these files after the process starts and we have the PID
+		tmpStdoutFile, err := os.CreateTemp(r.envoyLogsDir, "envoy.stdout.*")
+		if err != nil {
+			return fmt.Errorf("failed to create temporary stdout file: %w", err)
+		}
+		tmpStderrFile, err := os.CreateTemp(r.envoyLogsDir, "envoy.stderr.*")
+		if err != nil {
+			tmpStdoutFile.Close()
+			os.Remove(tmpStdoutFile.Name())
+			return fmt.Errorf("failed to create temporary stderr file: %w", err)
+		}
+
+		defer tmpStdoutFile.Close()
+		defer tmpStderrFile.Close()
+		r.cmd.Stdout = io.MultiWriter(os.Stdout, tmpStdoutFile)
+		r.cmd.Stderr = io.MultiWriter(os.Stderr, tmpStderrFile)
+
+		if err := r.cmd.Start(); err != nil {
+			os.Remove(tmpStdoutFile.Name())
+			os.Remove(tmpStderrFile.Name())
+			return fmt.Errorf("failed to start envoy: %w", err)
+		}
+
+		pid := r.cmd.Process.Pid
+		log.Infof("envoy started with PID %d", pid)
+		stdoutLogPath := filepath.Join(r.envoyLogsDir, fmt.Sprintf("envoy.%d.stdout.log", pid))
+		stderrLogPath := filepath.Join(r.envoyLogsDir, fmt.Sprintf("envoy.%d.stderr.log", pid))
+
+		// Rename the temporary files to their final names
+		if err := os.Rename(tmpStdoutFile.Name(), stdoutLogPath); err != nil {
+			log.Errorf("failed to rename stdout log file: %v", err)
+			os.Remove(tmpStdoutFile.Name())
+		}
+		if err := os.Rename(tmpStderrFile.Name(), stderrLogPath); err != nil {
+			log.Errorf("failed to rename stderr log file: %v", err)
+			os.Remove(tmpStderrFile.Name())
+		}
+	} else {
+		// Default behavior: pipe to os.Stdout and os.Stderr
+		r.cmd.Stdout = os.Stdout
+		r.cmd.Stderr = os.Stderr
+		if err := r.cmd.Start(); err != nil {
+			return fmt.Errorf("failed to start envoy: %w", err)
+		}
 	}
 
 	r.mu.Lock()
@@ -217,6 +291,7 @@ func (r *Runtime) run(ctx context.Context) error {
 	// Convert from milliseconds to seconds.
 	r.status.StartedAt = time.Unix(0, ctime*int64(time.Millisecond)).UTC()
 	r.status.Running = true
+	r.status.Starting = false
 	r.mu.Unlock()
 
 	// Restart envoy if it exits.
@@ -287,13 +362,17 @@ func (e FatalError) Error() string {
 
 // Start starts the Envoy binary.
 func (r *Runtime) Start(ctx context.Context, opts ...Option) error {
-	if r.cmd != nil {
-		return errors.New("envoy already running")
+	status := r.RuntimeStatus()
+	if status.Starting || status.Running {
+		return nil
 	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.status.Starting = true
 
 	r.setOptions(opts...)
 
-	log.Infof("running envoy %s", r.Release)
+	log.Infof("preparing envoy %s", r.Release)
 
 	if err := r.vendorEnvoyIfNotExists(ctx); err != nil {
 		return FatalError{Err: fmt.Errorf("failed to vendor envoy: %w", err)}
@@ -425,6 +504,11 @@ func (r *Runtime) Shutdown(ctx context.Context) error {
 
 	stopOnce := sync.OnceValue(func() error {
 		close(r.stopCh)
+		if r.otelCollector != nil {
+			if err := r.otelCollector.Stop(ctx); err != nil {
+				log.Errorf("error shutting down otel collector: %v", err)
+			}
+		}
 		return r.cmd.Process.Kill()
 	})
 	return stopOnce()
@@ -432,6 +516,7 @@ func (r *Runtime) Shutdown(ctx context.Context) error {
 
 type RuntimeStatus struct {
 	StartedAt time.Time
+	Starting  bool
 	Running   bool
 	ProcState *os.ProcessState
 }

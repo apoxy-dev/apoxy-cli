@@ -19,7 +19,7 @@ import (
 	"github.com/apoxy-dev/apoxy-cli/pkg/wireguard"
 )
 
-func TestWireGuardNetwork(t *testing.T) {
+func TestUserspaceNetwork(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, err := w.Write([]byte("Hello, World!"))
@@ -48,13 +48,15 @@ func TestWireGuardNetwork(t *testing.T) {
 	clientPort, err := utils.UnusedUDP4Port()
 	require.NoError(t, err)
 
-	serverWGNet, err := wireguard.Network(&wireguard.DeviceConfig{
+	serverWGNet, err := wireguard.NewUserspaceNetwork(&wireguard.DeviceConfig{
 		PrivateKey: ptr.To(base64.StdEncoding.EncodeToString(serverPrivateKey[:])),
 		ListenPort: ptr.To(serverPort),
 		Address:    []string{"10.0.0.1/32"},
 	})
 	require.NoError(t, err)
-	t.Cleanup(serverWGNet.Close)
+	t.Cleanup(func() {
+		require.NoError(t, serverWGNet.Close())
+	})
 
 	err = serverWGNet.AddPeer(&wireguard.PeerConfig{
 		PublicKey:  ptr.To(base64.StdEncoding.EncodeToString(clientPublicKey[:])),
@@ -65,13 +67,15 @@ func TestWireGuardNetwork(t *testing.T) {
 
 	require.NoError(t, serverWGNet.FowardToLoopback(context.Background()))
 
-	clientWGNet, err := wireguard.Network(&wireguard.DeviceConfig{
+	clientWGNet, err := wireguard.NewUserspaceNetwork(&wireguard.DeviceConfig{
 		PrivateKey: ptr.To(base64.StdEncoding.EncodeToString(clientPrivateKey[:])),
 		ListenPort: ptr.To(clientPort),
 		Address:    []string{"10.0.0.2/32"},
 	})
 	require.NoError(t, err)
-	t.Cleanup(clientWGNet.Close)
+	t.Cleanup(func() {
+		require.NoError(t, clientWGNet.Close())
+	})
 
 	err = clientWGNet.AddPeer(&wireguard.PeerConfig{
 		PublicKey:  ptr.To(base64.StdEncoding.EncodeToString(serverPublicKey[:])),

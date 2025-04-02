@@ -69,10 +69,10 @@ case "$*" in
 esac
 `
 
-// BuilderContainer builds a CLI binary.
+// BuilderContainer builds a containers for compiling go binaries.
 func (m *ApoxyCli) BuilderContainer(ctx context.Context, src *dagger.Directory) *dagger.Container {
 	return dag.Container().
-		From("golang:1.23-bookworm").
+		From("golang:1.24-bookworm").
 		WithWorkdir("/").
 		WithMountedCache("/go/pkg/mod", dag.CacheVolume("go-mod")).
 		WithEnvVariable("GOMODCACHE", "/go/pkg/mod").
@@ -100,6 +100,22 @@ func (m *ApoxyCli) BuilderContainer(ctx context.Context, src *dagger.Directory) 
 				Exclude: []string{"secrets/**"}, // exclude secrets from build context
 			}).
 		WithWorkdir("/src")
+}
+
+// PublishBuilderContainer publishes a container for compiling go binaries.
+func (m *ApoxyCli) PublishBuilderContainer(
+	ctx context.Context,
+	src *dagger.Directory,
+	registryPassword *dagger.Secret,
+) error {
+	_, err := m.BuilderContainer(ctx, src).
+		WithRegistryAuth(
+			"registry-1.docker.io",
+			"apoxy",
+			registryPassword,
+		).
+		Publish(ctx, "docker.io/apoxy/gobuilder:latest")
+	return err
 }
 
 // BuildCLI builds a CLI binary.
@@ -325,13 +341,13 @@ func (m *ApoxyCli) BuildBackplane(
 		WithEnvVariable("CC", fmt.Sprintf("zig-wrapper cc --target=%s-linux-musl", canonArchFromGoArch(goarch))).
 		WithExec([]string{"go", "build", "-ldflags", "-v -linkmode=external", "-o", bpOut, "./cmd/backplane"}).
 		WithExec([]string{"go", "build", "-ldflags", "-v -linkmode=external", "-o", dsOut, "./cmd/dial-stdio"}).
-		WithExec([]string{"wget", "https://github.com/apoxy-dev/otel-collector/archive/refs/tags/v1.0.0.tar.gz"}).
-		WithExec([]string{"tar", "-xvf", "v1.0.0.tar.gz"}).
+		WithExec([]string{"wget", "https://github.com/apoxy-dev/otel-collector/archive/refs/tags/v1.1.0.tar.gz"}).
+		WithExec([]string{"tar", "-xvf", "v1.1.0.tar.gz"}).
 		WithExec([]string{"mkdir", "-p", "/src/github.com/apoxy-dev"}).
-		WithExec([]string{"mv", "otel-collector-1.0.0", "/src/github.com/apoxy-dev/otel-collector"}).
+		WithExec([]string{"mv", "otel-collector-1.1.0", "/src/github.com/apoxy-dev/otel-collector"}).
 		WithEnvVariable("CGO_ENABLED", "0").
 		WithWorkdir("/src/github.com/apoxy-dev/otel-collector/otelcol-apoxy").
-		WithExec([]string{"go", "build", "-o", otelOut}).
+		WithExec([]string{"go", "build", "-o", "/src/" + otelOut}).
 		WithWorkdir("/src")
 
 	runtimeCtr := m.PullEdgeRuntime(ctx, platform)
@@ -341,6 +357,7 @@ func (m *ApoxyCli) BuildBackplane(
 		WithExec([]string{"apk", "add", "-u", "iptables", "iproute2", "net-tools"}).
 		WithFile("/bin/backplane", builder.File(bpOut)).
 		WithFile("/bin/dial-stdio", builder.File(dsOut)).
+		WithFile("/bin/otel-collector", builder.File(otelOut)).
 		WithFile("/bin/edge-runtime", runtimeCtr.File("/usr/local/bin/edge-runtime")).
 		WithExec([]string{
 			"/bin/backplane",

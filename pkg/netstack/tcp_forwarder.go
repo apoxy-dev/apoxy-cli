@@ -6,72 +6,49 @@ import (
 	"log/slog"
 	"net/netip"
 
-	"github.com/dpeckett/contextio"
-	"github.com/dpeckett/triemap"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 	"gvisor.dev/gvisor/pkg/tcpip/transport/tcp"
 	"gvisor.dev/gvisor/pkg/waiter"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/network"
+	"github.com/dpeckett/contextio"
+	"github.com/dpeckett/network"
 )
 
-type TCPForwarderConfig struct {
-	// Allowed destination prefixes.
-	AllowedDestinations []netip.Prefix
-	// Denied destination prefixes.
-	DeniedDestinations []netip.Prefix
-	// The network to forward connections to.
-	Upstream network.Network
+// ProtocolHandler is a function that handles packets for a specific protocol.
+type ProtocolHandler func(stack.TransportEndpointID, *stack.PacketBuffer) bool
+
+// TCPForwarder forwards TCP connections to an upstream network.
+func TCPForwarder(ctx context.Context, ipstack *stack.Stack, upstream network.Network) ProtocolHandler {
+	tcpForwarder := tcp.NewForwarder(
+		ipstack,
+		0,     /* rcvWnd (0 - default) */
+		65535, /* maxInFlight */
+		tcpHandler(ctx, upstream),
+	)
+
+	return tcpForwarder.HandlePacket
 }
 
-// TCPForwarder forwards TCP connections.
-func TCPForwarder(ctx context.Context, conf *TCPForwarderConfig) func(ipstack *stack.Stack, req *tcp.ForwarderRequest) {
-	allowedDestinations := triemap.New[struct{}]()
-	for _, prefix := range conf.AllowedDestinations {
-		allowedDestinations.Insert(prefix, struct{}{})
-	}
-
-	deniedDestinations := triemap.New[struct{}]()
-	for _, prefix := range conf.DeniedDestinations {
-		deniedDestinations.Insert(prefix, struct{}{})
-	}
-
-	allowedDestination := func(addr netip.Addr) bool {
-		_, allowed := allowedDestinations.Get(addr)
-		if allowed {
-			if _, denied := deniedDestinations.Get(addr); denied {
-				allowed = false
-			}
-		}
-		return allowed
-	}
-
-	return func(ipstack *stack.Stack, req *tcp.ForwarderRequest) {
+func tcpHandler(ctx context.Context, upstream network.Network) func(req *tcp.ForwarderRequest) {
+	return func(req *tcp.ForwarderRequest) {
 		reqDetails := req.ID()
 
 		srcAddrPort := netip.AddrPortFrom(addrFromNetstackIP(reqDetails.RemoteAddress), reqDetails.RemotePort)
-		dstAddrPort := netip.AddrPortFrom(addrFromNetstackIP(reqDetails.LocalAddress), reqDetails.LocalPort)
+		dstAddrPort := netip.AddrPortFrom(netip.AddrFrom4([4]byte{127, 0, 0, 1}), reqDetails.LocalPort)
 
 		logger := slog.With(
 			slog.String("src", srcAddrPort.String()),
 			slog.String("dst", dstAddrPort.String()))
 
-		logger.Info("Forwarding TCP session", "src", srcAddrPort.String(), "dst", dstAddrPort.String())
-
-		if !allowedDestination(dstAddrPort.Addr()) {
-			logger.Warn("Dropping TCP session, destination is not allowed")
-			req.Complete(true) // send RST
-			return
-		}
+		logger.Info("Forwarding TCP session")
 
 		go func() {
+			defer logger.Debug("Session finished")
+
 			ctx, cancel := context.WithCancel(ctx)
 			defer cancel()
-
-			logger.Debug("Forwarding session")
-			defer logger.Debug("Session finished")
 
 			var wq waiter.Queue
 			ep, tcpipErr := req.CreateEndpoint(&wq)
@@ -92,6 +69,7 @@ func TCPForwarder(ctx context.Context, conf *TCPForwarderConfig) func(ipstack *s
 				select {
 				case <-ctx.Done():
 				case <-notifyCh:
+					logger.Debug("tcpHandler notifyCh fired - canceling context")
 					cancel()
 				}
 			}()
@@ -105,7 +83,7 @@ func TCPForwarder(ctx context.Context, conf *TCPForwarderConfig) func(ipstack *s
 			defer local.Close()
 
 			// Connect to the destination.
-			remote, err := conf.Upstream.DialContext(ctx, "tcp", dstAddrPort.String())
+			remote, err := upstream.DialContext(ctx, "tcp", dstAddrPort.String())
 			if err != nil {
 				logger.Warn("Failed to dial destination", slog.Any("error", err))
 
@@ -114,13 +92,17 @@ func TCPForwarder(ctx context.Context, conf *TCPForwarderConfig) func(ipstack *s
 			}
 			defer remote.Close()
 
+			logger.Info("Connected to upstream")
+
 			// Start forwarding.
-			if _, err := contextio.SpliceContext(ctx, local, remote, nil); err != nil && !errors.Is(err, context.Canceled) {
+			wn, err := contextio.SpliceContext(ctx, local, remote, nil)
+			if err != nil && !errors.Is(err, context.Canceled) {
 				logger.Warn("Failed to forward session", slog.Any("error", err))
 
 				req.Complete(true) // send RST
 				return
 			}
+			logger.Info("Connection closed", slog.Int64("bytes_written", wn))
 
 			req.Complete(false) // send FIN
 		}()

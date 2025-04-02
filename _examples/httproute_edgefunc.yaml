@@ -7,6 +7,9 @@ spec:
   listeners:
     - protocol: TCP
       port: 10000
+  monitoring:
+    tracing:
+      enabled: true
 ---
 apiVersion: gateway.apoxy.dev/v1
 kind: GatewayClass
@@ -55,7 +58,7 @@ spec:
   template:
     mode: backend
     runtime:
-      port: 8081
+      port: 8801
     code:
       jsSource:
         entrypoint: "main.ts"

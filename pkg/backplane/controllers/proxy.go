@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"context"
-	"crypto/sha256"
 	"crypto/tls"
 	goerrors "errors"
 	"fmt"
@@ -16,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/encoding/protojson"
 	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
@@ -32,6 +32,7 @@ import (
 	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/envoy"
 	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/healthchecker"
 	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/logs"
+	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/otel"
 	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/xds/bootstrap"
 	alog "github.com/apoxy-dev/apoxy-cli/pkg/log"
 
@@ -59,6 +60,7 @@ type ProxyReconciler struct {
 
 type options struct {
 	chConn                   clickhouse.Conn
+	chOpts                   *clickhouse.Options
 	apiServerTLSClientConfig *tls.Config
 	goPluginDir              string
 	releaseURL               string
@@ -74,6 +76,13 @@ type Option func(*options)
 func WithClickHouseConn(chConn clickhouse.Conn) Option {
 	return func(o *options) {
 		o.chConn = chConn
+	}
+}
+
+// WithClickHouseOptions sets the ClickHouse options for the ProxyReconciler.
+func WithClickHouseOptions(opts *clickhouse.Options) Option {
+	return func(o *options) {
+		o.chOpts = opts
 	}
 }
 
@@ -146,11 +155,6 @@ func findReplicaStatus(p *ctrlv1alpha1.Proxy, rname string) (*ctrlv1alpha1.Proxy
 		}
 	}
 	return nil, false
-}
-
-func nodeID(p *ctrlv1alpha1.Proxy) string {
-	configSHA := sha256.Sum256([]byte(p.Spec.Config))
-	return fmt.Sprintf("%s-%x", p.Name, configSHA[:8])
 }
 
 func adminUDSPath(nodeID string) string {
@@ -227,13 +231,17 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 			Phase:     ctrlv1alpha1.ProxyReplicaPhasePending,
 			Reason:    "Created by Backplane",
 		})
-
 		if err := r.Status().Update(ctx, p); err != nil {
 			return reconcile.Result{}, fmt.Errorf("failed to update Proxy status: %w", err)
 		}
 		return reconcile.Result{}, nil
 	}
 	ps := r.RuntimeStatus()
+	if ps.Running {
+		log.V(1).Info("envoy is running")
+	} else {
+		log.V(1).Info("envoy is not running", "procstate", ps.ProcState.String())
+	}
 
 	if !p.ObjectMeta.DeletionTimestamp.IsZero() { // The object is being deleted
 		log.Info("Proxy is being deleted")
@@ -291,18 +299,11 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 			goto UpdateStatus
 		}
 
-		var (
-			cfg string
-			err error
-		)
-		if p.Spec.Config != "" {
-			cfg, err = validateBootstrapConfig(nodeID(p), p.Spec.Config)
-		} else {
-			cfg, err = bootstrap.GetRenderedBootstrapConfig(
-				bootstrap.WithXdsServerHost(r.apiServerHost),
-				// TODO(dilyevsky): Add TLS config from r.options.apiServerTLSConfig.
-			)
+		bsOpts := []bootstrap.BootstrapOption{
+			bootstrap.WithXdsServerHost(r.apiServerHost),
+			// TODO(dilyevsky): Add TLS config from r.options.apiServerTLSConfig.
 		}
+		cfg, err := bootstrap.GetRenderedBootstrapConfig(bsOpts...)
 		if err != nil {
 			// If the config is invalid, we can't start the proxy.
 			log.Error(err, "failed to validate proxy config")
@@ -333,6 +334,14 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 			opts = append(opts, envoy.WithRelease(&envoy.GitHubRelease{
 				Contrib: r.options.useEnvoyContrib,
 			}))
+		}
+
+		if p.Spec.Monitoring != nil {
+			if p.Spec.Monitoring.Tracing != nil && p.Spec.Monitoring.Tracing.Enabled {
+				opts = append(opts, envoy.WithOtelCollector(&otel.Collector{
+					ClickHouseOpts: r.options.chOpts,
+				}))
+			}
 		}
 
 		if r.options.healthChecker != nil {
@@ -390,6 +399,7 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 		rStatus.Phase = ctrlv1alpha1.ProxyReplicaPhasePending
 		rStatus.Reason = "Proxy replica is being created"
 		if err := r.Status().Update(ctx, p); err != nil {
+			log.Info("Failed to update proxy replica status to pending")
 			return reconcile.Result{}, fmt.Errorf("failed to update proxy replica status: %w", err)
 		}
 
@@ -407,7 +417,6 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 			if err := r.Runtime.Shutdown(ctx); err != nil {
 				rStatus.Reason = fmt.Sprintf("Failed to shutdown proxy: %v", err)
 			}
-
 			r.options.healthChecker.Unregister(p.Name + "-admin")
 		case ctrlv1alpha1.ProxyReplicaPhaseStopped:
 			// Replica is stopped but the process still running.
@@ -446,6 +455,9 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 
 UpdateStatus:
 	if err := r.Status().Update(ctx, p); err != nil {
+		if apierrors.IsConflict(err) {
+			return reconcile.Result{Requeue: true}, nil
+		}
 		return reconcile.Result{}, fmt.Errorf("failed to update proxy replica status: %w", err)
 	}
 

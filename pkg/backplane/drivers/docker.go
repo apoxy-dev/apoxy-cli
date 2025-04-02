@@ -1,4 +1,3 @@
-// Package drivers implements Backplane drivers (e.g Docker, Kubernetes, etc.)
 package drivers
 
 import (
@@ -20,40 +19,13 @@ const (
 	imageRepo           = "docker.io/apoxy/backplane"
 )
 
-type Option func(*options)
+// DockerDriver implements the Driver interface for Docker.
+type DockerDriver struct{}
 
-type options struct {
-	Args []string
+// NewDockerDriver creates a new Docker driver.
+func NewDockerDriver() *DockerDriver {
+	return &DockerDriver{}
 }
-
-func defaultOptions() *options {
-	return &options{}
-}
-
-// WithArgs sets the arguments for the driver.
-func WithArgs(args ...string) Option {
-	return func(o *options) {
-		o.Args = args
-	}
-}
-
-type Driver interface {
-	// Deploy deploys the proxy.
-	Start(ctx context.Context, orgID uuid.UUID, proxyName string, opts ...Option) (string, error)
-	// Stop stops the proxy.
-	Stop(orgID uuid.UUID, proxyName string)
-}
-
-// GetDriver returns a driver by name.
-func GetDriver(driver string) (Driver, error) {
-	switch driver {
-	case "docker":
-		return &dockerDriver{}, nil
-	}
-	return nil, fmt.Errorf("unknown driver %q", driver)
-}
-
-type dockerDriver struct{}
 
 func imageRef() string {
 	imgTag := build.BuildVersion
@@ -63,13 +35,14 @@ func imageRef() string {
 	return imageRepo + ":" + imgTag
 }
 
-func (d *dockerDriver) Start(
+// Start implements the Driver interface.
+func (d *DockerDriver) Start(
 	ctx context.Context,
 	orgID uuid.UUID,
 	proxyName string,
 	opts ...Option,
 ) (string, error) {
-	setOpts := defaultOptions()
+	setOpts := DefaultOptions()
 	for _, opt := range opts {
 		opt(setOpts)
 	}
@@ -152,7 +125,8 @@ func (d *dockerDriver) Start(
 	return cname, nil
 }
 
-func (d *dockerDriver) Stop(orgID uuid.UUID, proxyName string) {
+// Stop implements the Driver interface.
+func (d *DockerDriver) Stop(orgID uuid.UUID, proxyName string) {
 	ctx, _ := context.WithTimeout(context.Background(), 30*time.Second)
 	imageRef := imageRef()
 	cname, found, err := dockerutils.Collect(
@@ -165,7 +139,8 @@ func (d *dockerDriver) Stop(orgID uuid.UUID, proxyName string) {
 	if err != nil {
 		log.Errorf("Error stopping Docker container: %v", err)
 	} else if !found {
-		log.Infof("Container %s wasn't found running")
+		log.Infof("Container %s wasn't found running", cname)
+		return
 	}
 	log.Infof("Stopping container %s", cname)
 	cmd := exec.CommandContext(ctx,
@@ -175,7 +150,7 @@ func (d *dockerDriver) Stop(orgID uuid.UUID, proxyName string) {
 		if execErr, ok := err.(*exec.ExitError); ok {
 			log.Errorf("failed to stop Envoy backplane: %s", execErr.Stderr)
 		} else {
-			log.Errorf("failed to stop Envoy backplane: %w", err)
+			log.Errorf("failed to stop Envoy backplane: %v", err)
 		}
 	}
 }

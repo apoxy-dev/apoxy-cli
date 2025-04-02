@@ -62,11 +62,13 @@ var (
 	envoyReleaseURL = flag.String("envoy_release_url", "", "URL to the Envoy release tarball.")
 	downloadEnvoy   = flag.Bool("download_envoy_only", false, "Whether to just download Envoy from the release URL and exit.")
 
-	devMode = flag.Bool("dev", false, "Enable development mode.")
+	devMode  = flag.Bool("dev", false, "Enable development mode.")
+	logLevel = flag.String("log_level", "info", "Log level.")
 
 	apiServerAddr   = flag.String("apiserver_addr", "host.docker.internal:8443", "APIServer address.")
 	healthProbePort = flag.Int("health_probe_port", 8080, "Port for the health probe.")
 	readyProbePort  = flag.Int("ready_probe_port", 8083, "Port for the ready probe.")
+	metricsPort     = flag.Int("metrics_port", 8081, "Port for the metrics endpoint.")
 
 	chAddrs  = flag.String("ch_addrs", "", "Comma-separated list of ClickHouse host:port addresses.")
 	chSecure = flag.Bool("ch_secure", false, "Whether to connect to Clickhouse using TLS.")
@@ -136,6 +138,8 @@ func main() {
 	var lOpts []log.Option
 	if *devMode {
 		lOpts = append(lOpts, log.WithDevMode(), log.WithAlsoLogToStderr())
+	} else if *logLevel != "" {
+		lOpts = append(lOpts, log.WithLevelString(*logLevel))
 	}
 	log.Init(lOpts...)
 	ctx := context.Background()
@@ -163,13 +167,14 @@ func main() {
 	}
 
 	var chConn chdriver.Conn
+	var chOpts *clickhouse.Options
 	if *chAddrs != "" {
 		projUUID, err := uuid.Parse(*projectID)
 		if err != nil {
 			log.Fatalf("invalid project UUID: %v", err)
 		}
 		log.Infof("Connecting to ClickHouse at %v", *chAddrs)
-		chOpts := &clickhouse.Options{
+		chOpts = &clickhouse.Options{
 			Addr: strings.Split(*chAddrs, ","),
 			Auth: clickhouse.Auth{
 				Database: strings.ReplaceAll(projUUID.String(), "-", ""),
@@ -197,6 +202,9 @@ func main() {
 
 	log.Infof("Setting up K/V store")
 	kv := kvstore.New(*k8sKVNamespace, *k8sKVPeerSelector)
+	if *devMode {
+		kv = kvstore.NewDev()
+	}
 	kvStarted := make(chan struct{})
 	go func() {
 		if err := kv.Start(kvStarted); err != nil {
@@ -242,7 +250,7 @@ func main() {
 		Scheme:         scheme,
 		LeaderElection: false,
 		Metrics: metricsserver.Options{
-			BindAddress: ":8081",
+			BindAddress: fmt.Sprintf(":%d", *metricsPort),
 		},
 		HealthProbeBindAddress: fmt.Sprintf(":%d", *healthProbePort),
 	})
@@ -262,7 +270,7 @@ func main() {
 		bpctrl.WithGoPluginDir(*goPluginDir),
 	}
 	if chConn != nil {
-		proxyOpts = append(proxyOpts, bpctrl.WithClickHouseConn(chConn))
+		proxyOpts = append(proxyOpts, bpctrl.WithClickHouseConn(chConn), bpctrl.WithClickHouseOptions(chOpts))
 	}
 	if *envoyReleaseURL != "" {
 		proxyOpts = append(proxyOpts, bpctrl.WithURLRelease(*envoyReleaseURL))

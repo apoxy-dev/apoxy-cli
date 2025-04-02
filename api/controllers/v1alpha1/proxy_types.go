@@ -3,6 +3,7 @@ package v1alpha1
 import (
 	"time"
 
+	corev1 "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -95,6 +96,11 @@ type ProxyMonitoring struct {
 	// Tracing configures how tracing is handled.
 	// Disabled by default.
 	Tracing *ProxyTracing `json:"tracing,omitempty"`
+
+	// Custom OpenTelemetry collector configuration.
+	// Only supported for unmanaged proxies.
+	// This must be a ConfigMap or a Secret in the same namespace as Backplane.
+	OtelCollectorConfig *corev1.LocalObjectReference `json:"otelCollectorConfig,omitempty"`
 }
 
 // ProxySpec defines the desired specification of a Proxy.
@@ -102,15 +108,6 @@ type ProxySpec struct {
 	// Provider is the infrastructure provider where the proxy will be deployed.
 	// Defaults to "cloud" provider.
 	Provider InfraProvider `json:"provider,omitempty"`
-
-	// Locations is the list of locations where the proxy will be deployed:
-	// * cloud provider:
-	//  - global: Deploy the proxy in the global network.
-	//  - <region>: Deploy the proxy in the specified region (e.g "europe")
-	//  - <pop>: Deploy the proxy in the specified point of presence.
-	// * kubernetes provider - The list of kubernetes clusters where the proxy will be deployed.
-	// * unmanaged provider - Ignored.
-	Locations []string `json:"locations,omitempty"`
 
 	// Listeners is the list of logical endpoints that the Proxy will receive traffic on.
 	// At least one listener MUST be specified.
@@ -123,9 +120,6 @@ type ProxySpec struct {
 	// Envoy will send a GOAWAY frame to the client.
 	// +optional
 	DrainTimeout *metav1.Duration `json:"drainTimeout,omitempty"`
-
-	// Config is the Starlark configuration for the proxy in the txtar format.
-	Config string `json:"config,omitempty"`
 
 	// Monitoring is the monitoring configuration for the proxy.
 	// +optional

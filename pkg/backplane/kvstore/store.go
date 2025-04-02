@@ -15,6 +15,8 @@ type Store struct {
 	k8sNamespace     string
 	k8sLabelSelector string
 
+	dev bool
+
 	db *olric.Olric
 }
 
@@ -26,14 +28,23 @@ func New(namespace, labelSelector string) *Store {
 	}
 }
 
+// NewDev creates a new kvstore instance for development.
+func NewDev() *Store {
+	return &Store{
+		dev: true,
+	}
+}
+
 // Start starts the kvstore. It returns an error if the kvstore fails to start.
 // Uses background context created by New() method.
 func (s *Store) Start(started chan struct{}) error {
 	cfg := config.New("lan")
-	cfg.ServiceDiscovery = NewK8sServiceDiscovery(
-		s.k8sNamespace,
-		s.k8sLabelSelector,
-	)
+	if !s.dev {
+		cfg.ServiceDiscovery = NewK8sServiceDiscovery(
+			s.k8sNamespace,
+			s.k8sLabelSelector,
+		)
+	}
 	cfg.Started = func() {
 		if started != nil {
 			close(started)

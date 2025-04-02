@@ -48,7 +48,6 @@ spec:
           args:
             - --proxy={{ .Values.backplane.proxy.name }}
             - --apiserver_addr={{ include "apoxy-gateway.fullname" . }}-apiserver
-            - --dev
           {{- with .Values.backplane.extraArgs }}
             {{- toYaml . | nindent 12 }}
           {{- end }}
