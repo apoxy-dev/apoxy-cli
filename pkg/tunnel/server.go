@@ -27,6 +27,10 @@ import (
 	"golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/tun"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -359,6 +363,30 @@ func (t *TunnelServer) handleConnect(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
+	agent := corev1alpha.AgentStatus{
+		Name:           uuid.NewString(),
+		ConnectedAt:    ptr.To(metav1.Now()),
+		PrivateAddress: peerPrefix.String(),
+		AgentAddress:   r.RemoteAddr,
+	}
+	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		upd := &corev1alpha.TunnelNode{}
+		if err := t.Get(r.Context(), types.NamespacedName{Name: tn.Name}, upd); errors.IsNotFound(err) {
+			slog.Warn("Node not found", slog.String("name", tn.Name))
+			return nil
+		} else if err != nil {
+			slog.Error("Failed to get node", slog.Any("error", err))
+			return err
+		}
+
+		upd.Status.Agents = append(upd.Status.Agents, agent)
+
+		return t.Status().Update(r.Context(), upd)
+	}); err != nil {
+		slog.Error("Failed to update agent status", slog.Any("error", err))
+	}
+
+	// Blocking wait for the lifetime of the tunnel connection.
 	<-r.Context().Done()
 
 	if err := conn.Close(); err != nil {
@@ -374,6 +402,31 @@ func (t *TunnelServer) handleConnect(w http.ResponseWriter, r *http.Request) {
 	if err := t.removeTUNPeer(peerPrefix); err != nil {
 		slog.Error("Failed to remove TUN peer", slog.Any("error", err))
 	}
+
+	if err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		upd := &corev1alpha.TunnelNode{}
+		if err := t.Get(context.Background(), types.NamespacedName{Name: tn.Name}, upd); errors.IsNotFound(err) {
+			slog.Warn("Node not found", slog.String("name", tn.Name))
+			return nil
+		} else if err != nil {
+			slog.Error("Failed to get node", slog.Any("error", err))
+			return err
+		}
+
+		// Find and remove the agent from the status
+		for i, a := range upd.Status.Agents {
+			if a.Name == agent.Name {
+				upd.Status.Agents = append(upd.Status.Agents[:i], upd.Status.Agents[i+1:]...)
+				break
+			}
+		}
+
+		return t.Status().Update(context.Background(), upd)
+	}); err != nil {
+		slog.Error("Failed to update agent status", slog.Any("error", err))
+	}
+
+	slog.Info("Agent removed", slog.String("name", agent.Name))
 }
 
 func (t *TunnelServer) addTUNPeer(peer netip.Prefix) error {
