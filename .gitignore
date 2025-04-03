@@ -3,6 +3,7 @@ apoxy
 /apiserver
 /backplane
 /dial-stdio
+/tunnelproxy
 dist/
 /main
 *.pcap
