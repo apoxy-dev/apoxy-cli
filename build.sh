@@ -41,4 +41,9 @@ echo "Building version ${VERSION} (${COMMIT_HASH})..."
 
 go install -ldflags="${LDFLAGS[*]}"
 
+# Check if GOPATH is set
+if [ -z "${GOPATH}" ]; then
+    GOPATH=$(go env GOPATH)
+fi
+
 mv ${GOPATH}/bin/apoxy-cli ${GOPATH}/bin/apoxy
