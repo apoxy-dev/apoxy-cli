@@ -115,6 +115,11 @@ func (d *APIServerDockerDriver) Start(
 		return "", fmt.Errorf("failed to start API server: %w", err)
 	}
 
+	// Wait for the API server to be healthy
+	if err := healthCheckAPIServer(); err != nil {
+		return "", err
+	}
+
 	return cname, nil
 }
 
@@ -146,4 +151,19 @@ func (d *APIServerDockerDriver) Stop(orgID uuid.UUID, serviceName string) {
 			log.Errorf("failed to stop API server: %v", err)
 		}
 	}
+}
+
+// GetAddr implements the Driver interface.
+func (d *APIServerDockerDriver) GetAddr(ctx context.Context) (string, error) {
+	cname, found, err := dockerutils.Collect(
+		ctx,
+		apiserverContainerNamePrefix,
+		apiserverImageRef(),
+	)
+	if err != nil {
+		return "", err
+	} else if !found {
+		return "", fmt.Errorf("apiserver not found")
+	}
+	return cname, nil
 }

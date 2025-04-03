@@ -28,6 +28,7 @@ import (
 
 	"github.com/apoxy-dev/apoxy-cli/config"
 	"github.com/apoxy-dev/apoxy-cli/pkg/apiserver"
+	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/portforward"
 	chdrivers "github.com/apoxy-dev/apoxy-cli/pkg/clickhouse/drivers"
 	"github.com/apoxy-dev/apoxy-cli/pkg/clickhouse/migrations"
 	"github.com/apoxy-dev/apoxy-cli/pkg/drivers"
@@ -220,7 +221,7 @@ func watchAndReloadConfig(ctx context.Context, proxyNameOverride, pathOrURL stri
 		return fmt.Errorf("failed to add file to watcher: %w", err)
 	}
 
-	log.Infof("Watching %s for changes...", watchPath)
+	fmt.Printf("Watching %s for changes...\n", watchPath)
 
 	for {
 		select {
@@ -233,6 +234,7 @@ func watchAndReloadConfig(ctx context.Context, proxyNameOverride, pathOrURL stri
 			if !ev.Has(fsnotify.Write) {
 				continue
 			}
+			fmt.Printf("Updating proxy %s from %s...\n", proxyNameOverride, watchPath)
 			// Reload the proxy configuration
 			if err := updateFromFile(ctx, proxyNameOverride, watchPath); err != nil {
 				return err
@@ -291,16 +293,17 @@ var devCmd = &cobra.Command{
 			return err
 		}
 
-		log.Infof("Starting Apoxy server with Proxy name: %s", proxyName)
+		fmt.Printf("Starting Apoxy server with Proxy name: %s\n", proxyName)
 
 		ctx, ctxCancel := context.WithCancelCause(cmd.Context())
+		defer ctxCancel(ctx.Err())
 
 		driverMode := drivers.DockerMode
 		if useSubprocess {
 			driverMode = drivers.SupervisorMode
 		}
 
-		log.Infof("Starting apiserver using driver mode: %s", driverMode)
+		fmt.Printf("Starting apiserver using driver mode: %s\n", driverMode)
 		apiDriver, err := drivers.GetDriver(driverMode, drivers.APIServerService)
 		if err != nil {
 			return err
@@ -308,9 +311,9 @@ var devCmd = &cobra.Command{
 		apiserverArgs := []string{}
 		if os.Getenv("TMPDIR") != "" {
 			apiserverArgs = []string{
-				"--db", filepath.Join(os.Getenv("TMPDIR"), "apoxy.db"),
-				"--temporal-db", filepath.Join(os.Getenv("TMPDIR"), "temporal.db"),
-				"--ingest-store-dir", filepath.Join(os.Getenv("TMPDIR"), "ingest"),
+				fmt.Sprintf("--db=%s", filepath.Join(os.Getenv("TMPDIR"), "apoxy.db")),
+				fmt.Sprintf("--temporal-db=%s", filepath.Join(os.Getenv("TMPDIR"), "temporal.db")),
+				fmt.Sprintf("--ingest-store-dir=%s", filepath.Join(os.Getenv("TMPDIR"), "ingest")),
 			}
 		}
 		if _, err := apiDriver.Start(ctx, projectID, proxyName, drivers.WithArgs(apiserverArgs...)); err != nil {
@@ -320,7 +323,7 @@ var devCmd = &cobra.Command{
 		defer apiDriver.Stop(projectID, proxyName)
 
 		if len(clickhouseAddr) == 0 {
-			log.Infof("Starting clickhouse in docker")
+			fmt.Printf("Starting clickhouse using driver mode: docker\n")
 			chDriver, err := chdrivers.GetDriver("docker")
 			if err != nil {
 				return err
@@ -333,17 +336,22 @@ var devCmd = &cobra.Command{
 				return err
 			}
 		} else {
-			log.Infof("clickhouse server is already running: %s", clickhouseAddr)
-			log.Infof("running clickhouse migrations for project id: %s", projectID)
+			fmt.Printf("clickhouse server is already running: %s\n", clickhouseAddr)
+			fmt.Printf("running clickhouse migrations for project id: %s\n", projectID)
 			if err := migrations.Run(clickhouseAddr+":9000", projectID); err != nil {
 				return fmt.Errorf("failed to run clickhouse migrations: %w", err)
 			}
 		}
 
-		log.Infof("Starting backplane using driver mode: %s", driverMode)
+		fmt.Printf("Starting backplane using driver mode: %s\n", driverMode)
 		bpDriver, err := drivers.GetDriver(driverMode, drivers.BackplaneService)
 		if err != nil {
 			return err
+		}
+
+		apiserverAddr, err := apiDriver.GetAddr(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to get apiserver address: %v", err)
 		}
 
 		cname, err := bpDriver.Start(
@@ -351,9 +359,10 @@ var devCmd = &cobra.Command{
 			projectID,
 			proxyName,
 			drivers.WithArgs([]string{
-				"--ch_addrs", clickhouseAddr + ":9000",
-				"--dev", "true",
+				fmt.Sprintf("--ch_addrs=%s:9000", clickhouseAddr),
+				fmt.Sprintf("--dev=%t", true),
 			}...),
+			drivers.WithAPIServerAddr(fmt.Sprintf("%s:8443", apiserverAddr)),
 		)
 		if err != nil {
 			return err
@@ -362,12 +371,14 @@ var devCmd = &cobra.Command{
 
 		if !useSubprocess {
 			rc := apiserver.NewClientConfig()
-			fwd, err := drivers.NewPortForwarder(rc, proxyName, proxyName, cname)
+			fwd, err := portforward.NewPortForwarder(rc, proxyName, proxyName, cname)
 			if err != nil {
+				log.Errorf("failed to create port forwarder: %v", err)
 				return err
 			}
 			go func() {
 				if err := fwd.Run(ctx); err != nil {
+					log.Errorf("failed to forward ports: %v", err)
 					ctxCancel(&runError{Err: err})
 				}
 				// If err is nil, it means context has been cancelled.

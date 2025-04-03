@@ -3,7 +3,6 @@ package drivers
 import (
 	"context"
 	"fmt"
-	"net"
 	"os/exec"
 	"time"
 
@@ -93,9 +92,13 @@ func (d *BackplaneDockerDriver) Start(
 		"--network", dockerutils.NetworkName,
 	)
 
-	apiServerHost, err := getDockerBridgeIP()
-	if err != nil {
-		return "", fmt.Errorf("failed to get docker bridge IP: %w", err)
+	apiserverAddr := setOpts.APIServerAddr
+	if apiserverAddr == "" {
+		apiServerHost, err := getDockerBridgeIP()
+		if err != nil {
+			return "", fmt.Errorf("failed to get docker bridge IP: %w", err)
+		}
+		apiserverAddr = fmt.Sprintf("%s:8443", apiServerHost)
 	}
 
 	cmd.Args = append(cmd.Args, imageRef)
@@ -104,7 +107,7 @@ func (d *BackplaneDockerDriver) Start(
 		// Use the same name for both proxy and replica - we only have one replica.
 		"--proxy=" + proxyName,
 		"--replica=" + proxyName,
-		"--apiserver_addr=" + net.JoinHostPort(apiServerHost, "8443"),
+		"--apiserver_addr=" + apiserverAddr,
 		"--use_envoy_contrib=true",
 	}...)
 	cmd.Args = append(cmd.Args, setOpts.Args...)
@@ -153,4 +156,19 @@ func (d *BackplaneDockerDriver) Stop(orgID uuid.UUID, proxyName string) {
 			log.Errorf("failed to stop Envoy backplane: %v", err)
 		}
 	}
+}
+
+// GetAddr implements the Driver interface.
+func (d *BackplaneDockerDriver) GetAddr(ctx context.Context) (string, error) {
+	cname, found, err := dockerutils.Collect(
+		ctx,
+		backplaneContainerNamePrefix,
+		backplaneImageRef(),
+	)
+	if err != nil {
+		return "", err
+	} else if !found {
+		return "", fmt.Errorf("backplane not found")
+	}
+	return cname, nil
 }

@@ -182,3 +182,8 @@ func (d *BackplaneSupervisorDriver) Stop(orgID uuid.UUID, proxyName string) {
 	// Clean up
 	d.cmd = nil
 }
+
+// GetAddr implements the Driver interface.
+func (d *BackplaneSupervisorDriver) GetAddr(ctx context.Context) (string, error) {
+	return "localhost", nil
+}

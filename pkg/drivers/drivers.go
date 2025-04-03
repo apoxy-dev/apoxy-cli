@@ -13,7 +13,8 @@ type Option func(*Options)
 
 // Options contains common options for all drivers.
 type Options struct {
-	Args []string
+	Args          []string
+	APIServerAddr string
 }
 
 // DefaultOptions returns the default options.
@@ -28,12 +29,21 @@ func WithArgs(args ...string) Option {
 	}
 }
 
+// WithAPIServerAddr sets the apiserver address.
+func WithAPIServerAddr(addr string) Option {
+	return func(o *Options) {
+		o.APIServerAddr = addr
+	}
+}
+
 // Driver is the interface that all service drivers must implement.
 type Driver interface {
 	// Start deploys and starts the service.
 	Start(ctx context.Context, orgID uuid.UUID, serviceName string, opts ...Option) (string, error)
 	// Stop stops the service.
 	Stop(orgID uuid.UUID, serviceName string)
+	// GetAddr returns the address of the service.
+	GetAddr(ctx context.Context) (string, error)
 }
 
 // ServiceType represents the type of service being managed by a driver.
