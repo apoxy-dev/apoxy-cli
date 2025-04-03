@@ -1,3 +1,5 @@
+//go:build linux
+
 package tunnel
 
 import (
@@ -6,7 +8,6 @@ import (
 	"crypto/tls"
 	goerrors "errors"
 	"fmt"
-	"hash/fnv"
 	"io"
 	"log/slog"
 	"net"
@@ -65,6 +66,7 @@ type tunnelOptions struct {
 	ulaPrefix netip.Prefix
 	certPath  string
 	keyPath   string
+	ipam      IPAM
 }
 
 func defaultOptions() *tunnelOptions {
@@ -75,6 +77,7 @@ func defaultOptions() *tunnelOptions {
 		ulaPrefix: netip.MustParsePrefix("fd00::/64"),
 		certPath:  "cert.pem",
 		keyPath:   "key.pem",
+		ipam:      NewRandomULA(),
 	}
 }
 
@@ -117,6 +120,13 @@ func WithCertPath(path string) TunnelOption {
 func WithKeyPath(path string) TunnelOption {
 	return func(o *tunnelOptions) {
 		o.keyPath = path
+	}
+}
+
+// WithIPAM sets the IPAM to use.
+func WithIPAM(ipam IPAM) TunnelOption {
+	return func(o *tunnelOptions) {
+		o.ipam = ipam
 	}
 }
 
@@ -292,7 +302,7 @@ func (t *TunnelServer) handleConnect(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close()
 
-	peerPrefix := ulaPrefixFromUUID(t.options.ulaPrefix, id)
+	peerPrefix := t.options.ipam.Allocate(r)
 	if err := conn.AssignAddresses(r.Context(), []netip.Prefix{
 		peerPrefix,
 	}); err != nil {
@@ -354,7 +364,12 @@ func (t *TunnelServer) handleConnect(w http.ResponseWriter, r *http.Request) {
 	if err := conn.Close(); err != nil {
 		slog.Error("Failed to close connection", slog.Any("error", err))
 	}
+
 	t.tuns.Del(peerPrefix.String())
+
+	if err := t.options.ipam.Release(peerPrefix); err != nil {
+		slog.Error("Failed to deallocate IP address", slog.Any("error", err))
+	}
 
 	if err := t.removeTUNPeer(peerPrefix); err != nil {
 		slog.Error("Failed to remove TUN peer", slog.Any("error", err))
@@ -443,7 +458,9 @@ func (t *TunnelServer) mux(ctx context.Context) error {
 				continue
 			}
 		default:
-			slog.Debug("Unknown packet type (expected IPv6)", slog.String("type", fmt.Sprintf("%#x", (*b)[0]>>4)))
+			slog.Warn("Unknown packet type (expected IPv6)", slog.String("type", fmt.Sprintf("%#x", (*b)[0]>>4)))
+			bufferPool.Put(b)
+			continue
 		}
 		if !dstIP.IsValid() || !dstIP.Is6() || !dstIP.IsGlobalUnicast() {
 			slog.Debug("Invalid destination IP", slog.String("ip", dstIP.String()))
@@ -500,20 +517,4 @@ func (t *TunnelServer) reconcile(ctx context.Context, request reconcile.Request)
 	t.tunnelNodes.Set(string(node.UID), node)
 
 	return ctrl.Result{}, nil
-}
-
-// Generate a unique local address prefix from a UUID.
-// TODO(dsky): Reserve suffix using IPAM instead to prevent collisions.
-func ulaPrefixFromUUID(ulaPrefix netip.Prefix, uuid uuid.UUID) netip.Prefix {
-	addr := ulaPrefix.Addr().As16() // 10 bytes
-	e := fnv.New32()
-	e.Write(uuid[:])
-	// We only need 16 bits of the hash so recommendation is to do XOR-folding
-	// http://www.isthe.com/chongo/tech/comp/fnv/#xor-fold
-	mask := uint32(0xffff)
-	h := e.Sum32()>>16 ^ e.Sum32()&mask
-	addr[10] = byte(h >> 8)
-	addr[11] = byte(h)
-
-	return netip.PrefixFrom(netip.AddrFrom16(addr), 96)
 }
