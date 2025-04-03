@@ -371,6 +371,40 @@ func (m *ApoxyCli) BuildBackplane(
 		WithEntrypoint([]string{"/bin/backplane"})
 }
 
+// BuildTunnelProxy builds a tunnel proxy binary.
+func (m *ApoxyCli) BuildTunnelproxy(
+	ctx context.Context,
+	src *dagger.Directory,
+	// +optional
+	platform string,
+) *dagger.Container {
+	if platform == "" {
+		platform = runtime.GOOS + "/" + runtime.GOARCH
+	}
+	p := dagger.Platform(platform)
+	goarch := archOf(p)
+
+	tpOut := filepath.Join("build", "tunnelproxy-"+goarch)
+
+	builder := m.BuilderContainer(ctx, src).
+		WithEnvVariable("GOARCH", goarch).
+		WithEnvVariable("GOOS", "linux").
+		WithMountedCache("/go/pkg/mod", dag.CacheVolume("go-mod-"+goarch)).
+		WithEnvVariable("GOMODCACHE", "/go/pkg/mod").
+		WithMountedCache("/go/build-cache", dag.CacheVolume("go-build-"+goarch)).
+		WithEnvVariable("GOCACHE", "/go/build-cache").
+		WithEnvVariable("CGO_ENABLED", "1").
+		WithEnvVariable("CC", fmt.Sprintf("zig-wrapper cc --target=%s-linux-musl", canonArchFromGoArch(goarch))).
+		WithExec([]string{"go", "build", "-ldflags", "-v -linkmode=external", "-o", tpOut, "./cmd/tunnelproxy"}).
+		WithWorkdir("/src")
+
+	return dag.Container(dagger.ContainerOpts{Platform: p}).
+		From("cgr.dev/chainguard/wolfi-base:latest").
+		WithExec([]string{"apk", "add", "-u", "iptables", "iproute2", "net-tools"}).
+		WithFile("/bin/tunnelproxy", builder.File(tpOut)).
+		WithEntrypoint([]string{"/bin/tunnelproxy"})
+}
+
 // PublishImages publishes images to the registry.
 func (m *ApoxyCli) PublishImages(
 	ctx context.Context,
