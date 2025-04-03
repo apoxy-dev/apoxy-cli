@@ -102,19 +102,19 @@ func WithDrainTimeout(timeout *time.Duration) Option {
 	}
 }
 
+// WithOtelCollector sets the OpenTelemetry collector.
+func WithOtelCollector(c *otel.Collector) Option {
+	return func(r *Runtime) {
+		r.otelCollector = c
+	}
+}
+
 // WithLogsDir sets the directory where Envoy logs will be written.
 // If this option is set, logs will be piped to files in the format
 // envoy.<pid>.<pipe>.log in the specified directory.
 func WithLogsDir(dir string) Option {
 	return func(r *Runtime) {
-		r.envoyLogsDir = dir
-	}
-}
-
-// WithOtelCollector sets the OpenTelemetry collector.
-func WithOtelCollector(c *otel.Collector) Option {
-	return func(r *Runtime) {
-		r.otelCollector = c
+		r.logsDir = dir
 	}
 }
 
@@ -134,6 +134,7 @@ type Runtime struct {
 	goPluginDir   string
 	adminHost     string
 	drainTimeout  *time.Duration
+	logsDir       string
 
 	mu     sync.RWMutex
 	status RuntimeStatus

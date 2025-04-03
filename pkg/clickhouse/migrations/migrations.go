@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
-	"github.com/apoxy-dev/apoxy-cli/pkg/log"
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/clickhouse"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
@@ -72,8 +71,6 @@ func (f *tmplFile) Read(p []byte) (n int, err error) {
 		return 0, fmt.Errorf("buffer is too small")
 	}
 
-	log.Infof("read %d bytes from file", n)
-
 	tmpl, err := template.New("").Parse(string(f.buf[:n]))
 	if err != nil {
 		return 0, err
@@ -84,8 +81,6 @@ func (f *tmplFile) Read(p []byte) (n int, err error) {
 	if err != nil {
 		return 0, err
 	}
-
-	log.Infof("rendered template: %s", buf.String())
 
 	if len(p) < buf.Len() {
 		return 0, fmt.Errorf("buffer is too small")

@@ -25,30 +25,30 @@ const (
 	BackplaneProcessName = "backplane"
 )
 
-// SupervisorDriver implements the Driver interface for process supervision.
-type SupervisorDriver struct {
+// BackplaneSupervisorDriver implements the Driver interface for process supervision.
+type BackplaneSupervisorDriver struct {
 	// LogsDir is the directory where logs will be written
 	LogsDir string
 	// cmd is the command being run
 	cmd *exec.Cmd
 }
 
-// NewSupervisorDriver creates a new Supervisor driver with default configuration.
-func NewSupervisorDriver() *SupervisorDriver {
-	return &SupervisorDriver{
+// NewBackplaneSupervisorDriver creates a new Supervisor driver with default configuration.
+func NewBackplaneSupervisorDriver() *BackplaneSupervisorDriver {
+	return &BackplaneSupervisorDriver{
 		LogsDir: DefaultLogsDir,
 	}
 }
 
 // WithLogsDir sets the logs directory for the supervisor driver.
-func WithLogsDir(logsDir string) func(*SupervisorDriver) {
-	return func(d *SupervisorDriver) {
+func WithLogsDir(logsDir string) func(*BackplaneSupervisorDriver) {
+	return func(d *BackplaneSupervisorDriver) {
 		d.LogsDir = logsDir
 	}
 }
 
 // Start implements the Driver interface.
-func (d *SupervisorDriver) Start(
+func (d *BackplaneSupervisorDriver) Start(
 	ctx context.Context,
 	orgID uuid.UUID,
 	proxyName string,
@@ -138,7 +138,7 @@ func (d *SupervisorDriver) Start(
 }
 
 // Stop implements the Driver interface.
-func (d *SupervisorDriver) Stop(orgID uuid.UUID, proxyName string) {
+func (d *BackplaneSupervisorDriver) Stop(orgID uuid.UUID, proxyName string) {
 	if d.cmd == nil || d.cmd.Process == nil {
 		log.Infof("No backplane process to stop")
 		return
@@ -181,4 +181,9 @@ func (d *SupervisorDriver) Stop(orgID uuid.UUID, proxyName string) {
 
 	// Clean up
 	d.cmd = nil
+}
+
+// GetAddr implements the Driver interface.
+func (d *BackplaneSupervisorDriver) GetAddr(ctx context.Context) (string, error) {
+	return "localhost", nil
 }

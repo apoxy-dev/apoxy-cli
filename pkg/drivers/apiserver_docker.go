@@ -3,7 +3,6 @@ package drivers
 import (
 	"context"
 	"fmt"
-	"net"
 	"os/exec"
 	"time"
 
@@ -15,44 +14,44 @@ import (
 )
 
 const (
-	containerNamePrefix = "apoxy-backplane-"
-	imageRepo           = "docker.io/apoxy/backplane"
+	apiserverContainerNamePrefix = "apoxy-apiserver-"
+	apiserverImageRepo           = "docker.io/apoxy/apiserver"
 )
 
-// DockerDriver implements the Driver interface for Docker.
-type DockerDriver struct{}
+// APIServerDockerDriver implements the Driver interface for Docker.
+type APIServerDockerDriver struct{}
 
-// NewDockerDriver creates a new Docker driver.
-func NewDockerDriver() *DockerDriver {
-	return &DockerDriver{}
+// NewAPIServerDockerDriver creates a new Docker driver for apiserver.
+func NewAPIServerDockerDriver() *APIServerDockerDriver {
+	return &APIServerDockerDriver{}
 }
 
-func imageRef() string {
+func apiserverImageRef() string {
 	imgTag := build.BuildVersion
 	if build.IsDev() {
 		imgTag = "latest"
 	}
-	return imageRepo + ":" + imgTag
+	return apiserverImageRepo + ":" + imgTag
 }
 
 // Start implements the Driver interface.
-func (d *DockerDriver) Start(
+func (d *APIServerDockerDriver) Start(
 	ctx context.Context,
 	orgID uuid.UUID,
-	proxyName string,
+	serviceName string,
 	opts ...Option,
 ) (string, error) {
 	setOpts := DefaultOptions()
 	for _, opt := range opts {
 		opt(setOpts)
 	}
-	imageRef := imageRef()
+	imageRef := apiserverImageRef()
 	cname, found, err := dockerutils.Collect(
 		ctx,
-		containerNamePrefix,
+		apiserverContainerNamePrefix,
 		imageRef,
 		dockerutils.WithLabel("org.apoxy.project_id", orgID.String()),
-		dockerutils.WithLabel("org.apoxy.proxy", proxyName),
+		dockerutils.WithLabel("org.apoxy.apiserver", serviceName),
 	)
 	if err != nil {
 		return "", err
@@ -85,56 +84,55 @@ func (d *DockerDriver) Start(
 		"docker", "run",
 		fmt.Sprintf("--pull=%s", pullPolicy),
 		"--detach",
-		//"--rm",
 		"--name", cname,
 		"--label", "org.apoxy.project_id="+orgID.String(),
-		"--label", "org.apoxy.proxy="+proxyName,
-		"--privileged",
+		"--label", "org.apoxy.apiserver="+serviceName,
 		"--network", dockerutils.NetworkName,
+		"-p", "8443:8443", // Expose API server port
+		"-p", "8081:8081", // Expose ingest store port
 	)
 
-	apiServerHost, err := getDockerBridgeIP()
-	if err != nil {
-		return "", fmt.Errorf("failed to get docker bridge IP: %w", err)
-	}
-
 	cmd.Args = append(cmd.Args, imageRef)
+
+	// Add standard arguments
 	cmd.Args = append(cmd.Args, []string{
-		"--project_id=" + orgID.String(),
-		// Use the same name for both proxy and replica - we only have one replica.
-		"--proxy=" + proxyName,
-		"--replica=" + proxyName,
-		"--apiserver_addr=" + net.JoinHostPort(apiServerHost, "8443"),
-		"--use_envoy_contrib=true",
+		"--dev=true",
 	}...)
+
+	// Add user-provided arguments
 	cmd.Args = append(cmd.Args, setOpts.Args...)
 
 	log.Debugf("Running command: %v", cmd.String())
 
 	if err := cmd.Run(); err != nil {
 		if execErr, ok := err.(*exec.ExitError); ok {
-			return "", fmt.Errorf("failed to start Envoy backplane: %s", execErr.Stderr)
+			return "", fmt.Errorf("failed to start API server: %s", execErr.Stderr)
 		}
-		return "", fmt.Errorf("failed to start Envoy backplane: %w", err)
+		return "", fmt.Errorf("failed to start API server: %w", err)
 	}
 
 	if err := dockerutils.WaitForStatus(ctx, cname, "running"); err != nil {
-		return "", fmt.Errorf("failed to start Envoy backplane: %w", err)
+		return "", fmt.Errorf("failed to start API server: %w", err)
+	}
+
+	// Wait for the API server to be healthy
+	if err := healthCheckAPIServer(); err != nil {
+		return "", err
 	}
 
 	return cname, nil
 }
 
 // Stop implements the Driver interface.
-func (d *DockerDriver) Stop(orgID uuid.UUID, proxyName string) {
+func (d *APIServerDockerDriver) Stop(orgID uuid.UUID, serviceName string) {
 	ctx, _ := context.WithTimeout(context.Background(), 30*time.Second)
-	imageRef := imageRef()
+	imageRef := apiserverImageRef()
 	cname, found, err := dockerutils.Collect(
 		ctx,
-		containerNamePrefix,
+		apiserverContainerNamePrefix,
 		imageRef,
 		dockerutils.WithLabel("org.apoxy.project_id", orgID.String()),
-		dockerutils.WithLabel("org.apoxy.proxy", proxyName),
+		dockerutils.WithLabel("org.apoxy.apiserver", serviceName),
 	)
 	if err != nil {
 		log.Errorf("Error stopping Docker container: %v", err)
@@ -148,9 +146,24 @@ func (d *DockerDriver) Stop(orgID uuid.UUID, proxyName string) {
 	)
 	if err := cmd.Run(); err != nil {
 		if execErr, ok := err.(*exec.ExitError); ok {
-			log.Errorf("failed to stop Envoy backplane: %s", execErr.Stderr)
+			log.Errorf("failed to stop API server: %s", execErr.Stderr)
 		} else {
-			log.Errorf("failed to stop Envoy backplane: %v", err)
+			log.Errorf("failed to stop API server: %v", err)
 		}
 	}
+}
+
+// GetAddr implements the Driver interface.
+func (d *APIServerDockerDriver) GetAddr(ctx context.Context) (string, error) {
+	cname, found, err := dockerutils.Collect(
+		ctx,
+		apiserverContainerNamePrefix,
+		apiserverImageRef(),
+	)
+	if err != nil {
+		return "", err
+	} else if !found {
+		return "", fmt.Errorf("apiserver not found")
+	}
+	return cname, nil
 }

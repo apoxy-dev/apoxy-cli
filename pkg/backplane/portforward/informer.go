@@ -19,7 +19,7 @@ import (
 
 	"github.com/apoxy-dev/apoxy-cli/client/informers"
 	"github.com/apoxy-dev/apoxy-cli/client/versioned"
-	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/drivers"
+	"github.com/apoxy-dev/apoxy-cli/pkg/drivers"
 	"github.com/apoxy-dev/apoxy-cli/pkg/log"
 
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
