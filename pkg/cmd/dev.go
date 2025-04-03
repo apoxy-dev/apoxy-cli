@@ -309,11 +309,12 @@ var devCmd = &cobra.Command{
 			return err
 		}
 		apiserverArgs := []string{}
-		if os.Getenv("TMPDIR") != "" {
+		tmpDir := os.Getenv("APOXY_TMPDIR")
+		if tmpDir != "" {
 			apiserverArgs = []string{
-				fmt.Sprintf("--db=%s", filepath.Join(os.Getenv("TMPDIR"), "apoxy.db")),
-				fmt.Sprintf("--temporal-db=%s", filepath.Join(os.Getenv("TMPDIR"), "temporal.db")),
-				fmt.Sprintf("--ingest-store-dir=%s", filepath.Join(os.Getenv("TMPDIR"), "ingest")),
+				fmt.Sprintf("--db=%s", filepath.Join(tmpDir, "apoxy.db")),
+				fmt.Sprintf("--temporal-db=%s", filepath.Join(tmpDir, "temporal.db")),
+				fmt.Sprintf("--ingest-store-dir=%s", filepath.Join(tmpDir, "ingest")),
 			}
 		}
 		if _, err := apiDriver.Start(ctx, projectID, proxyName, drivers.WithArgs(apiserverArgs...)); err != nil {
