@@ -15,28 +15,28 @@ import (
 )
 
 const (
-	containerNamePrefix = "apoxy-backplane-"
-	imageRepo           = "docker.io/apoxy/backplane"
+	backplaneContainerNamePrefix = "apoxy-backplane-"
+	backplaneImageRepo           = "docker.io/apoxy/backplane"
 )
 
-// DockerDriver implements the Driver interface for Docker.
-type DockerDriver struct{}
+// BackplaneDockerDriver implements the Driver interface for Docker.
+type BackplaneDockerDriver struct{}
 
-// NewDockerDriver creates a new Docker driver.
-func NewDockerDriver() *DockerDriver {
-	return &DockerDriver{}
+// NewBackplaneDockerDriver creates a new Docker driver for backplane.
+func NewBackplaneDockerDriver() *BackplaneDockerDriver {
+	return &BackplaneDockerDriver{}
 }
 
-func imageRef() string {
+func backplaneImageRef() string {
 	imgTag := build.BuildVersion
 	if build.IsDev() {
 		imgTag = "latest"
 	}
-	return imageRepo + ":" + imgTag
+	return backplaneImageRepo + ":" + imgTag
 }
 
 // Start implements the Driver interface.
-func (d *DockerDriver) Start(
+func (d *BackplaneDockerDriver) Start(
 	ctx context.Context,
 	orgID uuid.UUID,
 	proxyName string,
@@ -46,13 +46,13 @@ func (d *DockerDriver) Start(
 	for _, opt := range opts {
 		opt(setOpts)
 	}
-	imageRef := imageRef()
+	imageRef := backplaneImageRef()
 	cname, found, err := dockerutils.Collect(
 		ctx,
-		containerNamePrefix,
+		backplaneContainerNamePrefix,
 		imageRef,
 		dockerutils.WithLabel("org.apoxy.project_id", orgID.String()),
-		dockerutils.WithLabel("org.apoxy.proxy", proxyName),
+		dockerutils.WithLabel("org.apoxy.backplane", proxyName),
 	)
 	if err != nil {
 		return "", err
@@ -88,7 +88,7 @@ func (d *DockerDriver) Start(
 		//"--rm",
 		"--name", cname,
 		"--label", "org.apoxy.project_id="+orgID.String(),
-		"--label", "org.apoxy.proxy="+proxyName,
+		"--label", "org.apoxy.backplane="+proxyName,
 		"--privileged",
 		"--network", dockerutils.NetworkName,
 	)
@@ -126,15 +126,15 @@ func (d *DockerDriver) Start(
 }
 
 // Stop implements the Driver interface.
-func (d *DockerDriver) Stop(orgID uuid.UUID, proxyName string) {
+func (d *BackplaneDockerDriver) Stop(orgID uuid.UUID, proxyName string) {
 	ctx, _ := context.WithTimeout(context.Background(), 30*time.Second)
-	imageRef := imageRef()
+	imageRef := backplaneImageRef()
 	cname, found, err := dockerutils.Collect(
 		ctx,
-		containerNamePrefix,
+		backplaneContainerNamePrefix,
 		imageRef,
 		dockerutils.WithLabel("org.apoxy.project_id", orgID.String()),
-		dockerutils.WithLabel("org.apoxy.proxy", proxyName),
+		dockerutils.WithLabel("org.apoxy.backplane", proxyName),
 	)
 	if err != nil {
 		log.Errorf("Error stopping Docker container: %v", err)

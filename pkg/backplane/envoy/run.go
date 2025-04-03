@@ -118,6 +118,15 @@ func WithOtelCollector(c *otel.Collector) Option {
 	}
 }
 
+// WithLogsDir sets the directory where Envoy logs will be written.
+// If this option is set, logs will be piped to files in the format
+// envoy.<pid>.<pipe>.log in the specified directory.
+func WithLogsDir(dir string) Option {
+	return func(r *Runtime) {
+		r.logsDir = dir
+	}
+}
+
 type Runtime struct {
 	EnvoyPath           string
 	BootstrapConfigYAML string
@@ -134,6 +143,7 @@ type Runtime struct {
 	goPluginDir   string
 	adminHost     string
 	drainTimeout  *time.Duration
+	logsDir       string
 
 	mu     sync.RWMutex
 	status RuntimeStatus
@@ -363,15 +373,30 @@ func (e FatalError) Error() string {
 // Start starts the Envoy binary.
 func (r *Runtime) Start(ctx context.Context, opts ...Option) error {
 	status := r.RuntimeStatus()
+<<<<<<< Updated upstream
 	if status.Starting || status.Running {
 		return nil
+=======
+	if status.Starting {
+		return errors.New("envoy already starting")
+	} else if status.Running {
+	status := r.RuntimeStatus()
+	if status.Starting {
+		return errors.New("envoy already starting")
+	} else if status.Running {
+		return errors.New("envoy already running")
+>>>>>>> Stashed changes
 	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.status.Starting = true
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.status.Starting = true
 
 	r.setOptions(opts...)
 
+	log.Infof("preparing envoy %s", r.Release)
 	log.Infof("preparing envoy %s", r.Release)
 
 	if err := r.vendorEnvoyIfNotExists(ctx); err != nil {
@@ -516,6 +541,7 @@ func (r *Runtime) Shutdown(ctx context.Context) error {
 
 type RuntimeStatus struct {
 	StartedAt time.Time
+	Starting  bool
 	Starting  bool
 	Running   bool
 	ProcState *os.ProcessState

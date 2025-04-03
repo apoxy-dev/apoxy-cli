@@ -2,25 +2,20 @@ package cmd
 
 import (
 	"context"
-	goerrors "errors"
+	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
-	goruntime "runtime"
 	"strings"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
-	"github.com/temporalio/cli/temporalcli/devserver"
-	tclient "go.temporal.io/sdk/client"
-	tworker "go.temporal.io/sdk/worker"
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -33,12 +28,9 @@ import (
 
 	"github.com/apoxy-dev/apoxy-cli/config"
 	"github.com/apoxy-dev/apoxy-cli/pkg/apiserver"
-	"github.com/apoxy-dev/apoxy-cli/pkg/apiserver/ingest"
-	bpdrivers "github.com/apoxy-dev/apoxy-cli/pkg/backplane/drivers"
-	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/portforward"
 	chdrivers "github.com/apoxy-dev/apoxy-cli/pkg/clickhouse/drivers"
 	"github.com/apoxy-dev/apoxy-cli/pkg/clickhouse/migrations"
-	"github.com/apoxy-dev/apoxy-cli/pkg/gateway"
+	"github.com/apoxy-dev/apoxy-cli/pkg/drivers"
 	"github.com/apoxy-dev/apoxy-cli/pkg/log"
 
 	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
@@ -56,7 +48,7 @@ func init() {
 	utilruntime.Must(corev1alpha.Install(rs))
 
 	devCmd.PersistentFlags().
-		BoolVar(&useSubprocess, "use-subprocess", false, "Use subprocess for backplane.")
+		BoolVar(&useSubprocess, "use-subprocess", false, "Use subprocess for apiserver and backplane.")
 	devCmd.PersistentFlags().
 		StringVar(&clickhouseAddr, "clickhouse-addr", "", "ClickHouse address (host only, port 9000 will be used).")
 	rootCmd.AddCommand(devCmd)
@@ -123,7 +115,7 @@ func updateFromFile(ctx context.Context, proxyNameOverride, path string) error {
 		_, err = dynClient.Resource(mapping.Resource).
 			Namespace(unObj.GetNamespace()).
 			Create(ctx, unObj, metav1.CreateOptions{})
-		if errors.IsAlreadyExists(err) {
+		if k8serrors.IsAlreadyExists(err) {
 			log.Debugf("object gvk=%v name=%s already exists, updating...", unObj.GroupVersionKind(), maybeNamespaced(unObj))
 
 			res, err := dynClient.Resource(mapping.Resource).
@@ -178,7 +170,6 @@ func downloadToFile(url string, filepath string) error {
 // Apoxy configuration when changes occur. For URLs, it downloads to a temp file
 // and watches that. Proxy object name will be overridden with the given value.
 func watchAndReloadConfig(ctx context.Context, proxyNameOverride, pathOrURL string) error {
-	// Check if the input is a URL
 	isURL := false
 	if _, err := url.ParseRequestURI(pathOrURL); err == nil {
 		if strings.HasPrefix(pathOrURL, "http://") || strings.HasPrefix(pathOrURL, "https://") {
@@ -207,26 +198,30 @@ func watchAndReloadConfig(ctx context.Context, proxyNameOverride, pathOrURL stri
 
 		// Do initial download
 		if err := downloadToFile(pathOrURL, watchPath); err != nil {
-			return fmt.Errorf("failed to download initial config: %w", err)
+			return fmt.Errorf("failed to download config from %s: %w", pathOrURL, err)
 		}
 
-		fmt.Printf("Watching downloaded config at temporary location: %s\n", watchPath)
+		log.Infof("Downloaded config from %s to %s", pathOrURL, watchPath)
 	} else {
 		watchPath = pathOrURL
 	}
 
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		return err
-	}
-	defer watcher.Close()
-	if err := watcher.Add(watchPath); err != nil {
-		return err
+	if err := updateFromFile(ctx, proxyNameOverride, watchPath); err != nil {
+		return fmt.Errorf("failed to apply initial configuration: %w", err)
 	}
 
-	if err := updateFromFile(ctx, proxyNameOverride, watchPath); err != nil {
-		return err
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		return fmt.Errorf("failed to create file watcher: %w", err)
 	}
+	defer watcher.Close()
+
+	if err := watcher.Add(watchPath); err != nil {
+		return fmt.Errorf("failed to add file to watcher: %w", err)
+	}
+
+	log.Infof("Watching %s for changes...", watchPath)
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -251,7 +246,6 @@ func watchAndReloadConfig(ctx context.Context, proxyNameOverride, pathOrURL stri
 			return err
 		}
 	}
-	panic("unreachable")
 }
 
 type runError struct {
@@ -280,7 +274,7 @@ var devCmd = &cobra.Command{
 	Short: "Develop against the Apoxy API locally",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		config.LocalMode = true // Enable local mode
+		config.LocalMode = true
 		cmd.SilenceUsage = true
 		cfg, err := config.Load()
 		if err != nil {
@@ -297,85 +291,36 @@ var devCmd = &cobra.Command{
 			return err
 		}
 
-		c, err := config.DefaultAPIClient()
-		if err != nil {
-			return err
-		}
-
-		fmt.Printf("Starting Apoxy server with Proxy name=%s ...\n", proxyName)
+		log.Infof("Starting Apoxy server with Proxy name: %s", proxyName)
 
 		ctx, ctxCancel := context.WithCancelCause(cmd.Context())
 
-		tOpts := devserver.StartOptions{
-			FrontendIP:             "127.0.0.1",
-			FrontendPort:           7223,
-			Namespaces:             []string{"default"},
-			Logger:                 log.DefaultLogger,
-			LogLevel:               slog.LevelError, // Too noisy otherwise.
-			ClusterID:              uuid.NewString(),
-			MasterClusterName:      "active",
-			CurrentClusterName:     "active",
-			InitialFailoverVersion: 1,
+		driverMode := drivers.DockerMode
+		if useSubprocess {
+			driverMode = drivers.SupervisorMode
 		}
-		tSrv, err := devserver.Start(tOpts)
+
+		log.Infof("Starting apiserver using driver mode: %s", driverMode)
+		apiDriver, err := drivers.GetDriver(driverMode, drivers.APIServerService)
 		if err != nil {
-			return fmt.Errorf("failed starting Temporal server: %w", err)
+			return err
 		}
-		defer tSrv.Stop()
-		tc, err := tclient.NewLazyClient(tclient.Options{
-			HostPort:  "localhost:7223",
-			Namespace: "default",
-			Logger:    log.DefaultLogger,
-		})
-		if err != nil {
-			return fmt.Errorf("failed creating Temporal client: %w", err)
+		apiserverArgs := []string{}
+		if os.Getenv("TMPDIR") != "" {
+			apiserverArgs = []string{
+				"--db", filepath.Join(os.Getenv("TMPDIR"), "apoxy.db"),
+				"--temporal-db", filepath.Join(os.Getenv("TMPDIR"), "temporal.db"),
+				"--ingest-store-dir", filepath.Join(os.Getenv("TMPDIR"), "ingest"),
+			}
 		}
-
-		wOpts := tworker.Options{
-			MaxConcurrentActivityExecutionSize:     goruntime.NumCPU(),
-			MaxConcurrentWorkflowTaskExecutionSize: goruntime.NumCPU(),
-			EnableSessionWorker:                    true,
+		if _, err := apiDriver.Start(ctx, projectID, proxyName, drivers.WithArgs(apiserverArgs...)); err != nil {
+			log.Errorf("failed to start apiserver: %v", err)
+			return err
 		}
-		w := tworker.New(tc, ingest.EdgeFunctionIngestQueue, wOpts)
-		ingest.RegisterWorkflows(w)
-		ww := ingest.NewWorker(nil /* no k8s client in local mode */, c, os.Getenv("TMPDIR"))
-		ww.RegisterActivities(w)
-		go func() {
-			if err = ww.ListenAndServeEdgeFuncs("localhost", 8081); err != nil {
-				log.Errorf("failed to start Wasm server: %v", err)
-				ctxCancel(&runError{Err: err})
-			}
-		}()
-		go func() {
-			err = w.Run(stopCh(ctx))
-			if err != nil {
-				log.Errorf("failed running Temporal worker: %v", err)
-				ctxCancel(&runError{Err: err})
-			}
-		}()
-
-		gwSrv := gateway.NewServer()
-		go func() {
-			if err := gwSrv.Run(ctx); err != nil {
-				log.Errorf("failed to serve Gateway APIs: %v", err)
-				ctxCancel(&runError{Err: err})
-			}
-		}()
-
-		m := apiserver.New()
-		go func() {
-			if err := m.Start(ctx, gwSrv, tc, apiserver.WithInMemorySQLite()); err != nil {
-				log.Errorf("failed to start API server: %v", err)
-				ctxCancel(&runError{Err: err})
-			}
-		}()
-		select {
-		case <-m.ReadyCh:
-		case <-ctx.Done():
-			return nil
-		}
+		defer apiDriver.Stop(projectID, proxyName)
 
 		if len(clickhouseAddr) == 0 {
+			log.Infof("Starting clickhouse in docker")
 			chDriver, err := chdrivers.GetDriver("docker")
 			if err != nil {
 				return err
@@ -395,26 +340,20 @@ var devCmd = &cobra.Command{
 			}
 		}
 
-		backplaneDriver := "docker"
-		if useSubprocess {
-			backplaneDriver = "supervisor"
-		}
-		bpDriver, err := bpdrivers.GetDriver(backplaneDriver)
+		log.Infof("Starting backplane using driver mode: %s", driverMode)
+		bpDriver, err := drivers.GetDriver(driverMode, drivers.BackplaneService)
 		if err != nil {
 			return err
-		}
-
-		// Common arguments for all drivers
-		driverArgs := []string{
-			"--ch_addrs", clickhouseAddr + ":9000",
-			"--dev", "true",
 		}
 
 		cname, err := bpDriver.Start(
 			ctx,
 			projectID,
 			proxyName,
-			bpdrivers.WithArgs(driverArgs...),
+			drivers.WithArgs([]string{
+				"--ch_addrs", clickhouseAddr + ":9000",
+				"--dev", "true",
+			}...),
 		)
 		if err != nil {
 			return err
@@ -423,7 +362,7 @@ var devCmd = &cobra.Command{
 
 		if !useSubprocess {
 			rc := apiserver.NewClientConfig()
-			fwd, err := portforward.NewPortForwarder(rc, proxyName, proxyName, cname)
+			fwd, err := drivers.NewPortForwarder(rc, proxyName, proxyName, cname)
 			if err != nil {
 				return err
 			}
@@ -434,8 +373,6 @@ var devCmd = &cobra.Command{
 				// If err is nil, it means context has been cancelled.
 			}()
 		}
-
-		fmt.Printf("Watching %s for Proxy configurations...\n", path)
 
 		if err := watchAndReloadConfig(ctx, proxyName, path); err != nil {
 			return err
@@ -448,7 +385,7 @@ var devCmd = &cobra.Command{
 		<-ctx.Done()
 
 		var runErr *runError
-		if err := context.Cause(ctx); goerrors.As(err, &runErr) {
+		if err := context.Cause(ctx); errors.As(err, &runErr) {
 			return runErr.Err
 		}
 
