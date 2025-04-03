@@ -178,8 +178,30 @@ func (m *ApoxyCli) BuildCLI(
 		WithEnvVariable("GOARCH", goarch).
 		WithEnvVariable("GOOS", os).
 		WithEnvVariable("CGO_ENABLED", "1").
-		WithEnvVariable("CC", fmt.Sprintf("zig-wrapper cc --target=%s --sysroot=/macsdk -I/macsdk/usr/include -L/macsdk/usr/lib -F/macsdk/System/Library/Frameworks -Wno-expansion-to-defined -Wno-availability -Wno-nullability-completeness -DZIG_STATIC_ZLIB=on", zigTarget)).
-		WithEnvVariable("CXX", fmt.Sprintf("zig-wrapper c++ --target=%s --sysroot=/macsdk -I/macsdk/usr/include -L/macsdk/usr/lib -F/macsdk/System/Library/Frameworks -Wno-expansion-to-defined -Wno-availability -Wno-nullability-completeness -DZIG_STATIC_ZLIB=on", zigTarget)).
+		WithEnvVariable("CC", strings.Join([]string{
+			"zig-wrapper cc",
+			"--target=" + zigTarget,
+			"--sysroot=/macsdk",
+			"-I/macsdk/usr/include",
+			"-L/macsdk/usr/lib",
+			"-F/macsdk/System/Library/Frameworks",
+			"-Wno-expansion-to-defined",
+			"-Wno-availability",
+			"-Wno-nullability-completeness",
+			"-DZIG_STATIC_ZLIB=on",
+		}, " ")).
+		WithEnvVariable("CXX", strings.Join([]string{
+			"zig-wrapper c++",
+			"--target=" + zigTarget,
+			"--sysroot=/macsdk",
+			"-I/macsdk/usr/include",
+			"-L/macsdk/usr/lib",
+			"-F/macsdk/System/Library/Frameworks",
+			"-Wno-expansion-to-defined",
+			"-Wno-availability",
+			"-Wno-nullability-completeness",
+			"-DZIG_STATIC_ZLIB=on",
+		}, " ")).
 		WithMountedCache("/go/pkg/mod", dag.CacheVolume("go-mod-"+goarch)).
 		WithEnvVariable("GOMODCACHE", "/go/pkg/mod").
 		WithMountedCache("/go/build-cache", dag.CacheVolume("go-build-"+goarch)).
