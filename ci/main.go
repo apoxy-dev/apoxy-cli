@@ -393,7 +393,7 @@ func (m *ApoxyCli) BuildBackplane(
 		WithEntrypoint([]string{"/bin/backplane"})
 }
 
-// BuildTunnelProxy builds a tunnel proxy binary.
+// BuildTunnelproxy builds a tunnel proxy binary.
 func (m *ApoxyCli) BuildTunnelproxy(
 	ctx context.Context,
 	src *dagger.Directory,
@@ -468,6 +468,27 @@ func (m *ApoxyCli) PublishImages(
 	}
 
 	fmt.Println("Backplane images published to", addr)
+
+	var tpCtrs []*dagger.Container
+	for _, platform := range []string{"linux/amd64", "linux/arm64"} {
+		tpCtr := m.BuildTunnelproxy(ctx, src, platform)
+		tpCtrs = append(tpCtrs, tpCtr)
+	}
+
+	addr, err = dag.Container().
+		WithRegistryAuth(
+			"registry-1.docker.io",
+			"apoxy",
+			registryPassword,
+		).
+		Publish(ctx, "docker.io/apoxy/tunnelproxy:"+tag, dagger.ContainerPublishOpts{
+			PlatformVariants: tpCtrs,
+		})
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("Tunnelproxy images published to", addr)
 
 	return nil
 }
