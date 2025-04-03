@@ -21,7 +21,7 @@ import (
 
 const (
 	// DefaultCollectorBinary is the default path to the otel-collector binary
-	DefaultCollectorBinary = "run/bin/otel-collector"
+	DefaultCollectorBinary = "/bin/otel-collector"
 
 	// DefaultLogsDir is the default directory for logs
 	DefaultLogsDir = "/var/log/apoxy"
@@ -41,10 +41,16 @@ const (
 
 // TemplateVars represents the variables used in the OpenTelemetry collector config template
 type TemplateVars struct {
-	OTLPPort           int
-	ClickHouseAddr     string
-	ClickHouseDatabase string
-	EnableClickHouse   bool
+	OTLPPort                    int
+	ClickHouseAddr              string
+	ClickHouseDatabase          string
+	EnableClickHouse            bool
+	OTLPTracesEndpoint          string
+	OTLPTracesProtocol          string
+	OTLPTracesInsecure          bool
+	OTLPTracesCertificate       string
+	OTLPTracesClientKey         string
+	OTLPTracesClientCertificate string
 }
 
 //go:embed config_template.yaml
@@ -143,13 +149,7 @@ func (c *Collector) setOptions(opts ...Option) {
 
 	// Set defaults if not provided
 	if c.CollectorBinary == "" {
-		// Use the default binary path relative to the current working directory
-		cwd, err := os.Getwd()
-		if err == nil {
-			c.CollectorBinary = filepath.Join(cwd, DefaultCollectorBinary)
-		} else {
-			c.CollectorBinary = DefaultCollectorBinary
-		}
+		c.CollectorBinary = DefaultCollectorBinary
 	}
 
 	if c.LogsDir == "" {
@@ -206,11 +206,53 @@ func (c *Collector) Start(ctx context.Context, opts ...Option) error {
 					clickHouseDatabase = c.ClickHouseOpts.Auth.Database
 				}
 			}
+
+			// The following implements the OpenTelemetry specification available at:
+			// https://github.com/open-telemetry/opentelemetry-specification/blob/e711f74df1b6c967a9c923fe34e64a78ebd15af1/specification/protocol/exporter.md
+			otlpTracesEndpoint := os.Getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT")
+			if otlpTracesEndpoint == "" {
+				otlpTracesEndpoint = os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+			}
+			otlpTracesProtocol := os.Getenv("OTEL_EXPORTER_OTLP_TRACES_PROTOCOL")
+			if otlpTracesProtocol == "" {
+				otlpTracesProtocol = os.Getenv("OTEL_EXPORTER_OTLP_PROTOCOL")
+				if otlpTracesProtocol == "" {
+					otlpTracesProtocol = "grpc"
+				}
+			}
+			if otlpTracesProtocol != "grpc" {
+				return fmt.Errorf("unsupported protocol: %s", otlpTracesProtocol)
+			}
+			otlpTracesInsecure := false
+			if insecureStr := os.Getenv("OTEL_EXPORTER_OTLP_TRACES_INSECURE"); insecureStr != "" {
+				otlpTracesInsecure = insecureStr == "true"
+			} else if insecureStr := os.Getenv("OTEL_EXPORTER_OTLP_INSECURE"); insecureStr != "" {
+				otlpTracesInsecure = insecureStr == "true"
+			}
+			otlpTracesCertificate := os.Getenv("OTEL_EXPORTER_OTLP_TRACES_CERTIFICATE")
+			if otlpTracesCertificate == "" {
+				otlpTracesCertificate = os.Getenv("OTEL_EXPORTER_OTLP_CERTIFICATE")
+			}
+			otlpTracesClientKey := os.Getenv("OTEL_EXPORTER_OTLP_TRACES_CLIENT_KEY")
+			if otlpTracesClientKey == "" {
+				otlpTracesClientKey = os.Getenv("OTEL_EXPORTER_OTLP_CLIENT_KEY")
+			}
+			otlpTracesClientCertificate := os.Getenv("OTEL_EXPORTER_OTLP_TRACES_CLIENT_CERTIFICATE")
+			if otlpTracesClientCertificate == "" {
+				otlpTracesClientCertificate = os.Getenv("OTEL_EXPORTER_OTLP_CLIENT_CERTIFICATE")
+			}
+
 			vars := TemplateVars{
-				OTLPPort:           DefaultCollectorPort,
-				EnableClickHouse:   enableClickHouse,
-				ClickHouseAddr:     chAddr,
-				ClickHouseDatabase: clickHouseDatabase,
+				OTLPPort:                    DefaultCollectorPort,
+				EnableClickHouse:            enableClickHouse,
+				ClickHouseAddr:              chAddr,
+				ClickHouseDatabase:          clickHouseDatabase,
+				OTLPTracesEndpoint:          otlpTracesEndpoint,
+				OTLPTracesProtocol:          otlpTracesProtocol,
+				OTLPTracesInsecure:          otlpTracesInsecure,
+				OTLPTracesCertificate:       otlpTracesCertificate,
+				OTLPTracesClientKey:         otlpTracesClientKey,
+				OTLPTracesClientCertificate: otlpTracesClientCertificate,
 			}
 			configContent, err := RenderConfigTemplate(vars)
 			if err != nil {

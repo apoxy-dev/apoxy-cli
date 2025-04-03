@@ -16,6 +16,25 @@ exporters:
     endpoint: {{.ClickHouseAddr}}
     database: {{.ClickHouseDatabase}}
 {{- end }}
+{{- if .OTLPTracesEndpoint }}
+  otlp:
+    endpoint: {{.OTLPTracesEndpoint}}
+{{- if eq .OTLPTracesProtocol "grpc" }}
+    tls:
+      insecure: {{.OTLPTracesInsecure}}
+{{- if .OTLPTracesCertificate }}
+      cert_file: {{.OTLPTracesCertificate}}
+{{- end }}
+{{- if and .OTLPTracesClientKey .OTLPTracesClientCertificate }}
+      key_file: {{.OTLPTracesClientKey}}
+      client_ca_file: {{.OTLPTracesClientCertificate}}
+{{- end }}
+{{- else if eq .OTLPTracesProtocol "http/protobuf" }}
+    protocol: http/protobuf
+{{- else if eq .OTLPTracesProtocol "http/json" }}
+    protocol: http/json
+{{- end }}
+{{- end }}
 
 extensions:
   zpages:
@@ -34,4 +53,7 @@ service:
       - debug
 {{- if .EnableClickHouse }}
       - clickhouse
+{{- end }}
+{{- if .OTLPTracesEndpoint }}
+      - otlp
 {{- end }}
