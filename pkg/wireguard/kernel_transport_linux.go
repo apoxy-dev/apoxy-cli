@@ -17,6 +17,7 @@ import (
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	"k8s.io/utils/ptr"
 
+	"github.com/apoxy-dev/apoxy-cli/pkg/netstack"
 	"github.com/apoxy-dev/apoxy-cli/pkg/utils"
 )
 
@@ -67,7 +68,7 @@ func NewKernelModeTransport(
 	link := &netlink.GenericLink{
 		LinkAttrs: netlink.LinkAttrs{
 			Name: ifaceName,
-			MTU:  DefaultMTU,
+			MTU:  netstack.IPv6MinMTU,
 		},
 		LinkType: "wireguard",
 	}

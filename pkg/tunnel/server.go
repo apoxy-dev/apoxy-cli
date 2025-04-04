@@ -36,14 +36,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	"github.com/apoxy-dev/apoxy-cli/pkg/netstack"
 	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/token"
 
 	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
 )
 
 const (
-	IPv6MinMTU = 1280
-	tunOffset  = device.MessageTransportHeaderSize
+	tunOffset = device.MessageTransportHeaderSize
 )
 
 var (
@@ -51,7 +51,7 @@ var (
 
 	bufferPool = sync.Pool{
 		New: func() interface{} {
-			b := make([]byte, IPv6MinMTU+tunOffset)
+			b := make([]byte, netstack.IPv6MinMTU+tunOffset)
 			return &b
 		},
 	}
@@ -184,7 +184,7 @@ func (t *TunnelServer) Start(ctx context.Context, mgr ctrl.Manager) error {
 
 	// 1. Setup QUIC server.
 	var err error
-	t.dev, err = tun.CreateTUN(t.options.tunName, IPv6MinMTU)
+	t.dev, err = tun.CreateTUN(t.options.tunName, netstack.IPv6MinMTU)
 	if err != nil {
 		return fmt.Errorf("failed to create TUN interface: %w", err)
 	}

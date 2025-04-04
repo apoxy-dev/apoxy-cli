@@ -15,7 +15,6 @@ import (
 	"golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	"gvisor.dev/gvisor/pkg/tcpip"
-	"gvisor.dev/gvisor/pkg/tcpip/transport/tcp"
 	"k8s.io/utils/ptr"
 
 	"github.com/apoxy-dev/apoxy-cli/pkg/netstack"
@@ -28,7 +27,7 @@ var _ TunnelTransport = (*UserspaceTransport)(nil)
 // UserspaceTransport is a user-space network implementation that uses WireGuard.
 type UserspaceTransport struct {
 	*network.NetstackNetwork
-	tun        *tunDevice
+	tun        *netstack.TunDevice
 	dev        *device.Device
 	privateKey wgtypes.Key
 }
@@ -49,7 +48,7 @@ func NewUserspaceTransport(conf *DeviceConfig) (*UserspaceTransport, error) {
 		return nil, fmt.Errorf("failed to parse local addresses: %w", err)
 	}
 
-	tun, err := newTunDevice(localAddresses, conf.MTU, conf.PacketCapturePath)
+	tun, err := netstack.NewTunDevice(localAddresses, conf.MTU, conf.PacketCapturePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create netstack device: %w", err)
 	}
@@ -96,7 +95,7 @@ func NewUserspaceTransport(conf *DeviceConfig) (*UserspaceTransport, error) {
 	}
 
 	return &UserspaceTransport{
-		NetstackNetwork: network.Netstack(tun.stack, tun.nicID, resolveConf),
+		NetstackNetwork: tun.Network(resolveConf),
 		tun:             tun,
 		dev:             dev,
 		privateKey:      privateKey,
@@ -139,38 +138,12 @@ func (t *UserspaceTransport) ListenPort() (uint16, error) {
 
 // LocalAddresses returns the list of local addresses assigned to the WireGuard network.
 func (t *UserspaceTransport) LocalAddresses() ([]netip.Prefix, error) {
-	nic := t.tun.stack.NICInfo()[t.tun.nicID]
-
-	var addrs []netip.Prefix
-	for _, assignedAddr := range nic.ProtocolAddresses {
-		addrs = append(addrs, netip.PrefixFrom(
-			addrFromNetstackIP(assignedAddr.AddressWithPrefix.Address),
-			assignedAddr.AddressWithPrefix.PrefixLen,
-		))
-	}
-
-	return addrs, nil
+	return t.tun.LocalAddresses()
 }
 
 // FowardToLoopback forwards all inbound traffic to the loopback interface.
 func (t *UserspaceTransport) FowardToLoopback(ctx context.Context) error {
-	// Allow outgoing packets to have a source address different from the address
-	// assigned to the NIC.
-	if tcpipErr := t.tun.stack.SetSpoofing(t.tun.nicID, true); tcpipErr != nil {
-		return fmt.Errorf("failed to enable spoofing: %v", tcpipErr)
-	}
-
-	// Allow incoming packets to have a destination address different from the
-	// address assigned to the NIC.
-	if tcpipErr := t.tun.stack.SetPromiscuousMode(t.tun.nicID, true); tcpipErr != nil {
-		return fmt.Errorf("failed to enable promiscuous mode: %v", tcpipErr)
-	}
-
-	tcpForwarder := netstack.TCPForwarder(ctx, t.tun.stack, network.Loopback())
-
-	t.tun.stack.SetTransportProtocolHandler(tcp.ProtocolNumber, tcpForwarder)
-
-	return nil
+	return t.tun.ForwardTo(ctx, network.Loopback())
 }
 
 // Peers returns the list of public keys for all peers on the WireGuard network.
