@@ -7,10 +7,10 @@ import (
 	"github.com/dpeckett/network"
 )
 
-// Network is an interface that represents a WireGuard network.
+// TunnelTransport is an interface that represents a WireGuard network.
 // It provides methods to manage peers, retrieve local addresses, and
-// listen for incoming connections.
-type Network interface {
+// make/listen for connections.
+type TunnelTransport interface {
 	io.Closer
 	network.Network
 	// Peers returns known peers associated with the network.

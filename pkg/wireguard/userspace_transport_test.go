@@ -19,7 +19,7 @@ import (
 	"github.com/apoxy-dev/apoxy-cli/pkg/wireguard"
 )
 
-func TestUserspaceNetwork(t *testing.T) {
+func TestUserspaceTransport(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, err := w.Write([]byte("Hello, World!"))
@@ -48,7 +48,7 @@ func TestUserspaceNetwork(t *testing.T) {
 	clientPort, err := utils.UnusedUDP4Port()
 	require.NoError(t, err)
 
-	serverWGNet, err := wireguard.NewUserspaceNetwork(&wireguard.DeviceConfig{
+	serverWGNet, err := wireguard.NewUserspaceTransport(&wireguard.DeviceConfig{
 		PrivateKey: ptr.To(base64.StdEncoding.EncodeToString(serverPrivateKey[:])),
 		ListenPort: ptr.To(serverPort),
 		Address:    []string{"10.0.0.1/32"},
@@ -67,7 +67,7 @@ func TestUserspaceNetwork(t *testing.T) {
 
 	require.NoError(t, serverWGNet.FowardToLoopback(context.Background()))
 
-	clientWGNet, err := wireguard.NewUserspaceNetwork(&wireguard.DeviceConfig{
+	clientWGNet, err := wireguard.NewUserspaceTransport(&wireguard.DeviceConfig{
 		PrivateKey: ptr.To(base64.StdEncoding.EncodeToString(clientPrivateKey[:])),
 		ListenPort: ptr.To(clientPort),
 		Address:    []string{"10.0.0.2/32"},
