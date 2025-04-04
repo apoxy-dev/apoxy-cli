@@ -1,4 +1,4 @@
-package connectip
+package connip
 
 import (
 	"context"
@@ -14,12 +14,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/netstack"
 	"github.com/dpeckett/network"
 	connectip "github.com/quic-go/connect-ip-go"
 	"github.com/quic-go/quic-go"
 	"github.com/quic-go/quic-go/http3"
 	"github.com/yosida95/uritemplate/v3"
+
+	"github.com/apoxy-dev/apoxy-cli/pkg/netstack"
 )
 
 var _ TunnelTransport = (*ClientTransport)(nil)
@@ -149,8 +150,8 @@ func (t *ClientTransport) Connect(ctx context.Context, serverAddr string) error 
 
 	t.NetstackNetwork = t.tun.Network(resolveConf)
 
-	// TODO: how to bubble up errors from this?
-	go spliceConnToTunDevice(t.conn, t.tun)
+	// TODO (dpeckett): how to bubble up errors from this?
+	go splice(t.tun, t.conn)
 
 	return nil
 }

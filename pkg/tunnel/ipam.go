@@ -26,7 +26,7 @@ func (r *randomULA) Allocate(_ *http.Request) netip.Prefix {
 	addr := apoxyULAPrefix.Addr().As16()
 	// Generate 6 random bytes (48 bits) - this will fill the bits between /48 and /96
 	var randomBytes [6]byte
-	rand.Read(randomBytes[:])
+	_, _ = rand.Read(randomBytes[:])
 
 	// Insert the random bytes into positions 6-11 (after the /48 prefix, before the /96 suffix)
 	for i := 0; i < 6; i++ {

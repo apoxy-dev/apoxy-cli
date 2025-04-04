@@ -1,4 +1,4 @@
-package connectip
+package connip
 
 import (
 	"errors"
@@ -6,13 +6,13 @@ import (
 	"log/slog"
 	"net"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/netstack"
-	connectip "github.com/quic-go/connect-ip-go"
 	"golang.org/x/sync/errgroup"
 	"golang.zx2c4.com/wireguard/tun"
+
+	"github.com/apoxy-dev/apoxy-cli/pkg/netstack"
 )
 
-func spliceConnToTunDevice(conn *connectip.Conn, tun tun.Device) error {
+func splice(tun tun.Device, conn Connection) error {
 	var g errgroup.Group
 
 	g.Go(func() error {
@@ -41,7 +41,7 @@ func spliceConnToTunDevice(conn *connectip.Conn, tun tun.Device) error {
 			if len(icmp) > 0 {
 				slog.Debug("Sending ICMP packet")
 
-				if _, err := t.tun.Write([][]byte{icmp}, 0); err != nil {
+				if _, err := tun.Write([][]byte{icmp}, 0); err != nil {
 					slog.Error("Failed to write ICMP packet", slog.Any("error", err))
 				}
 			}

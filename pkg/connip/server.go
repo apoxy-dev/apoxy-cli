@@ -1,4 +1,4 @@
-package connectip
+package connip
 
 import (
 	"context"

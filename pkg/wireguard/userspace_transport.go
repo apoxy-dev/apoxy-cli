@@ -14,7 +14,6 @@ import (
 	"golang.zx2c4.com/wireguard/conn"
 	"golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
-	"gvisor.dev/gvisor/pkg/tcpip"
 	"k8s.io/utils/ptr"
 
 	"github.com/apoxy-dev/apoxy-cli/pkg/netstack"
@@ -271,16 +270,4 @@ func parseAddressList(addrs []string) ([]netip.Prefix, error) {
 	}
 
 	return parsed, nil
-}
-
-func addrFromNetstackIP(ip tcpip.Address) netip.Addr {
-	switch ip.Len() {
-	case 4:
-		ip := ip.As4()
-		return netip.AddrFrom4([4]byte{ip[0], ip[1], ip[2], ip[3]})
-	case 16:
-		ip := ip.As16()
-		return netip.AddrFrom16(ip).Unmap()
-	}
-	return netip.Addr{}
 }

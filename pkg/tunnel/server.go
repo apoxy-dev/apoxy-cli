@@ -3,18 +3,14 @@
 package tunnel
 
 import (
-	"bytes"
 	"context"
 	"crypto/tls"
-	goerrors "errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"net"
 	"net/http"
 	"net/netip"
 	"strings"
-	"sync"
 
 	"github.com/alphadose/haxmap"
 	"github.com/google/uuid"
@@ -23,8 +19,6 @@ import (
 	"github.com/quic-go/quic-go/http3"
 	"github.com/vishvananda/netlink"
 	"github.com/yosida95/uritemplate/v3"
-	"golang.org/x/sync/errgroup"
-	"golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/tun"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -36,31 +30,15 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	"github.com/apoxy-dev/apoxy-cli/pkg/connip"
 	"github.com/apoxy-dev/apoxy-cli/pkg/netstack"
 	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/token"
 
 	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
 )
 
-const (
-	tunOffset = device.MessageTransportHeaderSize
-)
-
 var (
 	connectTmpl = uritemplate.MustNew("https://proxy/connect")
-
-	bufferPool = sync.Pool{
-		New: func() interface{} {
-			b := make([]byte, netstack.IPv6MinMTU+tunOffset)
-			return &b
-		},
-	}
-
-	bytesBufferPool = sync.Pool{
-		New: func() interface{} {
-			return new(bytes.Buffer)
-		},
-	}
 )
 
 type TunnelOption func(*tunnelOptions)
@@ -144,8 +122,8 @@ type TunnelServer struct {
 	dev     tun.Device
 	ln      *quic.EarlyListener
 
-	// Maps tunnel destination address to CONNECT-IP connection.
-	tuns *haxmap.Map[string, *connectip.Conn]
+	// Connections
+	mux *connip.MuxedConnection
 	// Maps
 	tunnelNodes *haxmap.Map[string, *corev1alpha.TunnelNode]
 }
@@ -163,7 +141,7 @@ func NewTunnelServer(opts ...TunnelOption) *TunnelServer {
 			EnableDatagrams: true,
 		},
 		options:     options,
-		tuns:        haxmap.New[string, *connectip.Conn](),
+		mux:         connip.NewMuxedConnection(),
 		tunnelNodes: haxmap.New[string, *corev1alpha.TunnelNode](),
 	}
 
@@ -218,28 +196,24 @@ func (t *TunnelServer) Start(ctx context.Context, mgr ctrl.Manager) error {
 		return fmt.Errorf("failed to create QUIC listener: %w", err)
 	}
 
-	g, ctx := errgroup.WithContext(context.Background())
-	g.Go(func() error {
-		g.Go(func() error {
-			<-ctx.Done()
-			return t.Shutdown(context.Background())
-		})
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
-		slog.Info("Starting HTTP/3 server", slog.String("addr", t.ln.Addr().String()))
+	go func() {
+		<-ctx.Done()
 
-		return t.ServeListener(t.ln)
-	})
-	g.Go(func() error {
-		g.Go(func() error {
-			<-ctx.Done()
-			return t.dev.Close()
-		})
+		if err := t.dev.Close(); err != nil {
+			slog.Error("Failed to close TUN device", slog.Any("error", err))
+		}
 
-		slog.Info("Starting TUN muxer")
+		if err := t.Shutdown(context.Background()); err != nil {
+			slog.Error("Failed to shutdown QUIC server", slog.Any("error", err))
+		}
+	}()
 
-		return t.mux(ctx)
-	})
-	return g.Wait()
+	slog.Info("Starting HTTP/3 server", slog.String("addr", t.ln.Addr().String()))
+
+	return t.ServeListener(t.ln)
 }
 
 func (t *TunnelServer) Stop(ctx context.Context) error {
@@ -332,32 +306,7 @@ func (t *TunnelServer) handleConnect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	t.tuns.Set(peerPrefix.String(), conn)
-
-	go func() {
-		b := bufferPool.Get().(*[]byte)
-		defer bufferPool.Put(b)
-
-		// TODO (dpeckett): add support for writing batched packets.
-		for {
-			n, err := conn.ReadPacket((*b)[tunOffset:])
-			if err != nil {
-				if goerrors.Is(err, net.ErrClosed) {
-					slog.Info("Connection closed")
-					return
-				}
-				slog.Error("Failed to read from connection", slog.Any("error", err))
-				continue
-			}
-
-			slog.Debug("Read from connection", slog.Int("bytes", n))
-
-			if _, err := t.dev.Write([][]byte{(*b)[:n+tunOffset]}, tunOffset); err != nil {
-				slog.Error("Failed to write to TUN", slog.Any("error", err))
-				continue
-			}
-		}
-	}()
+	t.mux.AddConnection(peerPrefix, conn)
 
 	agent := corev1alpha.AgentStatus{
 		Name:           uuid.NewString(),
@@ -389,7 +338,9 @@ func (t *TunnelServer) handleConnect(w http.ResponseWriter, r *http.Request) {
 		slog.Error("Failed to close connection", slog.Any("error", err))
 	}
 
-	t.tuns.Del(peerPrefix.String())
+	if err := t.mux.RemoveConnection(peerPrefix); err != nil {
+		slog.Error("Failed to remove connection", slog.Any("error", err))
+	}
 
 	if err := t.options.ipam.Release(peerPrefix); err != nil {
 		slog.Error("Failed to deallocate IP address", slog.Any("error", err))
@@ -477,70 +428,6 @@ func (t *TunnelServer) removeTUNPeer(peer netip.Prefix) error {
 	}
 
 	return nil
-}
-
-func (t *TunnelServer) mux(ctx context.Context) error {
-	for {
-		b := bufferPool.Get().(*[]byte)
-		sizes := make([]int, 1)
-		_, err := t.dev.Read([][]byte{*b}, sizes, 0)
-		if goerrors.Is(err, io.EOF) {
-			bufferPool.Put(b)
-			return nil
-		} else if err != nil {
-			bufferPool.Put(b)
-			return fmt.Errorf("failed to read from TUN: %w", err)
-		}
-		slog.Debug("Read packet from TUN", slog.Int("len", sizes[0]))
-
-		var dstIP netip.Addr
-		switch (*b)[0] >> 4 {
-		case 6:
-			// IPv6 packet (RFC 8200)
-			if sizes[0] >= 40 {
-				var addr [16]byte
-				copy(addr[:], (*b)[24:40])
-				dstIP = netip.AddrFrom16(addr)
-			} else {
-				slog.Debug("IPv6 packet too short", slog.Int("length", len(*b)))
-				bufferPool.Put(b)
-				continue
-			}
-		default:
-			slog.Warn("Unknown packet type (expected IPv6)", slog.String("type", fmt.Sprintf("%#x", (*b)[0]>>4)))
-			bufferPool.Put(b)
-			continue
-		}
-		if !dstIP.IsValid() || !dstIP.Is6() || !dstIP.IsGlobalUnicast() {
-			slog.Debug("Invalid destination IP", slog.String("ip", dstIP.String()))
-			bufferPool.Put(b)
-			continue
-		}
-
-		slog.Debug("Packet destination", slog.String("ip", dstIP.String()))
-
-		dstPrefix := netip.PrefixFrom(dstIP, 96)
-		conn, ok := t.tuns.Get(dstPrefix.String())
-		if !ok {
-			slog.Debug("No matching tunnel found", slog.String("ip", dstPrefix.String()))
-			bufferPool.Put(b)
-			continue
-		}
-
-		icmp, err := conn.WritePacket((*b)[:sizes[0]])
-		bufferPool.Put(b)
-		if err != nil {
-			slog.Error("Failed to write to connection", slog.Any("error", err))
-			continue
-		}
-		if len(icmp) > 0 {
-			slog.Debug("Sending ICMP packet")
-			if _, err := t.dev.Write([][]byte{icmp}, 0); err != nil {
-				slog.Error("Failed to write ICMP packet", slog.Any("error", err))
-			}
-		}
-	}
-	panic("unreachable")
 }
 
 func (t *TunnelServer) reconcile(ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
