@@ -60,15 +60,12 @@ func (d *APIServerDockerDriver) Start(
 		return cname, nil
 	}
 
-	// Check if we have the image.
 	if err := exec.CommandContext(ctx, "docker", "image", "inspect", imageRef).Run(); err != nil {
-		// If not, pull it.
 		if err := exec.CommandContext(ctx, "docker", "pull", imageRef).Run(); err != nil {
 			return "", fmt.Errorf("failed to pull image %s: %w", imageRef, err)
 		}
 	}
 
-	// Check for network and create if not exists.
 	if err := exec.CommandContext(ctx, "docker", "network", "inspect", dockerutils.NetworkName).Run(); err != nil {
 		if err := exec.CommandContext(ctx, "docker", "network", "create", dockerutils.NetworkName).Run(); err != nil {
 			return "", fmt.Errorf("failed to create network apoxy: %w", err)
@@ -88,18 +85,16 @@ func (d *APIServerDockerDriver) Start(
 		"--label", "org.apoxy.project_id="+orgID.String(),
 		"--label", "org.apoxy.apiserver="+serviceName,
 		"--network", dockerutils.NetworkName,
-		"-p", "8443:8443", // Expose API server port
-		"-p", "8081:8081", // Expose ingest store port
+		"-p", "8443:8443", // Expose API server port.
+		"-p", "8081:8081", // Expose ingest store port.
 	)
 
 	cmd.Args = append(cmd.Args, imageRef)
 
-	// Add standard arguments
 	cmd.Args = append(cmd.Args, []string{
 		"--dev=true",
 	}...)
 
-	// Add user-provided arguments
 	cmd.Args = append(cmd.Args, setOpts.Args...)
 
 	log.Debugf("Running command: %v", cmd.String())
@@ -115,7 +110,6 @@ func (d *APIServerDockerDriver) Start(
 		return "", fmt.Errorf("failed to start API server: %w", err)
 	}
 
-	// Wait for the API server to be healthy
 	if err := healthCheckAPIServer(); err != nil {
 		return "", err
 	}

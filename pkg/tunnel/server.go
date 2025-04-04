@@ -63,6 +63,8 @@ var (
 	}
 )
 
+type TunnelOption func(*tunnelOptions)
+
 type tunnelOptions struct {
 	tunName   string
 	proxyAddr string
@@ -79,8 +81,8 @@ func defaultOptions() *tunnelOptions {
 		proxyAddr: "0.0.0.0:8443",
 		localAddr: netip.MustParsePrefix("2001:db8::/64"),
 		ulaPrefix: netip.MustParsePrefix("fd00::/64"),
-		certPath:  "cert.pem",
-		keyPath:   "key.pem",
+		certPath:  "/etc/apoxy/certs/cert.pem",
+		keyPath:   "/etc/apoxy/certs/key.pem",
 		ipam:      NewRandomULA(),
 	}
 }
@@ -172,8 +174,6 @@ func NewTunnelServer(opts ...TunnelOption) *TunnelServer {
 	return s
 }
 
-type TunnelOption func(*tunnelOptions)
-
 func (t *TunnelServer) Start(ctx context.Context, mgr ctrl.Manager) error {
 	// 0. Setup TunnelNode controller.
 	if err := ctrl.NewControllerManagedBy(mgr).
@@ -181,11 +181,6 @@ func (t *TunnelServer) Start(ctx context.Context, mgr ctrl.Manager) error {
 		Complete(reconcile.Func(t.reconcile)); err != nil {
 		return fmt.Errorf("failed to start controller: %w", err)
 	}
-
-	g, ctx := errgroup.WithContext(context.Background())
-	g.Go(func() error {
-		return mgr.Start(ctx)
-	})
 
 	// 1. Setup QUIC server.
 	var err error
@@ -223,6 +218,7 @@ func (t *TunnelServer) Start(ctx context.Context, mgr ctrl.Manager) error {
 		return fmt.Errorf("failed to create QUIC listener: %w", err)
 	}
 
+	g, ctx := errgroup.WithContext(context.Background())
 	g.Go(func() error {
 		g.Go(func() error {
 			<-ctx.Done()

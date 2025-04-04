@@ -116,7 +116,7 @@ func main() {
 			sOpts = append(sOpts, apiserver.WithKubeAPI())
 		}
 		if err := m.Start(ctx, gwSrv, tc, sOpts...); err != nil {
-			log.Errorf("failed to start API server: %v", err)
+			log.Errorf("failed to start API server manager: %v", err)
 			ctxCancel(&startErr{Err: err})
 		}
 	}()

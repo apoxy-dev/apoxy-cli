@@ -386,6 +386,22 @@ var devCmd = &cobra.Command{
 			}()
 		}
 
+		fmt.Printf("Starting tunnelproxy using driver mode: %s\n", driverMode)
+		tpDriver, err := drivers.GetDriver(driverMode, drivers.TunnelProxyService)
+		if err != nil {
+			return err
+		}
+
+		if _, err := tpDriver.Start(
+			ctx,
+			projectID,
+			proxyName,
+			drivers.WithAPIServerAddr(fmt.Sprintf("%s:8443", apiserverAddr)),
+		); err != nil {
+			return err
+		}
+		defer tpDriver.Stop(projectID, proxyName)
+
 		if err := watchAndReloadConfig(ctx, proxyName, path); err != nil {
 			return err
 		}

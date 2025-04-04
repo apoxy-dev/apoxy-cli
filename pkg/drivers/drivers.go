@@ -57,6 +57,8 @@ const (
 	BackplaneService ServiceType = "backplane"
 	// APIServerService represents the apiserver service.
 	APIServerService ServiceType = "apiserver"
+	// TunnelProxyService represents the tunnel proxy service.
+	TunnelProxyService ServiceType = "tunnelproxy"
 
 	// DockerMode represents the docker driver mode.
 	DockerMode DriverMode = "docker"
@@ -71,6 +73,8 @@ func GetDriver(driverType DriverMode, serviceType ServiceType) (Driver, error) {
 		return GetBackplaneDriver(driverType)
 	case APIServerService:
 		return GetAPIServerDriver(driverType)
+	case TunnelProxyService:
+		return GetTunnelProxyDriver(driverType)
 	default:
 		return nil, fmt.Errorf("unknown service type %q", serviceType)
 	}
@@ -97,5 +101,17 @@ func GetAPIServerDriver(driver DriverMode) (Driver, error) {
 		return NewAPIServerSupervisorDriver(), nil
 	default:
 		return nil, fmt.Errorf("unknown apiserver driver %q", driver)
+	}
+}
+
+// GetTunnelProxyDriver returns a tunnel proxy driver by name.
+func GetTunnelProxyDriver(driver DriverMode) (Driver, error) {
+	switch driver {
+	case DockerMode:
+		return NewTunnelProxyDockerDriver(), nil
+	case SupervisorMode:
+		return NewTunnelProxySupervisorDriver(), nil
+	default:
+		return nil, fmt.Errorf("unknown tunnel proxy driver %q", driver)
 	}
 }

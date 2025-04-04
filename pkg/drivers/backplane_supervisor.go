@@ -29,8 +29,7 @@ const (
 type BackplaneSupervisorDriver struct {
 	// LogsDir is the directory where logs will be written
 	LogsDir string
-	// cmd is the command being run
-	cmd *exec.Cmd
+	cmd     *exec.Cmd
 }
 
 // NewBackplaneSupervisorDriver creates a new Supervisor driver with default configuration.
@@ -59,28 +58,22 @@ func (d *BackplaneSupervisorDriver) Start(
 		opt(setOpts)
 	}
 
-	// Ensure logs directory exists
 	if d.LogsDir != "" {
 		if err := os.MkdirAll(d.LogsDir, 0755); err != nil {
 			return "", fmt.Errorf("failed to create logs directory %s: %w", d.LogsDir, err)
 		}
 	}
 
-	// Check if we already have a running process
 	if d.cmd != nil && d.cmd.Process != nil {
-		// Check if process is still running
 		if err := d.cmd.Process.Signal(os.Signal(nil)); err == nil {
 			log.Infof("Backplane process already running with PID %d", d.cmd.Process.Pid)
 			return fmt.Sprintf("%s-%s", BackplaneProcessName, proxyName), nil
 		}
-		// Process is not running, clean up
 		d.cmd = nil
 	}
 
-	// Prepare command
 	d.cmd = exec.CommandContext(ctx, BackplaneProcessName)
 
-	// Add standard arguments
 	d.cmd.Args = append(d.cmd.Args, []string{
 		"--project_id=" + orgID.String(),
 		// Use the same name for both proxy and replica - we only have one replica.
@@ -93,12 +86,9 @@ func (d *BackplaneSupervisorDriver) Start(
 		"--dev=true",
 	}...)
 
-	// Add user-provided arguments
 	d.cmd.Args = append(d.cmd.Args, setOpts.Args...)
 
-	// Set up output redirection
 	if d.LogsDir != "" {
-		// Create or truncate log files
 		stdoutPath := filepath.Join(d.LogsDir, BackplaneStdoutLogFile)
 		stderrPath := filepath.Join(d.LogsDir, BackplaneStderrLogFile)
 
@@ -118,7 +108,6 @@ func (d *BackplaneSupervisorDriver) Start(
 
 		log.Infof("Backplane logs will be written to %s and %s", stdoutPath, stderrPath)
 	} else {
-		// Use os.Stdout and os.Stderr directly
 		d.cmd.Stdout = os.Stdout
 		d.cmd.Stderr = os.Stderr
 		log.Infof("Backplane logs will be written to stdout and stderr")
@@ -126,14 +115,12 @@ func (d *BackplaneSupervisorDriver) Start(
 
 	log.Infof("Starting backplane process with command: %v", d.cmd.Args)
 
-	// Start the process
 	if err := d.cmd.Start(); err != nil {
 		return "", fmt.Errorf("failed to start backplane process: %w", err)
 	}
 
 	log.Infof("Started backplane process with PID %d", d.cmd.Process.Pid)
 
-	// Return a unique identifier for this process
 	return fmt.Sprintf("%s-%s", BackplaneProcessName, proxyName), nil
 }
 
@@ -146,20 +133,16 @@ func (d *BackplaneSupervisorDriver) Stop(orgID uuid.UUID, proxyName string) {
 
 	log.Infof("Stopping backplane process with PID %d", d.cmd.Process.Pid)
 
-	// Create a context with timeout for graceful shutdown
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Try to terminate gracefully first
 	if err := d.cmd.Process.Signal(os.Interrupt); err != nil {
 		log.Errorf("Failed to send interrupt signal to backplane process: %v", err)
-		// Try to kill forcefully
 		if err := d.cmd.Process.Kill(); err != nil {
 			log.Errorf("Failed to kill backplane process: %v", err)
 		}
 	}
 
-	// Wait for process to exit or timeout
 	done := make(chan error, 1)
 	go func() {
 		done <- d.cmd.Wait()
@@ -179,7 +162,6 @@ func (d *BackplaneSupervisorDriver) Stop(orgID uuid.UUID, proxyName string) {
 		}
 	}
 
-	// Clean up
 	d.cmd = nil
 }
 
