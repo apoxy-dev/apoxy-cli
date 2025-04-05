@@ -1,11 +1,13 @@
-package wireguard
+package netstack
 
 import (
+	"context"
 	"fmt"
 	"net/netip"
 	"os"
 	"syscall"
 
+	"github.com/dpeckett/network"
 	"golang.zx2c4.com/wireguard/tun"
 	"k8s.io/utils/ptr"
 
@@ -22,11 +24,11 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/transport/udp"
 )
 
-const DefaultMTU = 1280 // IPv6 minimum MTU, required for some PPPoE links.
+const IPv6MinMTU = 1280 // IPv6 minimum MTU, required for some PPPoE links.
 
-var _ tun.Device = (*tunDevice)(nil)
+var _ tun.Device = (*TunDevice)(nil)
 
-type tunDevice struct {
+type TunDevice struct {
 	ep             *channel.Endpoint
 	stack          *stack.Stack
 	nicID          tcpip.NICID
@@ -36,7 +38,7 @@ type tunDevice struct {
 	mtu            int
 }
 
-func newTunDevice(localAddresses []netip.Prefix, mtu *int, pcapPath string) (*tunDevice, error) {
+func NewTunDevice(localAddresses []netip.Prefix, mtu *int, pcapPath string) (*TunDevice, error) {
 	opts := stack.Options{
 		NetworkProtocols: []stack.NetworkProtocolFactory{
 			ipv4.NewProtocol,
@@ -65,7 +67,7 @@ func newTunDevice(localAddresses []netip.Prefix, mtu *int, pcapPath string) (*tu
 	}
 
 	if mtu == nil {
-		mtu = ptr.To(DefaultMTU)
+		mtu = ptr.To(IPv6MinMTU)
 	}
 
 	nicID := ipstack.NextNICID()
@@ -122,7 +124,7 @@ func newTunDevice(localAddresses []netip.Prefix, mtu *int, pcapPath string) (*tu
 		}
 	}
 
-	tunDev := &tunDevice{
+	tunDev := &TunDevice{
 		ep:             linkEP,
 		stack:          ipstack,
 		nicID:          nicID,
@@ -137,17 +139,17 @@ func newTunDevice(localAddresses []netip.Prefix, mtu *int, pcapPath string) (*tu
 	return tunDev, nil
 }
 
-func (tun *tunDevice) Name() (string, error) { return "go", nil }
+func (tun *TunDevice) Name() (string, error) { return "go", nil }
 
-func (tun *tunDevice) File() *os.File { return nil }
+func (tun *TunDevice) File() *os.File { return nil }
 
-func (tun *tunDevice) Events() <-chan tun.Event { return tun.events }
+func (tun *TunDevice) Events() <-chan tun.Event { return tun.events }
 
-func (tun *tunDevice) MTU() (int, error) { return tun.mtu, nil }
+func (tun *TunDevice) MTU() (int, error) { return tun.mtu, nil }
 
-func (tun *tunDevice) BatchSize() int { return 1 }
+func (tun *TunDevice) BatchSize() int { return 1 }
 
-func (tun *tunDevice) Read(buf [][]byte, sizes []int, offset int) (int, error) {
+func (tun *TunDevice) Read(buf [][]byte, sizes []int, offset int) (int, error) {
 	view, ok := <-tun.incomingPacket
 	if !ok {
 		return 0, os.ErrClosed
@@ -161,7 +163,7 @@ func (tun *tunDevice) Read(buf [][]byte, sizes []int, offset int) (int, error) {
 	return 1, nil
 }
 
-func (tun *tunDevice) Write(buf [][]byte, offset int) (int, error) {
+func (tun *TunDevice) Write(buf [][]byte, offset int) (int, error) {
 	for _, buf := range buf {
 		packet := buf[offset:]
 		if len(packet) == 0 {
@@ -181,7 +183,7 @@ func (tun *tunDevice) Write(buf [][]byte, offset int) (int, error) {
 	return len(buf), nil
 }
 
-func (tun *tunDevice) WriteNotify() {
+func (tun *TunDevice) WriteNotify() {
 	pkt := tun.ep.Read()
 	if pkt == nil {
 		return
@@ -193,7 +195,7 @@ func (tun *tunDevice) WriteNotify() {
 	tun.incomingPacket <- view
 }
 
-func (tun *tunDevice) Close() error {
+func (tun *TunDevice) Close() error {
 	tun.stack.RemoveNIC(tun.nicID)
 
 	if tun.events != nil {
@@ -209,6 +211,47 @@ func (tun *tunDevice) Close() error {
 	if tun.pcapFile != nil {
 		_ = tun.pcapFile.Close()
 	}
+
+	return nil
+}
+
+// Network returns the network abstraction for the TUN device.
+func (tun *TunDevice) Network(resolveConf *network.ResolveConfig) *network.NetstackNetwork {
+	return network.Netstack(tun.stack, tun.nicID, resolveConf)
+}
+
+// LocalAddresses returns the list of local addresses assigned to the TUN device.
+func (tun *TunDevice) LocalAddresses() ([]netip.Prefix, error) {
+	nic := tun.stack.NICInfo()[tun.nicID]
+
+	var addrs []netip.Prefix
+	for _, assignedAddr := range nic.ProtocolAddresses {
+		addrs = append(addrs, netip.PrefixFrom(
+			addrFromNetstackIP(assignedAddr.AddressWithPrefix.Address),
+			assignedAddr.AddressWithPrefix.PrefixLen,
+		))
+	}
+
+	return addrs, nil
+}
+
+// ForwardTo forwards all inbound traffic to the upstream network.
+func (tun *TunDevice) ForwardTo(ctx context.Context, upstream network.Network) error {
+	// Allow outgoing packets to have a source address different from the address
+	// assigned to the NIC.
+	if tcpipErr := tun.stack.SetSpoofing(tun.nicID, true); tcpipErr != nil {
+		return fmt.Errorf("failed to enable spoofing: %v", tcpipErr)
+	}
+
+	// Allow incoming packets to have a destination address different from the
+	// address assigned to the NIC.
+	if tcpipErr := tun.stack.SetPromiscuousMode(tun.nicID, true); tcpipErr != nil {
+		return fmt.Errorf("failed to enable promiscuous mode: %v", tcpipErr)
+	}
+
+	tcpForwarder := TCPForwarder(ctx, tun.stack, upstream)
+
+	tun.stack.SetTransportProtocolHandler(tcp.ProtocolNumber, tcpForwarder)
 
 	return nil
 }

@@ -24,7 +24,7 @@ import (
 	"github.com/apoxy-dev/apoxy-cli/pkg/wireguard"
 )
 
-func TestKernelModeNetwork(t *testing.T) {
+func TestKernelModeTransport(t *testing.T) {
 	if testing.Verbose() {
 		slog.SetLogLoggerLevel(slog.LevelDebug)
 	}
@@ -42,7 +42,7 @@ func TestKernelModeNetwork(t *testing.T) {
 
 	projectID := uuid.New()
 	wgAddress := tunnel.NewApoxy4To6Prefix(projectID, "kernel-node")
-	kernelWGNet, err := wireguard.NewKernelModeNetwork(&wireguard.DeviceConfig{
+	kernelWGNet, err := wireguard.NewKernelModeTransport(&wireguard.DeviceConfig{
 		PrivateKey: ptr.To(kernelPrivateKey.String()),
 		Address:    []string{wgAddress.String()},
 	})
@@ -60,7 +60,7 @@ func TestKernelModeNetwork(t *testing.T) {
 
 	wgAddress = tunnel.NewApoxy4To6Prefix(projectID, "userspace-node")
 
-	wgNet, err := wireguard.NewUserspaceNetwork(&wireguard.DeviceConfig{
+	wgNet, err := wireguard.NewUserspaceTransport(&wireguard.DeviceConfig{
 		PrivateKey: ptr.To(privateKey.String()),
 		ListenPort: ptr.To(listenPort),
 		Address:    []string{wgAddress.String()},

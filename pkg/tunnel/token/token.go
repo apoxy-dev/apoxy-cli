@@ -62,7 +62,7 @@ func (v *Validator) Validate(tokenStr, subject string) error {
 		return errors.New("subject claim not found or invalid")
 	}
 
-	if strings.ToLower(tokenSubject) != strings.ToLower(subject) {
+	if strings.EqualFold(tokenSubject, subject) {
 		return fmt.Errorf("token subject %q does not match expected subject %q", tokenSubject, subject)
 	}
 

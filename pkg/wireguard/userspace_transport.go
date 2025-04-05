@@ -14,8 +14,6 @@ import (
 	"golang.zx2c4.com/wireguard/conn"
 	"golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
-	"gvisor.dev/gvisor/pkg/tcpip"
-	"gvisor.dev/gvisor/pkg/tcpip/transport/tcp"
 	"k8s.io/utils/ptr"
 
 	"github.com/apoxy-dev/apoxy-cli/pkg/netstack"
@@ -23,18 +21,18 @@ import (
 	"github.com/apoxy-dev/apoxy-cli/pkg/wireguard/uapi"
 )
 
-var _ Network = (*UserspaceNetwork)(nil)
+var _ TunnelTransport = (*UserspaceTransport)(nil)
 
-// UserspaceNetwork is a user-space network implementation that uses WireGuard.
-type UserspaceNetwork struct {
+// UserspaceTransport is a user-space network implementation that uses WireGuard.
+type UserspaceTransport struct {
 	*network.NetstackNetwork
-	tun        *tunDevice
+	tun        *netstack.TunDevice
 	dev        *device.Device
 	privateKey wgtypes.Key
 }
 
-// NewUserspaceNetwork returns a new userspace wireguard network.
-func NewUserspaceNetwork(conf *DeviceConfig) (*UserspaceNetwork, error) {
+// NewUserspaceTransport returns a new userspace wireguard network.
+func NewUserspaceTransport(conf *DeviceConfig) (*UserspaceTransport, error) {
 	if conf.PrivateKey == nil {
 		return nil, errors.New("private key is required")
 	}
@@ -49,7 +47,7 @@ func NewUserspaceNetwork(conf *DeviceConfig) (*UserspaceNetwork, error) {
 		return nil, fmt.Errorf("failed to parse local addresses: %w", err)
 	}
 
-	tun, err := newTunDevice(localAddresses, conf.MTU, conf.PacketCapturePath)
+	tun, err := netstack.NewTunDevice(localAddresses, conf.MTU, conf.PacketCapturePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create netstack device: %w", err)
 	}
@@ -95,28 +93,28 @@ func NewUserspaceNetwork(conf *DeviceConfig) (*UserspaceNetwork, error) {
 		Nameservers: conf.DNS,
 	}
 
-	return &UserspaceNetwork{
-		NetstackNetwork: network.Netstack(tun.stack, tun.nicID, resolveConf),
+	return &UserspaceTransport{
+		NetstackNetwork: tun.Network(resolveConf),
 		tun:             tun,
 		dev:             dev,
 		privateKey:      privateKey,
 	}, nil
 }
 
-func (n *UserspaceNetwork) Close() error {
-	n.dev.Close() // Closes tun device internally.
+func (t *UserspaceTransport) Close() error {
+	t.dev.Close() // Closes tun device internally.
 	return nil
 }
 
 // PublicKey returns the public key for this peer on the WireGuard network.
-func (n *UserspaceNetwork) PublicKey() string {
-	return n.privateKey.PublicKey().String()
+func (t *UserspaceTransport) PublicKey() string {
+	return t.privateKey.PublicKey().String()
 }
 
 // ListenPort returns the local listen port of this end of the tunnel.
-func (n *UserspaceNetwork) ListenPort() (uint16, error) {
+func (t *UserspaceTransport) ListenPort() (uint16, error) {
 	var uapiConf strings.Builder
-	if err := n.dev.IpcGetOperation(&uapiConf); err != nil {
+	if err := t.dev.IpcGetOperation(&uapiConf); err != nil {
 		return 0, fmt.Errorf("failed to get device config: %w", err)
 	}
 
@@ -138,43 +136,17 @@ func (n *UserspaceNetwork) ListenPort() (uint16, error) {
 }
 
 // LocalAddresses returns the list of local addresses assigned to the WireGuard network.
-func (n *UserspaceNetwork) LocalAddresses() ([]netip.Prefix, error) {
-	nic := n.tun.stack.NICInfo()[n.tun.nicID]
-
-	var addrs []netip.Prefix
-	for _, assignedAddr := range nic.ProtocolAddresses {
-		addrs = append(addrs, netip.PrefixFrom(
-			addrFromNetstackIP(assignedAddr.AddressWithPrefix.Address),
-			assignedAddr.AddressWithPrefix.PrefixLen,
-		))
-	}
-
-	return addrs, nil
+func (t *UserspaceTransport) LocalAddresses() ([]netip.Prefix, error) {
+	return t.tun.LocalAddresses()
 }
 
 // FowardToLoopback forwards all inbound traffic to the loopback interface.
-func (n *UserspaceNetwork) FowardToLoopback(ctx context.Context) error {
-	// Allow outgoing packets to have a source address different from the address
-	// assigned to the NIC.
-	if tcpipErr := n.tun.stack.SetSpoofing(n.tun.nicID, true); tcpipErr != nil {
-		return fmt.Errorf("failed to enable spoofing: %v", tcpipErr)
-	}
-
-	// Allow incoming packets to have a destination address different from the
-	// address assigned to the NIC.
-	if tcpipErr := n.tun.stack.SetPromiscuousMode(n.tun.nicID, true); tcpipErr != nil {
-		return fmt.Errorf("failed to enable promiscuous mode: %v", tcpipErr)
-	}
-
-	tcpForwarder := netstack.TCPForwarder(ctx, n.tun.stack, network.Loopback())
-
-	n.tun.stack.SetTransportProtocolHandler(tcp.ProtocolNumber, tcpForwarder)
-
-	return nil
+func (t *UserspaceTransport) FowardToLoopback(ctx context.Context) error {
+	return t.tun.ForwardTo(ctx, network.Loopback())
 }
 
 // Peers returns the list of public keys for all peers on the WireGuard network.
-func (n *UserspaceNetwork) Peers() ([]PeerConfig, error) {
+func (n *UserspaceTransport) Peers() ([]PeerConfig, error) {
 	var uapiConf strings.Builder
 	if err := n.dev.IpcGetOperation(&uapiConf); err != nil {
 		return nil, fmt.Errorf("failed to get device config: %w", err)
@@ -200,7 +172,7 @@ func (n *UserspaceNetwork) Peers() ([]PeerConfig, error) {
 }
 
 // AddPeer adds, or updates, a peer to the WireGuard network.
-func (n *UserspaceNetwork) AddPeer(peerConf *PeerConfig) error {
+func (t *UserspaceTransport) AddPeer(peerConf *PeerConfig) error {
 	if peerConf.Endpoint != nil {
 		// If it's an address, resolve it. If it's a name pass it through unmodified.
 		host, port, err := net.SplitHostPort(*peerConf.Endpoint)
@@ -230,7 +202,7 @@ func (n *UserspaceNetwork) AddPeer(peerConf *PeerConfig) error {
 		return fmt.Errorf("failed to marshal peer config: %w", err)
 	}
 
-	if err := n.dev.IpcSet(uapiPeerConf); err != nil {
+	if err := t.dev.IpcSet(uapiPeerConf); err != nil {
 		return fmt.Errorf("failed to add peer: %w", err)
 	}
 
@@ -252,7 +224,7 @@ func (n *UserspaceNetwork) AddPeer(peerConf *PeerConfig) error {
 				slog.Warn("failed to marshal peer config", slog.Any("error", err))
 			}
 
-			if err := n.dev.IpcSet(uapiPeerConf); err != nil {
+			if err := t.dev.IpcSet(uapiPeerConf); err != nil {
 				slog.Warn("failed to set persistent keep-alive interval", slog.Any("error", err))
 			}
 		}()
@@ -262,7 +234,7 @@ func (n *UserspaceNetwork) AddPeer(peerConf *PeerConfig) error {
 }
 
 // RemovePeer removes a peer from the WireGuard network.
-func (n *UserspaceNetwork) RemovePeer(publicKey string) error {
+func (t *UserspaceTransport) RemovePeer(publicKey string) error {
 	peerConf := &PeerConfig{
 		PublicKey: ptr.To(publicKey),
 		Remove:    ptr.To(true),
@@ -273,7 +245,7 @@ func (n *UserspaceNetwork) RemovePeer(publicKey string) error {
 		return fmt.Errorf("failed to marshal peer config: %w", err)
 	}
 
-	if err := n.dev.IpcSet(uapiPeerConf); err != nil {
+	if err := t.dev.IpcSet(uapiPeerConf); err != nil {
 		return fmt.Errorf("failed to remove peer: %w", err)
 	}
 
@@ -298,16 +270,4 @@ func parseAddressList(addrs []string) ([]netip.Prefix, error) {
 	}
 
 	return parsed, nil
-}
-
-func addrFromNetstackIP(ip tcpip.Address) netip.Addr {
-	switch ip.Len() {
-	case 4:
-		ip := ip.As4()
-		return netip.AddrFrom4([4]byte{ip[0], ip[1], ip[2], ip[3]})
-	case 16:
-		ip := ip.As16()
-		return netip.AddrFrom16(ip).Unmap()
-	}
-	return netip.Addr{}
 }
