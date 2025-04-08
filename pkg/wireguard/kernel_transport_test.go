@@ -4,7 +4,6 @@
 package wireguard_test
 
 import (
-	"fmt"
 	"io"
 	"log/slog"
 	"net"
@@ -15,7 +14,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/sys/unix"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	"k8s.io/utils/ptr"
 
@@ -30,7 +28,7 @@ func TestKernelModeTransport(t *testing.T) {
 	}
 
 	// Check if we have the NET_ADMIN capability.
-	netAdmin, err := hasNetAdminCapability()
+	netAdmin, err := utils.CanCreateTUNInterfaces()
 	require.NoError(t, err)
 	if !netAdmin {
 		t.Skip("requires NET_ADMIN capability")
@@ -151,33 +149,4 @@ func TestKernelModeTransport(t *testing.T) {
 
 	require.Len(t, knownPeers, 1)
 	require.Equal(t, *knownPeers[0].PublicKey, privateKey.PublicKey().String())
-}
-
-func hasNetAdminCapability() (bool, error) {
-	// Check if we are running as root
-	if unix.Geteuid() == 0 {
-		return true, nil
-	}
-
-	// Get the current process's capabilities
-	var capData unix.CapUserData
-	var capHeader unix.CapUserHeader
-
-	// Set the version to the latest version
-	capHeader.Version = unix.LINUX_CAPABILITY_VERSION_3
-
-	// Get capabilities
-	err := unix.Capget(&capHeader, &capData)
-	if err != nil {
-		return false, fmt.Errorf("failed to get capabilities: %v", err)
-	}
-
-	// Check if the NET_ADMIN capability is present
-	const CAP_NET_ADMIN = 12
-	netAdminMask := uint32(1) << (CAP_NET_ADMIN % 32)
-	if capData.Effective&(netAdminMask) != 0 {
-		return true, nil
-	}
-
-	return false, nil
 }

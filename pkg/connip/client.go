@@ -181,7 +181,7 @@ func (t *ClientTransport) Close() error {
 	return closeErr
 }
 
-// FowardToLoopback forwards all inbound traffic to the loopback interface.
-func (t *ClientTransport) FowardToLoopback(ctx context.Context) error {
-	return t.tun.ForwardTo(ctx, network.Loopback())
+// FowardTo forwards all inbound traffic to the upstream network.
+func (t *ClientTransport) FowardTo(ctx context.Context, upstream network.Network) error {
+	return t.tun.ForwardTo(ctx, upstream)
 }

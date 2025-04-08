@@ -895,6 +895,8 @@ github.com/dpeckett/contextio v0.5.1 h1:w19s6EThbZuRpa2z/Lu06v6+o3rrZhbBzmkol6en
 github.com/dpeckett/contextio v0.5.1/go.mod h1:IY/CQ1ee6y4C5j/mU0X0M/D84s2FxNisggbNClTPndc=
 github.com/dpeckett/network v0.3.1 h1:rMDRLc85zc3v4mGcGfbOrNA9Kx69K2Xr8bD/Hc9MERY=
 github.com/dpeckett/network v0.3.1/go.mod h1:83quX+FE+BdOAKFEm5Om+QdI/1ZEQVNUBZSPl7V7erk=
+github.com/dpeckett/network v0.3.3 h1:ghUiAOddpgKSBokp7/CVhjkO+ZjsuczeerwB+i9dBdw=
+github.com/dpeckett/network v0.3.3/go.mod h1:AyOdc+YGAT7zWoDDd/r8Pv4kGNlKrboVcug0FKaoqbA=
 github.com/dpeckett/triemap v0.3.1 h1:jzxCyKs/ATw9uCdD2bd0xFTPLIP9uZwX0iZUOOOIDoc=
 github.com/dpeckett/triemap v0.3.1/go.mod h1:pBxNH+K6m5I4lVo+W7u6JEanxP13adD4t2XYVMxfmTo=
 github.com/dunglas/httpsfv v1.0.2 h1:iERDp/YAfnojSDJ7PW3dj1AReJz4MrwbECSSE59JWL0=

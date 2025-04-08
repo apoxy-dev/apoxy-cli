@@ -41,9 +41,9 @@ var (
 	connectTmpl = uritemplate.MustNew("https://proxy/connect")
 )
 
-type TunnelOption func(*tunnelOptions)
+type TunnelServerOption func(*tunnelServerOptions)
 
-type tunnelOptions struct {
+type tunnelServerOptions struct {
 	tunName   string
 	proxyAddr string
 	localAddr netip.Prefix
@@ -51,10 +51,11 @@ type tunnelOptions struct {
 	certPath  string
 	keyPath   string
 	ipam      IPAM
+	client    client.Client
 }
 
-func defaultOptions() *tunnelOptions {
-	return &tunnelOptions{
+func defaultServerOptions() *tunnelServerOptions {
+	return &tunnelServerOptions{
 		tunName:   "tun0",
 		proxyAddr: "0.0.0.0:8443",
 		localAddr: netip.MustParsePrefix("2001:db8::/64"),
@@ -66,51 +67,58 @@ func defaultOptions() *tunnelOptions {
 }
 
 // WithTUNName sets the name of the TUN interface.
-func WithTUNName(name string) TunnelOption {
-	return func(o *tunnelOptions) {
+func WithTUNName(name string) TunnelServerOption {
+	return func(o *tunnelServerOptions) {
 		o.tunName = name
 	}
 }
 
 // WithProxyAddr sets the address to bind the proxy to.
-func WithProxyAddr(addr string) TunnelOption {
-	return func(o *tunnelOptions) {
+func WithProxyAddr(addr string) TunnelServerOption {
+	return func(o *tunnelServerOptions) {
 		o.proxyAddr = addr
 	}
 }
 
 // WithLocalAddr sets the local address prefix.
-func WithLocalAddr(prefix netip.Prefix) TunnelOption {
-	return func(o *tunnelOptions) {
+func WithLocalAddr(prefix netip.Prefix) TunnelServerOption {
+	return func(o *tunnelServerOptions) {
 		o.localAddr = prefix
 	}
 }
 
 // WithULAPrefix sets the Unique Local Address prefix.
-func WithULAPrefix(prefix netip.Prefix) TunnelOption {
-	return func(o *tunnelOptions) {
+func WithULAPrefix(prefix netip.Prefix) TunnelServerOption {
+	return func(o *tunnelServerOptions) {
 		o.ulaPrefix = prefix
 	}
 }
 
 // WithCertPath sets the path to the TLS certificate.
-func WithCertPath(path string) TunnelOption {
-	return func(o *tunnelOptions) {
+func WithCertPath(path string) TunnelServerOption {
+	return func(o *tunnelServerOptions) {
 		o.certPath = path
 	}
 }
 
 // WithKeyPath sets the path to the TLS key.
-func WithKeyPath(path string) TunnelOption {
-	return func(o *tunnelOptions) {
+func WithKeyPath(path string) TunnelServerOption {
+	return func(o *tunnelServerOptions) {
 		o.keyPath = path
 	}
 }
 
 // WithIPAM sets the IPAM to use.
-func WithIPAM(ipam IPAM) TunnelOption {
-	return func(o *tunnelOptions) {
+func WithIPAM(ipam IPAM) TunnelServerOption {
+	return func(o *tunnelServerOptions) {
 		o.ipam = ipam
+	}
+}
+
+// WithClient sets the kubernetes client to use.
+func WithClient(client client.Client) TunnelServerOption {
+	return func(o *tunnelServerOptions) {
+		o.client = client
 	}
 }
 
@@ -118,7 +126,7 @@ type TunnelServer struct {
 	http3.Server
 	client.Client
 
-	options *tunnelOptions
+	options *tunnelServerOptions
 	dev     tun.Device
 	ln      *quic.EarlyListener
 
@@ -130,13 +138,14 @@ type TunnelServer struct {
 
 // NewTunnelServer creates a new server proxy that routes traffic via
 // QUIC tunnels.
-func NewTunnelServer(opts ...TunnelOption) *TunnelServer {
-	options := defaultOptions()
+func NewTunnelServer(opts ...TunnelServerOption) *TunnelServer {
+	options := defaultServerOptions()
 	for _, opt := range opts {
 		opt(options)
 	}
 
 	s := &TunnelServer{
+		Client: options.client,
 		Server: http3.Server{
 			EnableDatagrams: true,
 		},
@@ -152,19 +161,39 @@ func NewTunnelServer(opts ...TunnelOption) *TunnelServer {
 	return s
 }
 
-func (t *TunnelServer) Start(ctx context.Context, mgr ctrl.Manager) error {
-	// 0. Setup TunnelNode controller.
+func (t *TunnelServer) SetupWithManager(mgr ctrl.Manager) error {
+	t.Client = mgr.GetClient()
+
 	if err := ctrl.NewControllerManagedBy(mgr).
 		For(&corev1alpha.TunnelNode{}).
 		Complete(reconcile.Func(t.reconcile)); err != nil {
 		return fmt.Errorf("failed to start controller: %w", err)
 	}
 
+	return nil
+}
+
+func (t *TunnelServer) Start(ctx context.Context) error {
 	// 1. Setup QUIC server.
 	var err error
 	t.dev, err = tun.CreateTUN(t.options.tunName, netstack.IPv6MinMTU)
 	if err != nil {
 		return fmt.Errorf("failed to create TUN interface: %w", err)
+	}
+
+	// Bring up the TUN interface.
+	tunName, err := t.dev.Name()
+	if err != nil {
+		return fmt.Errorf("failed to get TUN interface name: %w", err)
+	}
+
+	link, err := netlink.LinkByName(tunName)
+	if err != nil {
+		return fmt.Errorf("failed to get TUN interface: %w", err)
+	}
+
+	if err := netlink.LinkSetUp(link); err != nil {
+		return fmt.Errorf("failed to bring up TUN interface: %w", err)
 	}
 
 	bindTo, err := netip.ParseAddrPort(t.options.proxyAddr)
@@ -446,11 +475,26 @@ func (t *TunnelServer) reconcile(ctx context.Context, request reconcile.Request)
 
 		// TODO: Send GOAWAY to all connected clients for the associated tunnel node.
 
-		t.tunnelNodes.Del(string(node.UID))
+		t.RemoveTunnelNode(node)
+
 		return reconcile.Result{}, nil
 	}
 
-	t.tunnelNodes.Set(string(node.UID), node)
+	t.AddTunnelNode(node)
 
 	return ctrl.Result{}, nil
+}
+
+// AddTunnelNode adds a TunnelNode to the server.
+// This is visible for testing purposes, it is usually called as part of
+// the reconcile loop.
+func (t *TunnelServer) AddTunnelNode(node *corev1alpha.TunnelNode) {
+	t.tunnelNodes.Set(string(node.UID), node)
+}
+
+// RemoveTunnelNode removes a TunnelNode from the server.
+// This is visible for testing purposes, it is usually called as part of
+// the reconcile loop.
+func (t *TunnelServer) RemoveTunnelNode(node *corev1alpha.TunnelNode) {
+	t.tunnelNodes.Del(string(node.UID))
 }

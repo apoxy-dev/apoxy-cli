@@ -87,7 +87,11 @@ func main() {
 	g.Go(func() error {
 		log.Infof("Starting Tunnel Proxy server")
 
-		return srv.Start(ctx, mgr)
+		if err := srv.SetupWithManager(mgr); err != nil {
+			log.Fatalf("Unable to setup Tunnel Proxy server: %v", err)
+		}
+
+		return srv.Start(ctx)
 	})
 
 	g.Go(func() error {

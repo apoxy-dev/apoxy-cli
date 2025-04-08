@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dpeckett/network"
 	"github.com/stretchr/testify/require"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	"k8s.io/utils/ptr"
@@ -65,7 +66,7 @@ func TestUserspaceTransport(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	require.NoError(t, serverWGNet.FowardToLoopback(context.Background()))
+	require.NoError(t, serverWGNet.FowardTo(context.Background(), network.Loopback()))
 
 	clientWGNet, err := wireguard.NewUserspaceTransport(&wireguard.DeviceConfig{
 		PrivateKey: ptr.To(base64.StdEncoding.EncodeToString(clientPrivateKey[:])),
