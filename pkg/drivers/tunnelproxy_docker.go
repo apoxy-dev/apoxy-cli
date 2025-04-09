@@ -24,23 +24,17 @@ import (
 
 const (
 	tunnelProxyContainerNamePrefix = "apoxy-tunnelproxy-"
-	tunnelProxyImageRepo           = "docker.io/apoxy/tunnelproxy"
+	tunnelProxyImageRepo           = "tunnelproxy"
 )
 
 // TunnelProxyDockerDriver implements the Driver interface for Docker.
-type TunnelProxyDockerDriver struct{}
+type TunnelProxyDockerDriver struct {
+	dockerDriverBase
+}
 
 // NewTunnelProxyDockerDriver creates a new Docker driver for tunnelproxy.
 func NewTunnelProxyDockerDriver() *TunnelProxyDockerDriver {
 	return &TunnelProxyDockerDriver{}
-}
-
-func tunnelProxyImageRef() string {
-	imgTag := build.BuildVersion
-	if build.IsDev() {
-		imgTag = "latest"
-	}
-	return tunnelProxyImageRepo + ":" + imgTag
 }
 
 // generateSelfSignedCert creates a self-signed certificate and private key.
@@ -127,7 +121,12 @@ func (d *TunnelProxyDockerDriver) Start(
 	for _, opt := range opts {
 		opt(setOpts)
 	}
-	imageRef := tunnelProxyImageRef()
+
+	if err := d.Init(ctx, opts...); err != nil {
+		return "", err
+	}
+
+	imageRef := d.ImageRef(tunnelProxyImageRepo)
 	cname, found, err := dockerutils.Collect(
 		ctx,
 		tunnelProxyContainerNamePrefix,
@@ -148,13 +147,6 @@ func (d *TunnelProxyDockerDriver) Start(
 		}
 	}
 
-	if err := exec.CommandContext(ctx, "docker", "network", "inspect", dockerutils.NetworkName).Run(); err != nil {
-		if err := exec.CommandContext(ctx, "docker", "network", "create", dockerutils.NetworkName).Run(); err != nil {
-			return "", fmt.Errorf("failed to create network apoxy: %w", err)
-		}
-	}
-
-	// Generate self-signed certificates
 	certsDir := filepath.Join(os.TempDir(), "apoxy-certs")
 	certPath := filepath.Join(certsDir, "cert.pem")
 	keyPath := filepath.Join(certsDir, "key.pem")
@@ -163,20 +155,17 @@ func (d *TunnelProxyDockerDriver) Start(
 		return "", fmt.Errorf("failed to create certs directory: %w", err)
 	}
 
+	log.Infof("Generating self-signed certificates at %s and %s", certPath, keyPath)
+
 	if err := generateSelfSignedCert(certPath, keyPath); err != nil {
 		return "", fmt.Errorf("failed to generate self-signed certificates: %w", err)
 	}
 
-	log.Infof("Generated self-signed certificates at %s and %s", certPath, keyPath)
-
 	log.Infof("Starting container %s", cname)
-	pullPolicy := "missing"
-	if build.IsDev() {
-		pullPolicy = "always"
-	}
+
 	cmd := exec.CommandContext(ctx,
 		"docker", "run",
-		fmt.Sprintf("--pull=%s", pullPolicy),
+		"--pull="+d.PullPolicy(),
 		"--detach",
 		"--name", cname,
 		"--label", "org.apoxy.project_id="+orgID.String(),
@@ -224,11 +213,10 @@ func (d *TunnelProxyDockerDriver) Start(
 // Stop implements the Driver interface.
 func (d *TunnelProxyDockerDriver) Stop(orgID uuid.UUID, proxyName string) {
 	ctx, _ := context.WithTimeout(context.Background(), 30*time.Second)
-	imageRef := tunnelProxyImageRef()
 	cname, found, err := dockerutils.Collect(
 		ctx,
 		tunnelProxyContainerNamePrefix,
-		imageRef,
+		d.ImageRef(tunnelProxyImageRepo),
 		dockerutils.WithLabel("org.apoxy.project_id", orgID.String()),
 		dockerutils.WithLabel("org.apoxy.tunnelproxy", proxyName),
 	)
@@ -256,7 +244,7 @@ func (d *TunnelProxyDockerDriver) GetAddr(ctx context.Context) (string, error) {
 	cname, found, err := dockerutils.Collect(
 		ctx,
 		tunnelProxyContainerNamePrefix,
-		tunnelProxyImageRef(),
+		d.ImageRef(tunnelProxyImageRepo),
 	)
 	if err != nil {
 		return "", err

@@ -8,30 +8,23 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/apoxy-dev/apoxy-cli/build"
 	"github.com/apoxy-dev/apoxy-cli/pkg/log"
 	dockerutils "github.com/apoxy-dev/apoxy-cli/pkg/utils/docker"
 )
 
 const (
 	apiserverContainerNamePrefix = "apoxy-apiserver-"
-	apiserverImageRepo           = "docker.io/apoxy/apiserver"
+	apiserverImageRepo           = "apiserver"
 )
 
 // APIServerDockerDriver implements the Driver interface for Docker.
-type APIServerDockerDriver struct{}
+type APIServerDockerDriver struct {
+	dockerDriverBase
+}
 
 // NewAPIServerDockerDriver creates a new Docker driver for apiserver.
 func NewAPIServerDockerDriver() *APIServerDockerDriver {
 	return &APIServerDockerDriver{}
-}
-
-func apiserverImageRef() string {
-	imgTag := build.BuildVersion
-	if build.IsDev() {
-		imgTag = "latest"
-	}
-	return apiserverImageRepo + ":" + imgTag
 }
 
 // Start implements the Driver interface.
@@ -45,7 +38,12 @@ func (d *APIServerDockerDriver) Start(
 	for _, opt := range opts {
 		opt(setOpts)
 	}
-	imageRef := apiserverImageRef()
+
+	if err := d.Init(ctx, opts...); err != nil {
+		return "", err
+	}
+
+	imageRef := d.ImageRef(apiserverImageRepo)
 	cname, found, err := dockerutils.Collect(
 		ctx,
 		apiserverContainerNamePrefix,
@@ -66,20 +64,11 @@ func (d *APIServerDockerDriver) Start(
 		}
 	}
 
-	if err := exec.CommandContext(ctx, "docker", "network", "inspect", dockerutils.NetworkName).Run(); err != nil {
-		if err := exec.CommandContext(ctx, "docker", "network", "create", dockerutils.NetworkName).Run(); err != nil {
-			return "", fmt.Errorf("failed to create network apoxy: %w", err)
-		}
-	}
-
 	log.Infof("Starting container %s", cname)
-	pullPolicy := "missing"
-	if build.IsDev() {
-		pullPolicy = "always"
-	}
+
 	cmd := exec.CommandContext(ctx,
 		"docker", "run",
-		fmt.Sprintf("--pull=%s", pullPolicy),
+		fmt.Sprintf("--pull=%s", d.PullPolicy()),
 		"--detach",
 		"--name", cname,
 		"--label", "org.apoxy.project_id="+orgID.String(),
@@ -120,7 +109,7 @@ func (d *APIServerDockerDriver) Start(
 // Stop implements the Driver interface.
 func (d *APIServerDockerDriver) Stop(orgID uuid.UUID, serviceName string) {
 	ctx, _ := context.WithTimeout(context.Background(), 30*time.Second)
-	imageRef := apiserverImageRef()
+	imageRef := d.ImageRef(apiserverImageRepo)
 	cname, found, err := dockerutils.Collect(
 		ctx,
 		apiserverContainerNamePrefix,
@@ -152,7 +141,7 @@ func (d *APIServerDockerDriver) GetAddr(ctx context.Context) (string, error) {
 	cname, found, err := dockerutils.Collect(
 		ctx,
 		apiserverContainerNamePrefix,
-		apiserverImageRef(),
+		d.ImageRef(apiserverImageRepo),
 	)
 	if err != nil {
 		return "", err

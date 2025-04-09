@@ -8,30 +8,23 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/apoxy-dev/apoxy-cli/build"
 	"github.com/apoxy-dev/apoxy-cli/pkg/log"
 	dockerutils "github.com/apoxy-dev/apoxy-cli/pkg/utils/docker"
 )
 
 const (
 	backplaneContainerNamePrefix = "apoxy-backplane-"
-	backplaneImageRepo           = "docker.io/apoxy/backplane"
+	backplaneImageRepo           = "backplane"
 )
 
 // BackplaneDockerDriver implements the Driver interface for Docker.
-type BackplaneDockerDriver struct{}
+type BackplaneDockerDriver struct {
+	dockerDriverBase
+}
 
 // NewBackplaneDockerDriver creates a new Docker driver for backplane.
 func NewBackplaneDockerDriver() *BackplaneDockerDriver {
 	return &BackplaneDockerDriver{}
-}
-
-func backplaneImageRef() string {
-	imgTag := build.BuildVersion
-	if build.IsDev() {
-		imgTag = "latest"
-	}
-	return backplaneImageRepo + ":" + imgTag
 }
 
 // Start implements the Driver interface.
@@ -45,7 +38,12 @@ func (d *BackplaneDockerDriver) Start(
 	for _, opt := range opts {
 		opt(setOpts)
 	}
-	imageRef := backplaneImageRef()
+
+	if err := d.Init(ctx, opts...); err != nil {
+		return "", err
+	}
+
+	imageRef := d.ImageRef(backplaneImageRepo)
 	cname, found, err := dockerutils.Collect(
 		ctx,
 		backplaneContainerNamePrefix,
@@ -68,21 +66,11 @@ func (d *BackplaneDockerDriver) Start(
 		}
 	}
 
-	// Check for network and create if not exists.
-	if err := exec.CommandContext(ctx, "docker", "network", "inspect", dockerutils.NetworkName).Run(); err != nil {
-		if err := exec.CommandContext(ctx, "docker", "network", "create", dockerutils.NetworkName).Run(); err != nil {
-			return "", fmt.Errorf("failed to create network apoxy: %w", err)
-		}
-	}
-
 	log.Infof("Starting container %s", cname)
-	pullPolicy := "missing"
-	if build.IsDev() {
-		pullPolicy = "always"
-	}
+
 	cmd := exec.CommandContext(ctx,
 		"docker", "run",
-		fmt.Sprintf("--pull=%s", pullPolicy),
+		"--pull="+d.PullPolicy(),
 		"--detach",
 		//"--rm",
 		"--name", cname,
@@ -131,11 +119,10 @@ func (d *BackplaneDockerDriver) Start(
 // Stop implements the Driver interface.
 func (d *BackplaneDockerDriver) Stop(orgID uuid.UUID, proxyName string) {
 	ctx, _ := context.WithTimeout(context.Background(), 30*time.Second)
-	imageRef := backplaneImageRef()
 	cname, found, err := dockerutils.Collect(
 		ctx,
 		backplaneContainerNamePrefix,
-		imageRef,
+		d.ImageRef(backplaneImageRepo),
 		dockerutils.WithLabel("org.apoxy.project_id", orgID.String()),
 		dockerutils.WithLabel("org.apoxy.backplane", proxyName),
 	)
@@ -163,7 +150,7 @@ func (d *BackplaneDockerDriver) GetAddr(ctx context.Context) (string, error) {
 	cname, found, err := dockerutils.Collect(
 		ctx,
 		backplaneContainerNamePrefix,
-		backplaneImageRef(),
+		d.ImageRef(backplaneImageRepo),
 	)
 	if err != nil {
 		return "", err
