@@ -108,6 +108,8 @@ func (m *MuxedConnection) ReadPacket(pkt []byte) (int, error) {
 }
 
 func (m *MuxedConnection) WritePacket(pkt []byte) ([]byte, error) {
+	slog.Debug("Write packet to connection", slog.Int("bytes", len(pkt)))
+
 	var dstIP netip.Addr
 	switch pkt[0] >> 4 {
 	case 6:

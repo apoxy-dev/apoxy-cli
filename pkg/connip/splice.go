@@ -12,22 +12,18 @@ import (
 	"github.com/apoxy-dev/apoxy-cli/pkg/netstack"
 )
 
-func splice(tun tun.Device, conn Connection) error {
+func Splice(tun tun.Device, conn Connection) error {
 	var g errgroup.Group
 
 	g.Go(func() error {
+		defer conn.Close()
+
 		var pkt [netstack.IPv6MinMTU]byte
 		sizes := make([]int, 1)
 
 		for {
 			_, err := tun.Read([][]byte{pkt[:]}, sizes, 0)
 			if err != nil {
-				if errors.Is(err, net.ErrClosed) {
-					// TUN device is closed, exit the loop.
-					// TODO: is this the correct error
-					return nil
-				}
-
 				return fmt.Errorf("failed to read from TUN: %w", err)
 			}
 
@@ -54,9 +50,6 @@ func splice(tun tun.Device, conn Connection) error {
 		for {
 			n, err := conn.ReadPacket(pkt[:])
 			if err != nil {
-				if errors.Is(err, net.ErrClosed) {
-					return nil
-				}
 				return fmt.Errorf("failed to read from connection: %w", err)
 			}
 
@@ -69,5 +62,9 @@ func splice(tun tun.Device, conn Connection) error {
 		}
 	})
 
-	return g.Wait()
+	if err := g.Wait(); err != nil && !errors.Is(err, net.ErrClosed) {
+		return fmt.Errorf("failed to splice: %w", err)
+	}
+
+	return nil
 }

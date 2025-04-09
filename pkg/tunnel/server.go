@@ -19,8 +19,9 @@ import (
 	"github.com/quic-go/quic-go/http3"
 	"github.com/vishvananda/netlink"
 	"github.com/yosida95/uritemplate/v3"
+	"golang.org/x/sync/errgroup"
 	"golang.zx2c4.com/wireguard/tun"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
@@ -41,9 +42,9 @@ var (
 	connectTmpl = uritemplate.MustNew("https://proxy/connect")
 )
 
-type TunnelOption func(*tunnelOptions)
+type TunnelServerOption func(*tunnelServerOptions)
 
-type tunnelOptions struct {
+type tunnelServerOptions struct {
 	tunName   string
 	proxyAddr string
 	localAddr netip.Prefix
@@ -51,10 +52,11 @@ type tunnelOptions struct {
 	certPath  string
 	keyPath   string
 	ipam      IPAM
+	client    client.Client
 }
 
-func defaultOptions() *tunnelOptions {
-	return &tunnelOptions{
+func defaultServerOptions() *tunnelServerOptions {
+	return &tunnelServerOptions{
 		tunName:   "tun0",
 		proxyAddr: "0.0.0.0:8443",
 		localAddr: netip.MustParsePrefix("2001:db8::/64"),
@@ -66,51 +68,58 @@ func defaultOptions() *tunnelOptions {
 }
 
 // WithTUNName sets the name of the TUN interface.
-func WithTUNName(name string) TunnelOption {
-	return func(o *tunnelOptions) {
+func WithTUNName(name string) TunnelServerOption {
+	return func(o *tunnelServerOptions) {
 		o.tunName = name
 	}
 }
 
 // WithProxyAddr sets the address to bind the proxy to.
-func WithProxyAddr(addr string) TunnelOption {
-	return func(o *tunnelOptions) {
+func WithProxyAddr(addr string) TunnelServerOption {
+	return func(o *tunnelServerOptions) {
 		o.proxyAddr = addr
 	}
 }
 
 // WithLocalAddr sets the local address prefix.
-func WithLocalAddr(prefix netip.Prefix) TunnelOption {
-	return func(o *tunnelOptions) {
+func WithLocalAddr(prefix netip.Prefix) TunnelServerOption {
+	return func(o *tunnelServerOptions) {
 		o.localAddr = prefix
 	}
 }
 
 // WithULAPrefix sets the Unique Local Address prefix.
-func WithULAPrefix(prefix netip.Prefix) TunnelOption {
-	return func(o *tunnelOptions) {
+func WithULAPrefix(prefix netip.Prefix) TunnelServerOption {
+	return func(o *tunnelServerOptions) {
 		o.ulaPrefix = prefix
 	}
 }
 
 // WithCertPath sets the path to the TLS certificate.
-func WithCertPath(path string) TunnelOption {
-	return func(o *tunnelOptions) {
+func WithCertPath(path string) TunnelServerOption {
+	return func(o *tunnelServerOptions) {
 		o.certPath = path
 	}
 }
 
 // WithKeyPath sets the path to the TLS key.
-func WithKeyPath(path string) TunnelOption {
-	return func(o *tunnelOptions) {
+func WithKeyPath(path string) TunnelServerOption {
+	return func(o *tunnelServerOptions) {
 		o.keyPath = path
 	}
 }
 
 // WithIPAM sets the IPAM to use.
-func WithIPAM(ipam IPAM) TunnelOption {
-	return func(o *tunnelOptions) {
+func WithIPAM(ipam IPAM) TunnelServerOption {
+	return func(o *tunnelServerOptions) {
 		o.ipam = ipam
+	}
+}
+
+// WithClient sets the kubernetes client to use.
+func WithClient(client client.Client) TunnelServerOption {
+	return func(o *tunnelServerOptions) {
+		o.client = client
 	}
 }
 
@@ -118,7 +127,7 @@ type TunnelServer struct {
 	http3.Server
 	client.Client
 
-	options *tunnelOptions
+	options *tunnelServerOptions
 	dev     tun.Device
 	ln      *quic.EarlyListener
 
@@ -126,17 +135,21 @@ type TunnelServer struct {
 	mux *connip.MuxedConnection
 	// Maps
 	tunnelNodes *haxmap.Map[string, *corev1alpha.TunnelNode]
+
+	tunnelCtx       context.Context
+	tunnelCtxCancel context.CancelFunc
 }
 
 // NewTunnelServer creates a new server proxy that routes traffic via
 // QUIC tunnels.
-func NewTunnelServer(opts ...TunnelOption) *TunnelServer {
-	options := defaultOptions()
+func NewTunnelServer(opts ...TunnelServerOption) *TunnelServer {
+	options := defaultServerOptions()
 	for _, opt := range opts {
 		opt(options)
 	}
 
 	s := &TunnelServer{
+		Client: options.client,
 		Server: http3.Server{
 			EnableDatagrams: true,
 		},
@@ -152,13 +165,23 @@ func NewTunnelServer(opts ...TunnelOption) *TunnelServer {
 	return s
 }
 
-func (t *TunnelServer) Start(ctx context.Context, mgr ctrl.Manager) error {
-	// 0. Setup TunnelNode controller.
+func (t *TunnelServer) SetupWithManager(mgr ctrl.Manager) error {
+	t.Client = mgr.GetClient()
+
 	if err := ctrl.NewControllerManagedBy(mgr).
 		For(&corev1alpha.TunnelNode{}).
 		Complete(reconcile.Func(t.reconcile)); err != nil {
 		return fmt.Errorf("failed to start controller: %w", err)
 	}
+
+	return nil
+}
+
+func (t *TunnelServer) Start(ctx context.Context) error {
+	t.tunnelCtx, t.tunnelCtxCancel = context.WithCancel(ctx)
+
+	// TODO (dpeckett): allow creating a userspace netstack based TUN device so
+	// that we can more easily test this on non-Linux systems.
 
 	// 1. Setup QUIC server.
 	var err error
@@ -166,6 +189,24 @@ func (t *TunnelServer) Start(ctx context.Context, mgr ctrl.Manager) error {
 	if err != nil {
 		return fmt.Errorf("failed to create TUN interface: %w", err)
 	}
+
+	// Bring up the TUN interface.
+	tunName, err := t.dev.Name()
+	if err != nil {
+		return fmt.Errorf("failed to get TUN interface name: %w", err)
+	}
+
+	link, err := netlink.LinkByName(tunName)
+	if err != nil {
+		return fmt.Errorf("failed to get TUN interface: %w", err)
+	}
+
+	if err := netlink.LinkSetUp(link); err != nil {
+		return fmt.Errorf("failed to bring up TUN interface: %w", err)
+	}
+
+	// TODO (dpeckett): assign an address from the ULA prefix to the TUN
+	// interface.
 
 	bindTo, err := netip.ParseAddrPort(t.options.proxyAddr)
 	if err != nil {
@@ -196,28 +237,51 @@ func (t *TunnelServer) Start(ctx context.Context, mgr ctrl.Manager) error {
 		return fmt.Errorf("failed to create QUIC listener: %w", err)
 	}
 
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	g, ctx := errgroup.WithContext(t.tunnelCtx)
 
-	go func() {
+	g.Go(func() error {
 		<-ctx.Done()
 
+		slog.Debug("Closing TUN device")
+
 		if err := t.dev.Close(); err != nil {
-			slog.Error("Failed to close TUN device", slog.Any("error", err))
+			return fmt.Errorf("failed to close TUN device: %w", err)
 		}
+
+		slog.Debug("Closing QUIC listener")
 
 		if err := t.Shutdown(context.Background()); err != nil {
-			slog.Error("Failed to shutdown QUIC server", slog.Any("error", err))
+			return fmt.Errorf("failed to shutdown QUIC server: %w", err)
 		}
-	}()
 
-	slog.Info("Starting HTTP/3 server", slog.String("addr", t.ln.Addr().String()))
+		return nil
+	})
 
-	return t.ServeListener(t.ln)
+	g.Go(func() error {
+		slog.Info("Starting HTTP/3 server", slog.String("addr", t.ln.Addr().String()))
+
+		return t.ServeListener(t.ln)
+	})
+
+	// TODO (dpeckett): Move tun muxing concerns into connip.ServerTransport and use
+	// the transport abstraction to handle the tunnel packet shuffling logistics.
+	g.Go(func() error {
+		slog.Info("Starting TUN muxer")
+		defer slog.Debug("TUN muxer stopped")
+
+		return connip.Splice(t.dev, t.mux)
+	})
+
+	return g.Wait()
 }
 
-func (t *TunnelServer) Stop(ctx context.Context) error {
-	return t.Close()
+func (t *TunnelServer) Stop() error {
+	// Stop any background tasks if they are running.
+	if t.tunnelCtxCancel != nil {
+		t.tunnelCtxCancel()
+	}
+
+	return t.Server.Close()
 }
 
 func (t *TunnelServer) handleConnect(w http.ResponseWriter, r *http.Request) {
@@ -316,7 +380,7 @@ func (t *TunnelServer) handleConnect(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		upd := &corev1alpha.TunnelNode{}
-		if err := t.Get(r.Context(), types.NamespacedName{Name: tn.Name}, upd); errors.IsNotFound(err) {
+		if err := t.Get(r.Context(), types.NamespacedName{Name: tn.Name}, upd); apierrors.IsNotFound(err) {
 			slog.Warn("Node not found", slog.String("name", tn.Name))
 			return nil
 		} else if err != nil {
@@ -334,7 +398,8 @@ func (t *TunnelServer) handleConnect(w http.ResponseWriter, r *http.Request) {
 	// Blocking wait for the lifetime of the tunnel connection.
 	<-r.Context().Done()
 
-	if err := conn.Close(); err != nil {
+	if err := conn.Close(); err != nil &&
+		!strings.Contains(err.Error(), "close called for canceled stream") {
 		slog.Error("Failed to close connection", slog.Any("error", err))
 	}
 
@@ -352,7 +417,7 @@ func (t *TunnelServer) handleConnect(w http.ResponseWriter, r *http.Request) {
 
 	if err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		upd := &corev1alpha.TunnelNode{}
-		if err := t.Get(context.Background(), types.NamespacedName{Name: tn.Name}, upd); errors.IsNotFound(err) {
+		if err := t.Get(context.Background(), types.NamespacedName{Name: tn.Name}, upd); apierrors.IsNotFound(err) {
 			slog.Warn("Node not found", slog.String("name", tn.Name))
 			return nil
 		} else if err != nil {
@@ -432,7 +497,7 @@ func (t *TunnelServer) removeTUNPeer(peer netip.Prefix) error {
 
 func (t *TunnelServer) reconcile(ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
 	node := &corev1alpha.TunnelNode{}
-	if err := t.Get(ctx, request.NamespacedName, node); errors.IsNotFound(err) {
+	if err := t.Get(ctx, request.NamespacedName, node); apierrors.IsNotFound(err) {
 		return reconcile.Result{}, client.IgnoreNotFound(err)
 	} else if err != nil {
 		return reconcile.Result{}, fmt.Errorf("failed to get TunnelNode: %w", err)
@@ -446,11 +511,26 @@ func (t *TunnelServer) reconcile(ctx context.Context, request reconcile.Request)
 
 		// TODO: Send GOAWAY to all connected clients for the associated tunnel node.
 
-		t.tunnelNodes.Del(string(node.UID))
+		t.RemoveTunnelNode(node)
+
 		return reconcile.Result{}, nil
 	}
 
-	t.tunnelNodes.Set(string(node.UID), node)
+	t.AddTunnelNode(node)
 
 	return ctrl.Result{}, nil
+}
+
+// AddTunnelNode adds a TunnelNode to the server.
+// This is visible for testing purposes, it is usually called as part of
+// the reconcile loop.
+func (t *TunnelServer) AddTunnelNode(node *corev1alpha.TunnelNode) {
+	t.tunnelNodes.Set(string(node.UID), node)
+}
+
+// RemoveTunnelNode removes a TunnelNode from the server.
+// This is visible for testing purposes, it is usually called as part of
+// the reconcile loop.
+func (t *TunnelServer) RemoveTunnelNode(node *corev1alpha.TunnelNode) {
+	t.tunnelNodes.Del(string(node.UID))
 }

@@ -140,9 +140,9 @@ func (t *UserspaceTransport) LocalAddresses() ([]netip.Prefix, error) {
 	return t.tun.LocalAddresses()
 }
 
-// FowardToLoopback forwards all inbound traffic to the loopback interface.
-func (t *UserspaceTransport) FowardToLoopback(ctx context.Context) error {
-	return t.tun.ForwardTo(ctx, network.Loopback())
+// FowardTo forwards all inbound traffic to the specified upstream netwrok.
+func (t *UserspaceTransport) FowardTo(ctx context.Context, upstream network.Network) error {
+	return t.tun.ForwardTo(ctx, upstream)
 }
 
 // Peers returns the list of public keys for all peers on the WireGuard network.
