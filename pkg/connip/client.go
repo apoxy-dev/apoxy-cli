@@ -151,7 +151,7 @@ func (t *ClientTransport) Connect(ctx context.Context, serverAddr string) error 
 	t.NetstackNetwork = t.tun.Network(resolveConf)
 
 	// TODO (dpeckett): how to bubble up errors from this?
-	go splice(t.tun, t.conn)
+	go Splice(t.tun, t.conn)
 
 	return nil
 }
@@ -184,4 +184,9 @@ func (t *ClientTransport) Close() error {
 // FowardTo forwards all inbound traffic to the upstream network.
 func (t *ClientTransport) FowardTo(ctx context.Context, upstream network.Network) error {
 	return t.tun.ForwardTo(ctx, upstream)
+}
+
+// LocalAddresses returns the local addresses assigned to the client.
+func (t *ClientTransport) LocalAddresses() ([]netip.Prefix, error) {
+	return t.tun.LocalAddresses()
 }

@@ -8,7 +8,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func CanCreateTUNInterfaces() (bool, error) {
+func IsNetAdmin() (bool, error) {
 	// Check if we are running as root
 	if unix.Geteuid() == 0 {
 		return true, nil

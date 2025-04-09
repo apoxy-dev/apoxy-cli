@@ -28,7 +28,7 @@ func TestKernelModeTransport(t *testing.T) {
 	}
 
 	// Check if we have the NET_ADMIN capability.
-	netAdmin, err := utils.CanCreateTUNInterfaces()
+	netAdmin, err := utils.IsNetAdmin()
 	require.NoError(t, err)
 	if !netAdmin {
 		t.Skip("requires NET_ADMIN capability")

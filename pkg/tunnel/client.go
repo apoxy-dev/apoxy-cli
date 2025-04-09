@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"net/netip"
 	"strconv"
 
 	"github.com/apoxy-dev/apoxy-cli/pkg/connip"
@@ -85,7 +86,7 @@ type TunnelClient struct {
 
 // NewTunnelClient creates a new SOCKS5 proxy and loopback reverse proxy,
 // that forwards and receives traffic via QUIC tunnels.
-func NewTunnelClient(ctx context.Context, opts ...TunnelClientOption) (*TunnelClient, error) {
+func NewTunnelClient(opts ...TunnelClientOption) (*TunnelClient, error) {
 	options := defaultClientOptions()
 	for _, opt := range opts {
 		opt(options)
@@ -110,34 +111,17 @@ func NewTunnelClient(ctx context.Context, opts ...TunnelClientOption) (*TunnelCl
 
 	proxy := socksproxy.NewServer(options.socksListenAddr, transport, network.Host())
 
-	ctx, cancel := context.WithCancel(ctx)
-
 	return &TunnelClient{
-		options:         options,
-		transport:       transport,
-		proxy:           proxy,
-		tunnelCtx:       ctx,
-		tunnelCtxCancel: cancel,
+		options:   options,
+		transport: transport,
+		proxy:     proxy,
 	}, nil
 }
 
-// Close stops the tunnel client and stops forwarding traffic.
-func (c *TunnelClient) Close() error {
-	// Stop any background tasks (and the SOCKS5 proxy).
-	c.tunnelCtxCancel()
+// Start establishes a connection to the server and begins forwarding traffic.
+func (c *TunnelClient) Start(ctx context.Context) error {
+	c.tunnelCtx, c.tunnelCtxCancel = context.WithCancel(ctx)
 
-	// Close the transport layer.
-	if c.transport != nil {
-		if err := c.transport.Close(); err != nil {
-			return fmt.Errorf("failed to close transport: %w", err)
-		}
-	}
-
-	return nil
-}
-
-// Connect establishes a connection to the server and starts forwarding traffic.
-func (c *TunnelClient) Connect(ctx context.Context) error {
 	// Connect to the server using the transport layer.
 	if err := c.transport.Connect(ctx, c.options.serverAddr); err != nil {
 		return fmt.Errorf("failed to connect to server: %w", err)
@@ -153,6 +137,8 @@ func (c *TunnelClient) Connect(ctx context.Context) error {
 		return fmt.Errorf("failed to parse SOCKS listen port: %w", err)
 	}
 
+	slog.Info("Forwarding all inbound traffic to loopback interface")
+
 	// Forward all inbound traffic to the loopback interface.
 	// This allows the tunnel client to act as a reverse proxy.
 	if err := c.transport.FowardTo(c.tunnelCtx, network.Filtered(&network.FilteredNetworkConfig{
@@ -163,6 +149,8 @@ func (c *TunnelClient) Connect(ctx context.Context) error {
 		return fmt.Errorf("failed to forward to loopback: %w", err)
 	}
 
+	slog.Info("Starting SOCKS5 proxy", slog.String("listenAddr", c.options.socksListenAddr))
+
 	// Start the SOCKS5 proxy for forwarding outbound traffic.
 	go func() {
 		if err := c.proxy.ListenAndServe(c.tunnelCtx); err != nil {
@@ -171,4 +159,26 @@ func (c *TunnelClient) Connect(ctx context.Context) error {
 	}()
 
 	return nil
+}
+
+// Stop closes the tunnel client and stops forwarding traffic.
+func (t *TunnelClient) Stop() error {
+	// Stop any background tasks (and the SOCKS5 proxy).
+	if t.tunnelCtxCancel != nil {
+		t.tunnelCtxCancel()
+	}
+
+	// Close the transport layer.
+	if t.transport != nil {
+		if err := t.transport.Close(); err != nil {
+			return fmt.Errorf("failed to close transport: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// Get the local addresses assigned to the tunnel client.
+func (c *TunnelClient) LocalAddresses() ([]netip.Prefix, error) {
+	return c.transport.LocalAddresses()
 }
