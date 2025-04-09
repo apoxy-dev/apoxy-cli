@@ -69,8 +69,6 @@ type ProxyTracing struct {
 
 	// Additional tags to populate on the traces.
 	Tags map[string]ProxyTracingTagValue `json:"tags,omitempty"`
-
-	// TODO: support additional sinks.
 }
 
 // ProxyTracingTagValue defines a tag value to populate on the traces.
@@ -101,6 +99,50 @@ type ProxyMonitoring struct {
 	// Only supported for unmanaged proxies.
 	// This must be a ConfigMap or a Secret in the same namespace as Backplane.
 	OtelCollectorConfig *corev1.LocalObjectReference `json:"otelCollectorConfig,omitempty"`
+
+	// For enabling third party integrations.
+	// This is only supported for cloud proxies.
+	ThirdPartySinks *ThirdPartySinks `json:"thirdPartySinks,omitempty"`
+}
+
+type APIKey struct {
+	// Key is the API key.
+	Key string `json:"key,omitempty"`
+
+	// KeyData is the base64 encoded API key.
+	KeyData []byte `json:"keyData,omitempty"`
+}
+
+type ThirdPartySinks struct {
+	// AxiomLogs is the API key for Axiom logs.
+	AxiomLogs *APIKey `json:"axiomLogs,omitempty"`
+
+	// AxiomTraces is the API key for Axiom traces.
+	AxiomTraces *APIKey `json:"axiomTraces,omitempty"`
+
+	// DatadogLogs is the API key for Datadog logs.
+	DatadogLogs *APIKey `json:"datadogLogs,omitempty"`
+
+	// DatadogTraces is the API key for Datadog traces.
+	DatadogTraces *APIKey `json:"datadogTraces,omitempty"`
+
+	// OpenTelemetrySink is the OpenTelemetry sink.
+	OpenTelemetrySinks []OpenTelemetrySink `json:"openTelemetrySinks,omitempty"`
+}
+
+// OpenTelemetrySink defines the OpenTelemetry sink.
+// This uses oltphttp
+type OpenTelemetrySink struct {
+	// OTLP Endpoint to send the traces to.
+	Endpoint string `json:"endpoint"`
+
+	// Headers to send with the request
+	// +optional
+	Headers map[string]string `json:"headers,omitempty"`
+
+	// Compression setting
+	// +optional
+	Compression string `json:"compression,omitempty"`
 }
 
 // ProxySpec defines the desired specification of a Proxy.
