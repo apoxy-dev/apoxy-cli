@@ -19,17 +19,18 @@ import (
 type TunnelClientOption func(*tunnelClientOptions)
 
 type tunnelClientOptions struct {
-	serverAddr      string
-	uuid            uuid.UUID
-	authToken       string
-	pcapPath        string
-	rootCAs         *x509.CertPool
-	socksListenAddr string
+	serverAddr         string
+	insecureSkipVerify bool
+	uuid               uuid.UUID
+	authToken          string
+	pcapPath           string
+	rootCAs            *x509.CertPool
+	socksListenAddr    string
 }
 
 func defaultClientOptions() *tunnelClientOptions {
 	return &tunnelClientOptions{
-		serverAddr:      "localhost:8443",
+		serverAddr:      "localhost:9443",
 		socksListenAddr: "localhost:1080",
 	}
 }
@@ -39,6 +40,13 @@ func defaultClientOptions() *tunnelClientOptions {
 func WithServerAddr(addr string) TunnelClientOption {
 	return func(o *tunnelClientOptions) {
 		o.serverAddr = addr
+	}
+}
+
+// WithInsecureSkipVerify skips TLS certificate verification of the server.
+func WithInsecureSkipVerify(skip bool) TunnelClientOption {
+	return func(o *tunnelClientOptions) {
+		o.insecureSkipVerify = skip
 	}
 }
 
@@ -104,10 +112,11 @@ func NewTunnelClient(opts ...TunnelClientOption) (*TunnelClient, error) {
 
 	// Create the transport layer for the tunnel client.
 	transport := connip.NewClientTransport(&connip.ClientConfig{
-		UUID:      options.uuid,
-		AuthToken: options.authToken,
-		PcapPath:  options.pcapPath,
-		RootCAs:   options.rootCAs,
+		UUID:               options.uuid,
+		AuthToken:          options.authToken,
+		PcapPath:           options.pcapPath,
+		RootCAs:            options.rootCAs,
+		InsecureSkipVerify: options.insecureSkipVerify,
 	})
 
 	proxy := socksproxy.NewServer(options.socksListenAddr, transport, network.Host())

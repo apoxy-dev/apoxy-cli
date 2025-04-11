@@ -35,14 +35,17 @@ type ClientConfig struct {
 	PcapPath string
 	// Optional root CA certificates for TLS verification.
 	RootCAs *x509.CertPool
+	// Optional flag to skip TLS verification.
+	InsecureSkipVerify bool
 }
 
 type ClientTransport struct {
 	*network.NetstackNetwork
-	uuid      uuid.UUID
-	authToken string
-	pcapPath  string
-	rootCAs   *x509.CertPool
+	insecureSkipVerify bool
+	uuid               uuid.UUID
+	authToken          string
+	pcapPath           string
+	rootCAs            *x509.CertPool
 
 	conn      *connectip.Conn
 	tun       *netstack.TunDevice
@@ -51,18 +54,20 @@ type ClientTransport struct {
 
 func NewClientTransport(conf *ClientConfig) *ClientTransport {
 	return &ClientTransport{
-		uuid:      conf.UUID,
-		authToken: conf.AuthToken,
-		pcapPath:  conf.PcapPath,
-		rootCAs:   conf.RootCAs,
+		insecureSkipVerify: conf.InsecureSkipVerify,
+		uuid:               conf.UUID,
+		authToken:          conf.AuthToken,
+		pcapPath:           conf.PcapPath,
+		rootCAs:            conf.RootCAs,
 	}
 }
 
 func (t *ClientTransport) Connect(ctx context.Context, serverAddr string) error {
 	tlsConfig := &tls.Config{
-		ServerName: "proxy",
-		NextProtos: []string{http3.NextProtoH3},
-		RootCAs:    t.rootCAs,
+		ServerName:         "proxy",
+		NextProtos:         []string{http3.NextProtoH3},
+		RootCAs:            t.rootCAs,
+		InsecureSkipVerify: t.insecureSkipVerify,
 	}
 
 	// Use the proxy address as the server name if it is a domain.
