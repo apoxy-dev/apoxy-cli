@@ -30,6 +30,8 @@ type Config struct {
 	Projects []Project `json:"projects,omitempty"`
 	// Tunnel is the configuration for the tunnel.
 	Tunnel *TunnelConfig `json:"tunnel,omitempty"`
+	// IsLocalMode is the configuration for the local mode.
+	IsLocalMode bool `json:"isLocalMode,omitempty"`
 }
 
 // Project is a configuration for a project.

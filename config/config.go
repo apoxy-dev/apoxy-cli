@@ -26,8 +26,8 @@ var (
 	ConfigFile      string
 	AlsoLogToStderr bool
 	Verbose         bool
-	LocalMode       bool
 	ProjectID       string
+	LocalMode       bool
 	DefaultConfig   = &configv1alpha1.Config{
 		DashboardURL: "https://dashboard.apoxy.dev",
 		Projects: []configv1alpha1.Project{{
@@ -125,13 +125,16 @@ func Load() (*configv1alpha1.Config, error) {
 		}
 	}
 
+	// Flag overrides.
 	if ProjectID != "" {
 		projectID, err := uuid.Parse(ProjectID)
 		if err != nil {
 			return nil, fmt.Errorf("invalid project ID: %w", err)
 		}
-
 		cfg.CurrentProject = projectID
+	}
+	if LocalMode {
+		cfg.IsLocalMode = true
 	}
 
 	var lOpts []log.Option
