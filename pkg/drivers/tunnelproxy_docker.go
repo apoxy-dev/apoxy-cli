@@ -173,7 +173,7 @@ func (d *TunnelProxyDockerDriver) Start(
 		"--privileged",
 		"--network", dockerutils.NetworkName,
 		"--volume", fmt.Sprintf("%s:/etc/apoxy/certs", certsDir),
-		"-p", "9443:8443",
+		"-p", "9443:8443/udp",
 	)
 
 	apiserverAddr := setOpts.APIServerAddr
