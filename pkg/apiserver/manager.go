@@ -2,6 +2,8 @@ package apiserver
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/tls"
@@ -78,9 +80,35 @@ func init() {
 	utilruntime.Must(gatewayv1.Install(scheme))
 
 	gateway.Install(scheme)
+}
 
-	// Disable feature gates here. Example:
-	// feature.DefaultMutableFeatureGate.Set(string(features.APIPriorityAndFairness) + "=false")
+func generateJWTKeyPair() (privKey, pubKey []byte, err error) {
+	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to generate ECDSA key: %v", err)
+	}
+
+	privateKeyBytes, err := x509.MarshalPKCS8PrivateKey(privateKey)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to marshal private key: %v", err)
+	}
+
+	privateKeyPem := pem.EncodeToMemory(&pem.Block{
+		Type:  "PRIVATE KEY",
+		Bytes: privateKeyBytes,
+	})
+
+	publicKeyBytes, err := x509.MarshalPKIXPublicKey(&privateKey.PublicKey)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to marshal public key: %v", err)
+	}
+
+	publicKeyPem := pem.EncodeToMemory(&pem.Block{
+		Type:  "PUBLIC KEY",
+		Bytes: publicKeyBytes,
+	})
+
+	return privateKeyPem, publicKeyPem, nil
 }
 
 func waitForReadyz(url string, timeout time.Duration) error {
@@ -135,8 +163,6 @@ func waitForAPIService(ctx context.Context, c *rest.Config, groupVersion metav1.
 		case <-time.After(retryTimeout):
 		}
 	}
-
-	return nil
 }
 
 func generateSelfSignedCerts(certDir, pairName string) (certFile, keyFile string, caFile string, err error) {
@@ -222,6 +248,24 @@ type options struct {
 	enableKubeAPI         bool
 	additionalControllers []CreateController
 	gcInterval            time.Duration
+	jwtPublicKey          []byte
+	jwtPrivateKey         []byte
+	jwtRefreshThreshold   time.Duration
+}
+
+// WithJWTKeys sets the JWT key pair.
+func WithJWTKeys(publicKey, privateKey []byte) Option {
+	return func(o *options) {
+		o.jwtPublicKey = publicKey
+		o.jwtPrivateKey = privateKey
+	}
+}
+
+// WithJWTRefreshThreshold sets the JWT refresh threshold.
+func WithJWTRefreshThreshold(threshold time.Duration) Option {
+	return func(o *options) {
+		o.jwtRefreshThreshold = threshold
+	}
 }
 
 // WithClientConfig sets the client configuration.
@@ -315,8 +359,8 @@ func encodeSQLiteConnArgs(args map[string]string) string {
 }
 
 // defaultOptions returns default options.
-func defaultOptions() *options {
-	return &options{
+func defaultOptions() (*options, error) {
+	opts := &options{
 		clientConfig:        NewClientConfig(),
 		enableSimpleAuth:    false,
 		enableInClusterAuth: false,
@@ -326,10 +370,21 @@ func defaultOptions() *options {
 			"_journal_mode": "WAL",
 			"_busy_timeout": "30000",
 		},
-		certDir:      "",
-		certPairName: "tls",
-		gcInterval:   10 * time.Minute,
+		certDir:             "",
+		certPairName:        "tls",
+		gcInterval:          10 * time.Minute,
+		jwtRefreshThreshold: 24 * time.Hour,
 	}
+
+	// Generate default JWT key pair if not provided
+	if opts.jwtPublicKey == nil || opts.jwtPrivateKey == nil {
+		var err error
+		if opts.jwtPrivateKey, opts.jwtPublicKey, err = generateJWTKeyPair(); err != nil {
+			return nil, fmt.Errorf("failed to generate JWT key pair: %w", err)
+		}
+	}
+
+	return opts, nil
 }
 
 // Manager manages APIServer instance as well as built-in controllers.
@@ -356,12 +411,15 @@ func (m *Manager) Start(
 	tc tclient.Client,
 	opts ...Option,
 ) error {
-	dOpts := defaultOptions()
+	dOpts, err := defaultOptions()
+	if err != nil {
+		m.ReadyCh <- err
+		return err
+	}
 	for _, o := range opts {
 		o(dOpts)
 	}
 
-	var err error
 	if err = start(ctx, dOpts); err != nil {
 		m.ReadyCh <- err
 		return err
@@ -398,6 +456,9 @@ func (m *Manager) Start(
 	log.Infof("Registering TunnelNode controller")
 	if err := controllers.NewTunnelNodeReconciler(
 		m.manager.GetClient(),
+		dOpts.jwtPrivateKey,
+		dOpts.jwtPublicKey,
+		dOpts.jwtRefreshThreshold,
 	).SetupWithManager(ctx, m.manager); err != nil {
 		return fmt.Errorf("failed to set up TunnelNode controller: %v", err)
 	}

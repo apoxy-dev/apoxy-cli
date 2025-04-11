@@ -28,7 +28,8 @@ func TestTokenValidator(t *testing.T) {
 		}).SignedString(privateKey)
 		require.NoError(t, err)
 
-		require.NoError(t, validator.Validate(authToken, subject))
+		_, err = validator.Validate(authToken, subject)
+		require.NoError(t, err)
 	})
 
 	t.Run("Different Subject", func(t *testing.T) {
@@ -39,7 +40,8 @@ func TestTokenValidator(t *testing.T) {
 		}).SignedString(privateKey)
 		require.NoError(t, err)
 
-		require.Error(t, validator.Validate(authToken, "a-different-subject"))
+		_, err = validator.Validate(authToken, "a-different-subject")
+		require.Error(t, err)
 	})
 
 	t.Run("Expired", func(t *testing.T) {
@@ -51,7 +53,8 @@ func TestTokenValidator(t *testing.T) {
 		}).SignedString(privateKey)
 		require.NoError(t, err)
 
-		require.Error(t, validator.Validate(authToken, subject))
+		_, err = validator.Validate(authToken, subject)
+		require.Error(t, err)
 	})
 }
 
