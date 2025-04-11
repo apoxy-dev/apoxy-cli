@@ -9,16 +9,18 @@ import (
 	"net/netip"
 	"strconv"
 
+	"github.com/dpeckett/network"
+	"github.com/google/uuid"
+
 	"github.com/apoxy-dev/apoxy-cli/pkg/connip"
 	"github.com/apoxy-dev/apoxy-cli/pkg/socksproxy"
-	"github.com/dpeckett/network"
 )
 
 type TunnelClientOption func(*tunnelClientOptions)
 
 type tunnelClientOptions struct {
 	serverAddr      string
-	uuid            string
+	uuid            uuid.UUID
 	authToken       string
 	pcapPath        string
 	rootCAs         *x509.CertPool
@@ -41,7 +43,7 @@ func WithServerAddr(addr string) TunnelClientOption {
 }
 
 // WithUUID sets the UUID for the tunnel client.
-func WithUUID(uuid string) TunnelClientOption {
+func WithUUID(uuid uuid.UUID) TunnelClientOption {
 	return func(o *tunnelClientOptions) {
 		o.uuid = uuid
 	}
@@ -92,8 +94,7 @@ func NewTunnelClient(opts ...TunnelClientOption) (*TunnelClient, error) {
 		opt(options)
 	}
 
-	// Validate the options.
-	if options.uuid == "" {
+	if options.uuid == uuid.Nil {
 		return nil, fmt.Errorf("uuid is required")
 	}
 

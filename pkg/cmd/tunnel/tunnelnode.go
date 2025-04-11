@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"sync"
 
 	"github.com/spf13/cobra"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -22,6 +21,7 @@ import (
 
 	"github.com/apoxy-dev/apoxy-cli/client/versioned"
 	"github.com/apoxy-dev/apoxy-cli/config"
+	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel"
 
 	configv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/config/v1alpha1"
 	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
@@ -80,8 +80,7 @@ var tunnelRunCmd = &cobra.Command{
 type tunnelNodeReconciler struct {
 	client.Client
 
-	mu              sync.RWMutex
-	localTunnelNode corev1alpha.TunnelNode
+	tunC *tunnel.TunnelClient
 
 	scheme *runtime.Scheme
 	cfg    *configv1alpha1.Config
@@ -170,17 +169,20 @@ func (t *tunnelNodeReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, err
 	}
 
-	t.mu.RLock()
-	isLocal := tunnelNode.Name == t.localTunnelNode.Name
-	log.Info("Reconciling", "isLocal", isLocal, "localTunnelNode", t.localTunnelNode.Name, "remoteTunnelNode", tunnelNode.Name)
-	if isLocal { // Local tunnel peer - do nothing.
-		t.mu.RUnlock()
-		t.mu.Lock()
-		t.localTunnelNode = *tunnelNode.DeepCopy()
-		t.mu.Unlock()
+	if tunnelNode.Status.Credentials == "" {
+		log.Info("TunnelNode has no credentials")
 		return ctrl.Result{}, nil
 	}
-	defer t.mu.RUnlock()
+
+	var err error
+	t.tunC, err = tunnel.NewTunnelClient(
+		tunnel.WithUUID(t.cfg.CurrentProject),
+		tunnel.WithAuthToken(tunnelNode.Status.Credentials),
+	)
+	if err != nil {
+		log.Error(err, "Failed to create tunnel client")
+		return ctrl.Result{}, err
+	}
 
 	return ctrl.Result{}, nil
 }

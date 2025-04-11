@@ -45,25 +45,25 @@ var (
 type TunnelServerOption func(*tunnelServerOptions)
 
 type tunnelServerOptions struct {
-	tunName   string
-	proxyAddr string
-	localAddr netip.Prefix
-	ulaPrefix netip.Prefix
-	certPath  string
-	keyPath   string
-	ipam      IPAM
-	client    client.Client
+	tunName    string
+	proxyAddr  string
+	localRoute netip.Prefix
+	ulaPrefix  netip.Prefix
+	certPath   string
+	keyPath    string
+	ipam       IPAM
+	client     client.Client
 }
 
 func defaultServerOptions() *tunnelServerOptions {
 	return &tunnelServerOptions{
-		tunName:   "tun0",
-		proxyAddr: "0.0.0.0:8443",
-		localAddr: netip.MustParsePrefix("2001:db8::/64"),
-		ulaPrefix: netip.MustParsePrefix("fd00::/64"),
-		certPath:  "/etc/apoxy/certs/cert.pem",
-		keyPath:   "/etc/apoxy/certs/key.pem",
-		ipam:      NewRandomULA(),
+		tunName:    "tun0",
+		proxyAddr:  "0.0.0.0:8443",
+		localRoute: netip.MustParsePrefix("2001:db8::/64"),
+		ulaPrefix:  netip.MustParsePrefix("fd00::/64"),
+		certPath:   "/etc/apoxy/certs/cert.pem",
+		keyPath:    "/etc/apoxy/certs/key.pem",
+		ipam:       NewRandomULA(),
 	}
 }
 
@@ -81,10 +81,11 @@ func WithProxyAddr(addr string) TunnelServerOption {
 	}
 }
 
-// WithLocalAddr sets the local address prefix.
-func WithLocalAddr(prefix netip.Prefix) TunnelServerOption {
+// WithLocalRoute sets a network prefix that can route
+// traffic to/from the tunnel.
+func WithLocalRoute(prefix netip.Prefix) TunnelServerOption {
 	return func(o *tunnelServerOptions) {
-		o.localAddr = prefix
+		o.localRoute = prefix
 	}
 }
 
@@ -316,7 +317,7 @@ func (t *TunnelServer) handleConnect(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	if err := tv.Validate(authToken, id.String()); err != nil {
+	if _, err := tv.Validate(authToken, id.String()); err != nil {
 		slog.Error("Failed to validate token", slog.Any("error", err))
 		w.WriteHeader(http.StatusForbidden)
 		return
@@ -351,8 +352,8 @@ func (t *TunnelServer) handleConnect(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := conn.AdvertiseRoute(r.Context(), []connectip.IPRoute{
 		{
-			StartIP: t.options.localAddr.Addr(),
-			EndIP:   t.options.localAddr.Addr(),
+			StartIP: t.options.localRoute.Addr(),
+			EndIP:   lastIP(t.options.localRoute),
 		},
 	}); err != nil {
 		slog.Error("Failed to advertise route to connection", slog.Any("error", err))

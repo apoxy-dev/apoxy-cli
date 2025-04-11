@@ -59,12 +59,12 @@ func TestTunnelEndToEnd(t *testing.T) {
 	// Create a client UUID and JWT token
 	// This UUID is used to identify the client in the server's tunnel node list.
 	// The JWT token is used for authentication and contains the client's UUID as the subject.
-	clientUUID := uuid.New().String()
+	clientUUID := uuid.New()
 
 	jwtPrivateKey, jwtPublicKey := generateKeyPair(t)
 
 	clientAuthToken, err := jwt.NewWithClaims(jwt.SigningMethodES256, jwt.MapClaims{
-		"sub": clientUUID,
+		"sub": clientUUID.String(),
 		"iat": time.Now().Unix(),
 		"exp": time.Now().Add(time.Minute * 5).Unix(),
 	}).SignedString(jwtPrivateKey)
@@ -76,7 +76,7 @@ func TestTunnelEndToEnd(t *testing.T) {
 	clientTunnelNode := &corev1alpha.TunnelNode{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "client",
-			UID:  apimachinerytypes.UID(clientUUID),
+			UID:  apimachinerytypes.UID(clientUUID.String()),
 		},
 		Status: corev1alpha.TunnelNodeStatus{
 			Credentials: string(jwtPublicKey),

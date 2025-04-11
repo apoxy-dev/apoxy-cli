@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/dpeckett/network"
+	"github.com/google/uuid"
 	connectip "github.com/quic-go/connect-ip-go"
 	"github.com/quic-go/quic-go"
 	"github.com/quic-go/quic-go/http3"
@@ -27,7 +28,7 @@ var _ TunnelTransport = (*ClientTransport)(nil)
 
 type ClientConfig struct {
 	// The UUID identifying the client.
-	UUID string
+	UUID uuid.UUID
 	// The authentication token for the client.
 	AuthToken string
 	// The optional path to a packet capture file.
@@ -38,7 +39,7 @@ type ClientConfig struct {
 
 type ClientTransport struct {
 	*network.NetstackNetwork
-	uuid      string
+	uuid      uuid.UUID
 	authToken string
 	pcapPath  string
 	rootCAs   *x509.CertPool
