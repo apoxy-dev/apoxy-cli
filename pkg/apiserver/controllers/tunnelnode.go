@@ -19,11 +19,6 @@ import (
 	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/token"
 )
 
-const (
-	// JWKSURI is the URI for the JWKS endpoint.
-	JWKSURI = "/.well-known/jwks.json"
-)
-
 // TunnelNodeReconciler implements a basic garbage collector for dead/orphaned
 // TunnelNode objects.
 type TunnelNodeReconciler struct {
@@ -35,7 +30,7 @@ type TunnelNodeReconciler struct {
 	jwtPublicKey          []byte
 	tokenRefreshThreshold time.Duration
 
-	validator *token.Validator
+	validator *token.InMemoryValidator
 	issuer    *token.Issuer
 	jwkSet    *jwkset.MemoryJWKSet
 }
@@ -169,7 +164,7 @@ func (r *TunnelNodeReconciler) JWKSHandler() http.HandlerFunc {
 
 func (r *TunnelNodeReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
 	var err error
-	r.validator, err = token.NewValidator(r.jwtPublicKey)
+	r.validator, err = token.NewInMemoryValidator(r.jwtPublicKey)
 	if err != nil {
 		return fmt.Errorf("failed to create token validator: %w", err)
 	}
@@ -211,7 +206,7 @@ func (r *TunnelNodeReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Ma
 // ServeJWKS starts an HTTP server to serve JWK sets
 func (r *TunnelNodeReconciler) ServeJWKS(ctx context.Context) error {
 	mux := http.NewServeMux()
-	mux.HandleFunc(JWKSURI, r.JWKSHandler())
+	mux.HandleFunc(token.JWKSURI, r.JWKSHandler())
 
 	server := &http.Server{
 		Addr:    fmt.Sprintf("%s:%d", r.jwksHost, r.jwksPort),

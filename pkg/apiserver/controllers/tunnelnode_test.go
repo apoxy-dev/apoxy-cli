@@ -40,7 +40,7 @@ func TestTunnelNodeReconciler(t *testing.T) {
 	)
 
 	var err error
-	r.validator, err = token.NewValidator(r.jwtPublicKey)
+	r.validator, err = token.NewInMemoryValidator(r.jwtPublicKey)
 	require.NoError(t, err)
 	r.issuer, err = token.NewIssuer(r.jwtPrivateKey)
 	require.NoError(t, err)

@@ -5,6 +5,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"strings"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -21,6 +22,7 @@ import (
 	"github.com/apoxy-dev/apoxy-cli/pkg/apiserver"
 	"github.com/apoxy-dev/apoxy-cli/pkg/log"
 	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel"
+	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/token"
 
 	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
 )
@@ -39,6 +41,8 @@ var (
 	healthProbePort = flag.Int("health_probe_port", 8080, "Port for the health probe.")
 	readyProbePort  = flag.Int("ready_probe_port", 8083, "Port for the ready probe.")
 	metricsPort     = flag.Int("metrics_port", 8081, "Port for the metrics endpoint.")
+
+	jwksURLs = flag.String("jwks_urls", "", "Comma-separated URLs of the JWKS endpoints.")
 )
 
 func main() {
@@ -55,11 +59,14 @@ func main() {
 	if *apiServerAddr == "" {
 		log.Fatalf("--apiserver_addr must be set")
 	}
-	rC := apiserver.NewClientConfig(apiserver.WithClientHost(*apiServerAddr))
+	if *jwksURLs == "" {
+		log.Fatalf("--jwks_urls must be set")
+	}
 
 	log.Infof("Setting up managers")
 
 	ctrl.SetLogger(zap.New(zap.UseDevMode(true))) // TODO(dilyevsky): Use default golang logger.
+	rC := apiserver.NewClientConfig(apiserver.WithClientHost(*apiServerAddr))
 	mgr, err := ctrl.NewManager(rC, ctrl.Options{
 		Cache: cache.Options{
 			SyncPeriod: ptr.To(30 * time.Second),
@@ -82,8 +89,17 @@ func main() {
 		log.Fatalf("Failed to add readyz check: %v", err)
 	}
 
-	srv := tunnel.NewTunnelServer()
 	g, ctx := errgroup.WithContext(ctx)
+
+	jwtValidator, err := token.NewRemoteValidator(ctx, strings.Split(*jwksURLs, ","))
+	if err != nil {
+		log.Fatalf("Failed to create JWT validator: %v", err)
+	}
+
+	srv := tunnel.NewTunnelServer(
+		mgr.GetClient(),
+		jwtValidator,
+	)
 	g.Go(func() error {
 		log.Infof("Starting Tunnel Proxy server")
 

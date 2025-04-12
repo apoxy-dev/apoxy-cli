@@ -109,6 +109,7 @@ require (
 	github.com/Azure/go-autorest/tracing v0.6.0 // indirect
 	github.com/ClickHouse/ch-go v0.61.5 // indirect
 	github.com/MicahParks/jwkset v0.9.5 // indirect
+	github.com/MicahParks/keyfunc/v3 v3.3.10 // indirect
 	github.com/NYTimes/gziphandler v1.1.1 // indirect
 	github.com/Rican7/retry v0.1.0 // indirect
 	github.com/RoaringBitmap/roaring v1.2.1 // indirect

@@ -16,7 +16,7 @@ import (
 func TestTokenValidator(t *testing.T) {
 	privateKey, publicKey := generateKeyPair(t)
 
-	validator, err := NewValidator(publicKey)
+	validator, err := NewInMemoryValidator(publicKey)
 	require.NoError(t, err)
 
 	t.Run("Valid", func(t *testing.T) {

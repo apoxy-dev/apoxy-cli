@@ -19,6 +19,7 @@ import (
 
 	"github.com/apoxy-dev/apoxy-cli/build"
 	"github.com/apoxy-dev/apoxy-cli/pkg/log"
+	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/token"
 	dockerutils "github.com/apoxy-dev/apoxy-cli/pkg/utils/docker"
 )
 
@@ -184,10 +185,15 @@ func (d *TunnelProxyDockerDriver) Start(
 		}
 		apiserverAddr = fmt.Sprintf("%s:8443", apiServerHost)
 	}
+	apiserverHost, _, err := net.SplitHostPort(apiserverAddr)
+	if err != nil {
+		return "", fmt.Errorf("failed to split host and port from apiserver address: %w", err)
+	}
 
 	cmd.Args = append(cmd.Args, imageRef)
 	cmd.Args = append(cmd.Args, []string{
 		"--apiserver_addr=" + apiserverAddr,
+		fmt.Sprintf("--jwks_urls=http://%s:%d%s", apiserverHost, 8444, token.JWKSURI),
 	}...)
 	if build.IsDev() {
 		cmd.Args = append(cmd.Args, "--dev")

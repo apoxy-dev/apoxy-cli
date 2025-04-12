@@ -28,6 +28,7 @@ import (
 
 	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
 	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel"
+	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/token"
 	"github.com/apoxy-dev/apoxy-cli/pkg/utils"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
@@ -79,16 +80,24 @@ func TestTunnelEndToEnd(t *testing.T) {
 			UID:  apimachinerytypes.UID(clientUUID.String()),
 		},
 		Status: corev1alpha.TunnelNodeStatus{
-			Credentials: string(jwtPublicKey),
+			Credentials: &corev1alpha.TunnelNodeCredentials{
+				Token: clientAuthToken,
+			},
 		},
 	}
 
 	kubeClient := fake.NewClientBuilder().WithScheme(scheme).
 		WithObjects(clientTunnelNode).WithStatusSubresource(clientTunnelNode).Build()
 
-	server := tunnel.NewTunnelServer(tunnel.WithCertPath(filepath.Join(certsDir, "cert.pem")),
+	jwtValidator, err := token.NewInMemoryValidator(jwtPublicKey)
+	require.NoError(t, err)
+
+	server := tunnel.NewTunnelServer(
+		kubeClient,
+		jwtValidator,
+		tunnel.WithCertPath(filepath.Join(certsDir, "cert.pem")),
 		tunnel.WithKeyPath(filepath.Join(certsDir, "key.pem")),
-		tunnel.WithClient(kubeClient))
+	)
 
 	// Register the client with the server
 	server.AddTunnelNode(clientTunnelNode)
