@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/MicahParks/jwkset"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
@@ -36,7 +37,8 @@ func (i *Issuer) IssueToken(subj uuid.UUID, ttl time.Duration) (string, jwt.Clai
 	// kid goes into the header because it needs to be read
 	// *before* the token is verified.
 	// https://datatracker.ietf.org/doc/html/rfc7515#section-4.1.4
-	token.Header["kid"] = i.kid
+	token.Header[jwkset.HeaderKID] = i.kid
+	token.Header["alg"] = jwt.SigningMethodES256.Alg()
 
 	tokenString, err := token.SignedString(i.privateKey)
 	if err != nil {
