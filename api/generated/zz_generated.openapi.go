@@ -30,6 +30,8 @@ import (
 
 func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenAPIDefinition {
 	return map[string]common.OpenAPIDefinition{
+		"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.APIKey":                       schema_apoxy_cli_api_controllers_v1alpha1_APIKey(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.OpenTelemetrySink":            schema_apoxy_cli_api_controllers_v1alpha1_OpenTelemetrySink(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.Proxy":                        schema_apoxy_cli_api_controllers_v1alpha1_Proxy(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyAccessLogs":              schema_apoxy_cli_api_controllers_v1alpha1_ProxyAccessLogs(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyContentLogs":             schema_apoxy_cli_api_controllers_v1alpha1_ProxyContentLogs(ref),
@@ -41,6 +43,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyStatus":                  schema_apoxy_cli_api_controllers_v1alpha1_ProxyStatus(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyTracing":                 schema_apoxy_cli_api_controllers_v1alpha1_ProxyTracing(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyTracingTagValue":         schema_apoxy_cli_api_controllers_v1alpha1_ProxyTracingTagValue(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ThirdPartySinks":              schema_apoxy_cli_api_controllers_v1alpha1_ThirdPartySinks(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.AccessLog":                            schema_apoxy_cli_api_core_v1alpha_AccessLog(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.Address":                              schema_apoxy_cli_api_core_v1alpha_Address(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.AddressList":                          schema_apoxy_cli_api_core_v1alpha_AddressList(ref),
@@ -75,6 +78,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.ProxySpec":                            schema_apoxy_cli_api_core_v1alpha_ProxySpec(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.ProxyStatus":                          schema_apoxy_cli_api_core_v1alpha_ProxyStatus(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNode":                           schema_apoxy_cli_api_core_v1alpha_TunnelNode(ref),
+		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNodeCredentials":                schema_apoxy_cli_api_core_v1alpha_TunnelNodeCredentials(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNodeList":                       schema_apoxy_cli_api_core_v1alpha_TunnelNodeList(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNodeSpec":                       schema_apoxy_cli_api_core_v1alpha_TunnelNodeSpec(ref),
 		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNodeStatus":                     schema_apoxy_cli_api_core_v1alpha_TunnelNodeStatus(ref),
@@ -477,6 +481,77 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 	}
 }
 
+func schema_apoxy_cli_api_controllers_v1alpha1_APIKey(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"key": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Key is the API key.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"keyData": {
+						SchemaProps: spec.SchemaProps{
+							Description: "KeyData is the base64 encoded API key.",
+							Type:        []string{"string"},
+							Format:      "byte",
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func schema_apoxy_cli_api_controllers_v1alpha1_OpenTelemetrySink(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "OpenTelemetrySink defines the OpenTelemetry sink. This uses oltphttp",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"endpoint": {
+						SchemaProps: spec.SchemaProps{
+							Description: "OTLP Endpoint to send the traces to.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"headers": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Headers to send with the request",
+							Type:        []string{"object"},
+							AdditionalProperties: &spec.SchemaOrBool{
+								Allows: true,
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
+					"compression": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Compression setting",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+				Required: []string{"endpoint"},
+			},
+		},
+	}
+}
+
 func schema_apoxy_cli_api_controllers_v1alpha1_Proxy(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -690,11 +765,17 @@ func schema_apoxy_cli_api_controllers_v1alpha1_ProxyMonitoring(ref common.Refere
 							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.LocalObjectReference"),
 						},
 					},
+					"thirdPartySinks": {
+						SchemaProps: spec.SchemaProps{
+							Description: "For enabling third party integrations. This is only supported for cloud proxies.",
+							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ThirdPartySinks"),
+						},
+					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyAccessLogs", "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyContentLogs", "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyTracing", "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.LocalObjectReference"},
+			"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyAccessLogs", "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyContentLogs", "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyTracing", "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ThirdPartySinks", "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.LocalObjectReference"},
 	}
 }
 
@@ -922,6 +1003,58 @@ func schema_apoxy_cli_api_controllers_v1alpha1_ProxyTracingTagValue(ref common.R
 				Required: []string{"value", "header"},
 			},
 		},
+	}
+}
+
+func schema_apoxy_cli_api_controllers_v1alpha1_ThirdPartySinks(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"axiomLogs": {
+						SchemaProps: spec.SchemaProps{
+							Description: "AxiomLogs is the API key for Axiom logs.",
+							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.APIKey"),
+						},
+					},
+					"axiomTraces": {
+						SchemaProps: spec.SchemaProps{
+							Description: "AxiomTraces is the API key for Axiom traces.",
+							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.APIKey"),
+						},
+					},
+					"datadogLogs": {
+						SchemaProps: spec.SchemaProps{
+							Description: "DatadogLogs is the API key for Datadog logs.",
+							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.APIKey"),
+						},
+					},
+					"datadogTraces": {
+						SchemaProps: spec.SchemaProps{
+							Description: "DatadogTraces is the API key for Datadog traces.",
+							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.APIKey"),
+						},
+					},
+					"openTelemetrySinks": {
+						SchemaProps: spec.SchemaProps{
+							Description: "OpenTelemetrySink is the OpenTelemetry sink.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.OpenTelemetrySink"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.APIKey", "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.OpenTelemetrySink"},
 	}
 }
 
@@ -2438,6 +2571,25 @@ func schema_apoxy_cli_api_core_v1alpha_TunnelNode(ref common.ReferenceCallback) 
 	}
 }
 
+func schema_apoxy_cli_api_core_v1alpha_TunnelNodeCredentials(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"token": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Signed JWT token for the tunnel transport connection.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
 func schema_apoxy_cli_api_core_v1alpha_TunnelNodeList(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -2521,8 +2673,7 @@ func schema_apoxy_cli_api_core_v1alpha_TunnelNodeStatus(ref common.ReferenceCall
 					"credentials": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Credentials for the tunnel node proxy.",
-							Type:        []string{"string"},
-							Format:      "",
+							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNodeCredentials"),
 						},
 					},
 					"agents": {
@@ -2543,7 +2694,7 @@ func schema_apoxy_cli_api_core_v1alpha_TunnelNodeStatus(ref common.ReferenceCall
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.AgentStatus"},
+			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.AgentStatus", "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNodeCredentials"},
 	}
 }
 

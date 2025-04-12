@@ -42,12 +42,17 @@ type AgentStatus struct {
 	AgentAddress string `json:"agentAddress,omitempty"`
 }
 
+type TunnelNodeCredentials struct {
+	// Signed JWT token for the tunnel transport connection.
+	Token string `json:"token,omitempty"`
+}
+
 type TunnelNodeStatus struct {
 	// One or more addresses used by agents to establish a tunnel.
 	Addresses []string `json:"addresses,omitempty"`
 
 	// Credentials for the tunnel node proxy.
-	Credentials string `json:"credentials,omitempty"`
+	Credentials *TunnelNodeCredentials `json:"credentials,omitempty"`
 
 	// Agents is a list of agents connected to the tunnel node.
 	Agents []AgentStatus `json:"agents,omitempty"`

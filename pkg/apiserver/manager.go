@@ -24,6 +24,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	tclient "go.temporal.io/sdk/client"
+	"golang.org/x/sync/errgroup"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -251,6 +252,8 @@ type options struct {
 	jwtPublicKey          []byte
 	jwtPrivateKey         []byte
 	jwtRefreshThreshold   time.Duration
+	jwksHost              string
+	jwksPort              int
 }
 
 // WithJWTKeys sets the JWT key pair.
@@ -265,6 +268,20 @@ func WithJWTKeys(publicKey, privateKey []byte) Option {
 func WithJWTRefreshThreshold(threshold time.Duration) Option {
 	return func(o *options) {
 		o.jwtRefreshThreshold = threshold
+	}
+}
+
+// WithJWKSHost sets the JWKS host.
+func WithJWKSHost(host string) Option {
+	return func(o *options) {
+		o.jwksHost = host
+	}
+}
+
+// WithJWKSPort sets the JWKS port.
+func WithJWKSPort(port int) Option {
+	return func(o *options) {
+		o.jwksPort = port
 	}
 }
 
@@ -374,6 +391,8 @@ func defaultOptions() (*options, error) {
 		certPairName:        "tls",
 		gcInterval:          10 * time.Minute,
 		jwtRefreshThreshold: 24 * time.Hour,
+		jwksHost:            os.Getenv("HOSTNAME"),
+		jwksPort:            8444,
 	}
 
 	// Generate default JWT key pair if not provided
@@ -446,6 +465,8 @@ func (m *Manager) Start(
 		return fmt.Errorf("failed to wait for APIService %s: %v", ctrlv1alpha1.GroupVersion.Group, err)
 	}
 
+	g, ctx := errgroup.WithContext(ctx)
+
 	log.Infof("Registering Proxy controller")
 	if err := controllers.NewProxyReconciler(
 		m.manager.GetClient(),
@@ -454,14 +475,24 @@ func (m *Manager) Start(
 	}
 
 	log.Infof("Registering TunnelNode controller")
-	if err := controllers.NewTunnelNodeReconciler(
+	tunnelNodeReconciler := controllers.NewTunnelNodeReconciler(
 		m.manager.GetClient(),
+		dOpts.jwksHost,
+		dOpts.jwksPort,
 		dOpts.jwtPrivateKey,
 		dOpts.jwtPublicKey,
 		dOpts.jwtRefreshThreshold,
-	).SetupWithManager(ctx, m.manager); err != nil {
+	)
+	if err := tunnelNodeReconciler.SetupWithManager(ctx, m.manager); err != nil {
 		return fmt.Errorf("failed to set up TunnelNode controller: %v", err)
 	}
+	g.Go(func() error {
+		if err := tunnelNodeReconciler.ServeJWKS(ctx); err != nil {
+			log.Errorf("failed to serve JWKS: %v", err)
+			return fmt.Errorf("failed to serve JWKS: %v", err)
+		}
+		return nil
+	})
 
 	log.Infof("Registering Gateway controller")
 	gwOpts := []gateway.Option{}
@@ -504,7 +535,11 @@ func (m *Manager) Start(
 
 	log.Infof("Starting API server manager")
 
-	return m.manager.Start(ctx)
+	g.Go(func() error {
+		return m.manager.Start(ctx)
+	})
+
+	return g.Wait()
 }
 
 // start starts the API server.

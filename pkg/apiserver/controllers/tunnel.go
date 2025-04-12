@@ -2,9 +2,13 @@ package controllers
 
 import (
 	"context"
+	"encoding/pem"
 	"fmt"
+	"log/slog"
+	"net/http"
 	"time"
 
+	"github.com/MicahParks/jwkset"
 	"github.com/google/uuid"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -16,7 +20,8 @@ import (
 )
 
 const (
-	expiryDuration = 5 * time.Minute
+	// JWKSURI is the URI for the JWKS endpoint.
+	JWKSURI = "/.well-known/jwks.json"
 )
 
 // TunnelNodeReconciler implements a basic garbage collector for dead/orphaned
@@ -24,40 +29,54 @@ const (
 type TunnelNodeReconciler struct {
 	client.Client
 
+	jwksHost              string
+	jwksPort              int
 	jwtPrivateKey         []byte
 	jwtPublicKey          []byte
 	tokenRefreshThreshold time.Duration
 
 	validator *token.Validator
 	issuer    *token.Issuer
+	jwkSet    *jwkset.MemoryJWKSet
 }
 
 func NewTunnelNodeReconciler(
 	c client.Client,
+	jwksHost string,
+	jwksPort int,
 	jwtPrivateKey []byte,
 	jwtPublicKey []byte,
 	tokenRefreshThreshold time.Duration,
 ) *TunnelNodeReconciler {
 	return &TunnelNodeReconciler{
 		Client:                c,
+		jwksHost:              jwksHost,
+		jwksPort:              jwksPort,
 		jwtPrivateKey:         jwtPrivateKey,
 		jwtPublicKey:          jwtPublicKey,
 		tokenRefreshThreshold: tokenRefreshThreshold,
+		jwkSet:                jwkset.NewMemoryStorage(),
 	}
 }
 
 func (r *TunnelNodeReconciler) isNewTokenNeeded(
 	ctx context.Context,
-	token, subj string,
+	credentials *corev1alpha.TunnelNodeCredentials,
+	subj string,
 ) (bool, error) {
 	log := controllerlog.FromContext(ctx, "subj", subj)
 
-	if token == "" {
+	if credentials == nil {
+		log.Info("Credentials are nil")
+		return true, nil
+	}
+
+	if credentials.Token == "" {
 		log.Info("Token is empty")
 		return true, nil
 	}
 
-	claims, err := r.validator.Validate(token, subj)
+	claims, err := r.validator.Validate(credentials.Token, subj)
 	if err != nil { // Not supposed to happen so log the issue
 		log.Error(err, "Token validation failed")
 		return true, nil
@@ -120,7 +139,9 @@ func (r *TunnelNodeReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 
 		log.Info("Issued new token", "subj", subj, "exp", exp)
 
-		tn.Status.Credentials = token
+		tn.Status.Credentials = &corev1alpha.TunnelNodeCredentials{
+			Token: token,
+		}
 
 		if err := r.Status().Update(ctx, tn); err != nil {
 			return ctrl.Result{}, fmt.Errorf("failed to update status: %w", err)
@@ -128,6 +149,22 @@ func (r *TunnelNodeReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 	}
 
 	return ctrl.Result{}, nil
+}
+
+// JWKSHandler returns an http.HandlerFunc that serves the JWKS at the
+// standard JWKS path.
+func (r *TunnelNodeReconciler) JWKSHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request) {
+		resp, err := r.jwkSet.JSONPublic(req.Context())
+		if err != nil {
+			slog.Error("Failed to get JWK Set JSON.", slog.Any("error", err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(resp)
+	}
 }
 
 func (r *TunnelNodeReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
@@ -141,7 +178,61 @@ func (r *TunnelNodeReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Ma
 		return fmt.Errorf("failed to create token issuer: %w", err)
 	}
 
+	// TODO(dsky): Implement key rotation.
+	pubKey, _ := pem.Decode(r.jwtPublicKey)
+	if pubKey == nil {
+		return fmt.Errorf("failed to decode private key")
+	}
+	key, err := jwkset.LoadX509KeyInfer(pubKey)
+	if err != nil {
+		return fmt.Errorf("failed to load X509 key: %w", err)
+	}
+	metadata := jwkset.JWKMetadataOptions{
+		KID: r.issuer.KeyID(),
+	}
+	jwk, err := jwkset.NewJWKFromKey(key, jwkset.JWKOptions{
+		Metadata: metadata,
+		Marshal: jwkset.JWKMarshalOptions{
+			Private: false,
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create JWK: %w", err)
+	}
+	if err := r.jwkSet.KeyWrite(ctx, jwk); err != nil {
+		return fmt.Errorf("failed to write JWK: %w", err)
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&corev1alpha.TunnelNode{}).
 		Complete(r)
+}
+
+// ServeJWKS starts an HTTP server to serve JWK sets
+func (r *TunnelNodeReconciler) ServeJWKS(ctx context.Context) error {
+	mux := http.NewServeMux()
+	mux.HandleFunc(JWKSURI, r.JWKSHandler())
+
+	server := &http.Server{
+		Addr:    fmt.Sprintf("%s:%d", r.jwksHost, r.jwksPort),
+		Handler: mux,
+	}
+
+	slog.Info("Starting JWKS HTTP server", slog.String("addr", server.Addr))
+
+	go func() {
+		<-ctx.Done()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			slog.Error("Failed to shutdown JWKS server", slog.Any("error", err))
+		}
+	}()
+
+	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		return fmt.Errorf("JWKS server failed: %w", err)
+	}
+
+	return nil
 }

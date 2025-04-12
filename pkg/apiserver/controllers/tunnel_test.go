@@ -32,6 +32,8 @@ func TestTunnelNodeReconciler(t *testing.T) {
 	privKey, pubKey := generateKeyPair(t)
 	r := NewTunnelNodeReconciler(
 		k8sClient,
+		"localhost",
+		9444,
 		privKey,
 		pubKey,
 		time.Minute,

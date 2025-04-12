@@ -2,9 +2,13 @@ package tunnel
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
+	"math/rand"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -43,6 +47,17 @@ func init() {
 	utilruntime.Must(corev1alpha.Install(scheme))
 }
 
+type tunnelNodeReconciler struct {
+	client.Client
+
+	scheme *runtime.Scheme
+	cfg    *configv1alpha1.Config
+	a3y    versioned.Interface
+	doneCh chan error
+
+	tunC *tunnel.TunnelClient
+}
+
 var tunnelRunCmd = &cobra.Command{
 	Use:   "run",
 	Short: "Run a tunnel",
@@ -72,24 +87,14 @@ var tunnelRunCmd = &cobra.Command{
 			scheme: scheme,
 			cfg:    cfg,
 			a3y:    a3y,
+
+			doneCh: make(chan error),
 		}
 		return tun.run(ctx, tn)
 	},
 }
 
-type tunnelNodeReconciler struct {
-	client.Client
-
-	tunC *tunnel.TunnelClient
-
-	scheme *runtime.Scheme
-	cfg    *configv1alpha1.Config
-	a3y    versioned.Interface
-}
-
 func (t *tunnelNodeReconciler) run(ctx context.Context, tn *corev1alpha.TunnelNode) error {
-	var err error
-
 	slog.Debug("Running TunnelNode controller", slog.String("name", tn.Name))
 
 	client, err := config.DefaultAPIClient()
@@ -113,9 +118,8 @@ func (t *tunnelNodeReconciler) run(ctx context.Context, tn *corev1alpha.TunnelNo
 		return fmt.Errorf("unable to set up controller: %w", err)
 	}
 
-	doneCh := make(chan struct{})
 	go func() {
-		defer close(doneCh)
+		defer close(t.doneCh)
 		if err := mgr.Start(ctx); err != nil {
 			slog.Error("Manager exited non-zero", slog.Any("error", err))
 		}
@@ -124,7 +128,10 @@ func (t *tunnelNodeReconciler) run(ctx context.Context, tn *corev1alpha.TunnelNo
 	// Set the initial status of the TunnelNode object.
 	// Wait for the TunnelNode object to be deleted, or for the command to be cancelled.
 	select {
-	case <-doneCh:
+	case err := <-t.doneCh:
+		if err != nil {
+			return fmt.Errorf("manager exited non-zero: %w", err)
+		}
 	case <-ctx.Done():
 	}
 
@@ -165,23 +172,54 @@ func (t *tunnelNodeReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	var tunnelNode corev1alpha.TunnelNode
 	if err := t.Get(ctx, req.NamespacedName, &tunnelNode); err != nil {
+		if client.IgnoreNotFound(err) == nil {
+			t.doneCh <- errors.New("TunnelNode not found")
+			return ctrl.Result{}, nil
+		}
 		log.Error(err, "Failed to get TunnelNode")
 		return ctrl.Result{}, err
 	}
 
-	if tunnelNode.Status.Credentials == "" {
+	var cOpts []tunnel.TunnelClientOption
+	tnUUID, err := uuid.Parse(string(tunnelNode.ObjectMeta.UID))
+	if err != nil { // This can only happen in a test environment.
+		log.Error(err, "Failed to parse UID", "uid", tunnelNode.ObjectMeta.UID)
+		return ctrl.Result{}, err
+	} else {
+		cOpts = append(cOpts, tunnel.WithUUID(tnUUID))
+	}
+	if tunnelNode.Status.Credentials == nil || tunnelNode.Status.Credentials.Token == "" {
 		log.Info("TunnelNode has no credentials")
-		return ctrl.Result{}, nil
+		return ctrl.Result{
+			RequeueAfter: time.Second,
+		}, nil
+	} else {
+		cOpts = append(cOpts, tunnel.WithAuthToken(tunnelNode.Status.Credentials.Token))
+	}
+	if !t.cfg.IsLocalMode { // Keep default server address in local mode.
+		if len(tunnelNode.Status.Addresses) == 0 {
+			log.Info("TunnelNode has no addresses")
+			return ctrl.Result{
+				RequeueAfter: time.Second,
+			}, nil
+		} else {
+			cOpts = append(cOpts, tunnel.WithServerAddr(tunnelNode.Status.Addresses[rand.Intn(len(tunnelNode.Status.Addresses))]))
+		}
+	}
+	if t.cfg.IsLocalMode {
+		cOpts = append(cOpts, tunnel.WithInsecureSkipVerify(true))
 	}
 
-	var err error
-	t.tunC, err = tunnel.NewTunnelClient(
-		tunnel.WithUUID(t.cfg.CurrentProject),
-		tunnel.WithAuthToken(tunnelNode.Status.Credentials),
-	)
-	if err != nil {
+	if t.tunC, err = tunnel.NewTunnelClient(cOpts...); err != nil {
 		log.Error(err, "Failed to create tunnel client")
-		return ctrl.Result{}, err
+		t.doneCh <- fmt.Errorf("failed to create tunnel client: %w", err)
+		return ctrl.Result{}, nil // Unrecoverable error.
+	}
+
+	if err := t.tunC.Start(ctx); err != nil {
+		log.Error(err, "Failed to start tunnel client")
+		t.doneCh <- fmt.Errorf("failed to start tunnel client: %w", err)
+		return ctrl.Result{}, nil // Unrecoverable error.
 	}
 
 	return ctrl.Result{}, nil

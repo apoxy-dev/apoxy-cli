@@ -11,6 +11,7 @@ import (
 
 type Issuer struct {
 	privateKey *ecdsa.PrivateKey
+	kid        string
 }
 
 func NewIssuer(privateKey []byte) (*Issuer, error) {
@@ -20,6 +21,7 @@ func NewIssuer(privateKey []byte) (*Issuer, error) {
 	}
 	return &Issuer{
 		privateKey: key,
+		kid:        fmt.Sprintf("ES256-%v", uuid.New()),
 	}, nil
 }
 
@@ -31,10 +33,20 @@ func (i *Issuer) IssueToken(subj uuid.UUID, ttl time.Duration) (string, jwt.Clai
 		ExpiresAt: jwt.NewNumericDate(now.Add(ttl)),
 	})
 
+	// kid goes into the header because it needs to be read
+	// *before* the token is verified.
+	// https://datatracker.ietf.org/doc/html/rfc7515#section-4.1.4
+	token.Header["kid"] = i.kid
+
 	tokenString, err := token.SignedString(i.privateKey)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to sign token: %w", err)
 	}
 
 	return tokenString, token.Claims, nil
+}
+
+// KeyID returns the key ID used by this issuer (kid hint).
+func (i *Issuer) KeyID() string {
+	return i.kid
 }
