@@ -7,9 +7,14 @@ import (
 	"net"
 
 	"golang.org/x/sync/errgroup"
+	"golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/tun"
 
 	"github.com/apoxy-dev/apoxy-cli/pkg/netstack"
+)
+
+const (
+	tunOffset = device.MessageTransportHeaderSize
 )
 
 func Splice(tun tun.Device, conn Connection) error {
@@ -45,17 +50,17 @@ func Splice(tun tun.Device, conn Connection) error {
 	})
 
 	g.Go(func() error {
-		var pkt [netstack.IPv6MinMTU]byte
+		var pkt [netstack.IPv6MinMTU + tunOffset]byte
 
 		for {
-			n, err := conn.ReadPacket(pkt[:])
+			n, err := conn.ReadPacket(pkt[tunOffset:])
 			if err != nil {
 				return fmt.Errorf("failed to read from connection: %w", err)
 			}
 
 			slog.Debug("Read from connection", slog.Int("bytes", n))
 
-			if _, err := tun.Write([][]byte{pkt[:n]}, 0); err != nil {
+			if _, err := tun.Write([][]byte{pkt[:n+tunOffset]}, tunOffset); err != nil {
 				slog.Error("Failed to write to TUN", slog.Any("error", err))
 				continue
 			}
