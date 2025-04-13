@@ -5,6 +5,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"net/netip"
 	"strings"
 	"time"
 
@@ -22,6 +23,7 @@ import (
 	"github.com/apoxy-dev/apoxy-cli/pkg/apiserver"
 	"github.com/apoxy-dev/apoxy-cli/pkg/log"
 	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel"
+	tunnelnet "github.com/apoxy-dev/apoxy-cli/pkg/tunnel/net"
 	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/token"
 
 	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
@@ -37,12 +39,13 @@ var (
 	devMode  = flag.Bool("dev", false, "Enable development mode.")
 	logLevel = flag.String("log_level", "info", "Log level.")
 
-	apiServerAddr   = flag.String("apiserver_addr", "host.docker.internal:8443", "APIServer address.")
 	healthProbePort = flag.Int("health_probe_port", 8080, "Port for the health probe.")
 	readyProbePort  = flag.Int("ready_probe_port", 8083, "Port for the ready probe.")
 	metricsPort     = flag.Int("metrics_port", 8081, "Port for the metrics endpoint.")
 
-	jwksURLs = flag.String("jwks_urls", "", "Comma-separated URLs of the JWKS endpoints.")
+	apiServerAddr = flag.String("apiserver_addr", "host.docker.internal:8443", "APIServer address.")
+	jwksURLs      = flag.String("jwks_urls", "", "Comma-separated URLs of the JWKS endpoints.")
+	localRoute    = flag.String("local_route", "", "Local route for the tunnel.")
 )
 
 func main() {
@@ -96,9 +99,23 @@ func main() {
 		log.Fatalf("Failed to create JWT validator: %v", err)
 	}
 
+	var lr netip.Prefix
+	if *localRoute != "" {
+		lr, err = netip.ParsePrefix(*localRoute)
+		if err != nil {
+			log.Fatalf("Failed to parse local route: %v", err)
+		}
+	} else {
+		lr, err = tunnelnet.LocalRouteIPv6()
+		if err != nil {
+			log.Fatalf("Failed to create local route: %v", err)
+		}
+	}
+
 	srv := tunnel.NewTunnelServer(
 		mgr.GetClient(),
 		jwtValidator,
+		tunnel.WithLocalRoute(lr),
 	)
 	g.Go(func() error {
 		log.Infof("Starting Tunnel Proxy server")
