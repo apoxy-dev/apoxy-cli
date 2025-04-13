@@ -7,6 +7,8 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"log/slog"
+	"reflect"
 	"strings"
 
 	"github.com/MicahParks/keyfunc/v3"
@@ -102,6 +104,21 @@ func NewRemoteValidator(ctx context.Context, urls []string) (*RemoteValidator, e
 // Validate validates the token is valid and was issued for the specified subject.
 func (v *RemoteValidator) Validate(tokenStr, subject string) (jwt.Claims, error) {
 	return validate(func(token *jwt.Token) (any, error) {
-		return v.rkf.Keyfunc, nil
+		key, err := v.rkf.Keyfunc(token)
+		if err != nil {
+			slog.Error("failed to get key", err)
+			return nil, err
+		}
+		if key == nil {
+			slog.Error("key is nil")
+			return nil, errors.New("key is nil")
+		}
+		switch key.(type) {
+		case *ecdsa.PublicKey:
+			return key, nil
+		default:
+			slog.Error("unsupported key type", "type", reflect.TypeOf(key))
+			return nil, errors.New("unsupported key type")
+		}
 	}, tokenStr, subject)
 }
