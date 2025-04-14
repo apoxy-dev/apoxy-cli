@@ -24,6 +24,10 @@ import (
 	"github.com/apoxy-dev/apoxy-cli/pkg/netstack"
 )
 
+const (
+	ApplicationCodeOK quic.ApplicationErrorCode = 0x0
+)
+
 var _ TunnelTransport = (*ClientTransport)(nil)
 
 type ClientConfig struct {
@@ -47,6 +51,7 @@ type ClientTransport struct {
 	pcapPath           string
 	rootCAs            *x509.CertPool
 
+	hConn     *http3.ClientConn
 	conn      *connectip.Conn
 	tun       *netstack.TunDevice
 	closeOnce sync.Once
@@ -91,12 +96,12 @@ func (t *ClientTransport) Connect(ctx context.Context, serverAddr string) error 
 	}
 
 	tr := &http3.Transport{EnableDatagrams: true}
-	hconn := tr.NewClientConn(qConn)
+	t.hConn = tr.NewClientConn(qConn)
 
 	template := uritemplate.MustNew(fmt.Sprintf("https://proxy/connect/%s?token=%s", t.uuid, t.authToken))
 
 	var rsp *http.Response
-	t.conn, rsp, err = connectip.Dial(ctx, hconn, template)
+	t.conn, rsp, err = connectip.Dial(ctx, t.hConn, template)
 	if err != nil {
 		return fmt.Errorf("failed to dial connect-ip connection: %w", err)
 	}
@@ -179,6 +184,17 @@ func (t *ClientTransport) Close() error {
 					closeErr = fmt.Errorf("%v; also failed to close TUN device: %w", closeErr, err)
 				} else {
 					closeErr = fmt.Errorf("failed to close TUN device: %w", err)
+				}
+			}
+		}
+
+		if t.hConn != nil {
+			if err := t.hConn.CloseWithError(ApplicationCodeOK, ""); err != nil {
+				// combine errors if both fail
+				if closeErr != nil {
+					closeErr = fmt.Errorf("%v; also failed to close HTTP/3 connection: %w", closeErr, err)
+				} else {
+					closeErr = fmt.Errorf("failed to close HTTP/3 connection: %w", err)
 				}
 			}
 		}

@@ -135,6 +135,14 @@ func (t *tunnelNodeReconciler) run(ctx context.Context, tn *corev1alpha.TunnelNo
 	case <-ctx.Done():
 	}
 
+	<-t.doneCh // Wait for manager go-routine to exist.
+
+	if t.tunC != nil {
+		if err := t.tunC.Stop(); err != nil {
+			slog.Error("Failed to stop tunnel client", slog.Any("error", err))
+		}
+	}
+
 	return nil
 }
 
