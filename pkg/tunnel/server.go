@@ -271,6 +271,17 @@ func (t *TunnelServer) Start(ctx context.Context) error {
 	return g.Wait()
 }
 
+func upsertAgentStatus(s *corev1alpha.TunnelNodeStatus, agent *corev1alpha.AgentStatus) {
+	for _, a := range s.Agents {
+		if a.Name == agent.Name {
+			a = *agent
+			return
+		}
+	}
+
+	s.Agents = append(s.Agents, *agent)
+}
+
 func (t *TunnelServer) Stop() error {
 	// Stop any background tasks if they are running.
 	if t.tunnelCtxCancel != nil {
@@ -367,7 +378,7 @@ func (t *TunnelServer) handleConnect(w http.ResponseWriter, r *http.Request) {
 
 	t.mux.AddConnection(peerPrefix, conn)
 
-	agent := corev1alpha.AgentStatus{
+	agent := &corev1alpha.AgentStatus{
 		Name:           uuid.NewString(),
 		ConnectedAt:    ptr.To(metav1.Now()),
 		PrivateAddress: peerPrefix.String(),
@@ -383,7 +394,7 @@ func (t *TunnelServer) handleConnect(w http.ResponseWriter, r *http.Request) {
 			return err
 		}
 
-		upd.Status.Agents = append(upd.Status.Agents, agent)
+		upsertAgentStatus(&upd.Status, agent)
 
 		return t.Status().Update(r.Context(), upd)
 	}); err != nil {
