@@ -201,9 +201,6 @@ func (t *TunnelServer) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to bring up TUN interface: %w", err)
 	}
 
-	// TODO (dpeckett): assign an address from the ULA prefix to the TUN
-	// interface.
-
 	bindTo, err := netip.ParseAddrPort(t.options.proxyAddr)
 	if err != nil {
 		return fmt.Errorf("failed to parse bind address: %w", err)

@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/golang-jwt/jwt"
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -25,6 +27,7 @@ import (
 	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
 	"github.com/apoxy-dev/apoxy-cli/pkg/cryptoutils"
 	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel"
+	tunnelnet "github.com/apoxy-dev/apoxy-cli/pkg/tunnel/net"
 	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/token"
 	"github.com/apoxy-dev/apoxy-cli/pkg/utils"
 )
@@ -92,9 +95,15 @@ func TestTunnelEndToEnd(t *testing.T) {
 	jwtValidator, err := token.NewInMemoryValidator(jwtPublicKeyPEM)
 	require.NoError(t, err)
 
+	lr, err := tunnelnet.LocalRouteIPv6()
+	require.NoError(t, err)
+
+	fmt.Println("Local route:", lr)
+
 	server := tunnel.NewTunnelServer(
 		kubeClient,
 		jwtValidator,
+		tunnel.WithLocalRoute(lr),
 		tunnel.WithCertPath(filepath.Join(certsDir, "server.crt")),
 		tunnel.WithKeyPath(filepath.Join(certsDir, "server.key")),
 	)
@@ -179,13 +188,22 @@ func TestTunnelEndToEnd(t *testing.T) {
 		// This will fail atm due the servers TUN device not being assigned a
 		// valid IP address.
 
-		/*		t.Log("Attempting connection")
+		t.Log("Attempting connection")
 
-				httpPort := httpListener.Addr().(*net.TCPAddr).Port
+		httpPort := httpListener.Addr().(*net.TCPAddr).Port
 
-				resp, err := http.Get("http://" + net.JoinHostPort(clientAddresses[0].Addr().String(), fmt.Sprintf("%d", httpPort)))
-				require.NoError(t, err)
-				defer resp.Body.Close()*/
+		resp, err := http.Get("http://" + net.JoinHostPort(clientAddresses[0].Addr().String(), fmt.Sprintf("%d", httpPort)))
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		// Read the response body
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Equal(t, "Hello, world!\n", string(body))
+
+		t.Log("Connection successful")
 
 		return nil
 	})
