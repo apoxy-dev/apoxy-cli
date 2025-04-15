@@ -2,13 +2,11 @@ package controllers
 
 import (
 	"context"
-	"encoding/pem"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
 
-	"github.com/MicahParks/jwkset"
 	"github.com/google/uuid"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -26,13 +24,12 @@ type TunnelNodeReconciler struct {
 
 	jwksHost              string
 	jwksPort              int
-	jwtPrivateKey         []byte
-	jwtPublicKey          []byte
+	jwtPrivateKeyPEM      []byte
+	jwtPublicKeyPEM       []byte
 	tokenRefreshThreshold time.Duration
 
 	validator *token.InMemoryValidator
 	issuer    *token.Issuer
-	jwkSet    *jwkset.MemoryJWKSet
 }
 
 func NewTunnelNodeReconciler(
@@ -47,10 +44,9 @@ func NewTunnelNodeReconciler(
 		Client:                c,
 		jwksHost:              jwksHost,
 		jwksPort:              jwksPort,
-		jwtPrivateKey:         jwtPrivateKey,
-		jwtPublicKey:          jwtPublicKey,
+		jwtPrivateKeyPEM:      jwtPrivateKey,
+		jwtPublicKeyPEM:       jwtPublicKey,
 		tokenRefreshThreshold: tokenRefreshThreshold,
-		jwkSet:                jwkset.NewMemoryStorage(),
 	}
 }
 
@@ -123,7 +119,7 @@ func (r *TunnelNodeReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 			return ctrl.Result{}, fmt.Errorf("failed to parse UID as UUID: %w", err)
 		}
 
-		token, claims, err := r.issuer.IssueToken(subj, 2*r.tokenRefreshThreshold)
+		token, claims, err := r.issuer.IssueToken(subj.String(), 2*r.tokenRefreshThreshold)
 		if err != nil {
 			return ctrl.Result{}, fmt.Errorf("failed to issue token: %w", err)
 		}
@@ -146,56 +142,15 @@ func (r *TunnelNodeReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 	return ctrl.Result{}, nil
 }
 
-// JWKSHandler returns an http.HandlerFunc that serves the JWKS at the
-// standard JWKS path.
-func (r *TunnelNodeReconciler) JWKSHandler() http.HandlerFunc {
-	return func(w http.ResponseWriter, req *http.Request) {
-		resp, err := r.jwkSet.JSONPublic(req.Context())
-		if err != nil {
-			slog.Error("Failed to get JWK Set JSON.", slog.Any("error", err))
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write(resp)
-	}
-}
-
 func (r *TunnelNodeReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
 	var err error
-	r.validator, err = token.NewInMemoryValidator(r.jwtPublicKey)
+	r.validator, err = token.NewInMemoryValidator(r.jwtPublicKeyPEM)
 	if err != nil {
 		return fmt.Errorf("failed to create token validator: %w", err)
 	}
-	r.issuer, err = token.NewIssuer(r.jwtPrivateKey)
+	r.issuer, err = token.NewIssuer(r.jwtPrivateKeyPEM)
 	if err != nil {
 		return fmt.Errorf("failed to create token issuer: %w", err)
-	}
-
-	// TODO(dsky): Implement key rotation.
-	pubKey, _ := pem.Decode(r.jwtPublicKey)
-	if pubKey == nil {
-		return fmt.Errorf("failed to decode private key")
-	}
-	key, err := jwkset.LoadX509KeyInfer(pubKey)
-	if err != nil {
-		return fmt.Errorf("failed to load X509 key: %w", err)
-	}
-	metadata := jwkset.JWKMetadataOptions{
-		KID: r.issuer.KeyID(),
-	}
-	jwk, err := jwkset.NewJWKFromKey(key, jwkset.JWKOptions{
-		Metadata: metadata,
-		Marshal: jwkset.JWKMarshalOptions{
-			Private: false,
-		},
-	})
-	if err != nil {
-		return fmt.Errorf("failed to create JWK: %w", err)
-	}
-	if err := r.jwkSet.KeyWrite(ctx, jwk); err != nil {
-		return fmt.Errorf("failed to write JWK: %w", err)
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
@@ -205,8 +160,13 @@ func (r *TunnelNodeReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Ma
 
 // ServeJWKS starts an HTTP server to serve JWK sets
 func (r *TunnelNodeReconciler) ServeJWKS(ctx context.Context) error {
+	jwksHandler, err := token.NewJWKSHandler(r.jwtPublicKeyPEM)
+	if err != nil {
+		return fmt.Errorf("failed to create JWKS handler: %w", err)
+	}
+
 	mux := http.NewServeMux()
-	mux.HandleFunc(token.JWKSURI, r.JWKSHandler())
+	mux.HandleFunc(token.JWKSURI, jwksHandler)
 
 	server := &http.Server{
 		Addr:    fmt.Sprintf("%s:%d", r.jwksHost, r.jwksPort),

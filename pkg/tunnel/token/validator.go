@@ -15,11 +15,6 @@ import (
 	"github.com/apoxy-dev/apoxy-cli/pkg/cryptoutils"
 )
 
-const (
-	// JWKSURI is the URI for the JWKS endpoint.
-	JWKSURI = "/.well-known/jwks.json"
-)
-
 type JWTValidator interface {
 	Validate(tokenStr, subject string) (jwt.Claims, error)
 }

@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/MicahParks/jwkset"
+	"github.com/apoxy-dev/apoxy-cli/pkg/cryptoutils"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/google/uuid"
 )
 
 type Issuer struct {
@@ -15,21 +15,22 @@ type Issuer struct {
 	kid        string
 }
 
-func NewIssuer(privateKey []byte) (*Issuer, error) {
-	key, err := jwt.ParseECPrivateKeyFromPEM(privateKey)
+func NewIssuer(privateKeyPEM []byte) (*Issuer, error) {
+	privateKey, err := cryptoutils.ParseEllipticPrivateKeyPEM(privateKeyPEM)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse private key: %w", err)
 	}
+
 	return &Issuer{
-		privateKey: key,
-		kid:        fmt.Sprintf("ES256-%v", uuid.New()),
+		privateKey: privateKey,
+		kid:        fingerprint(&privateKey.PublicKey),
 	}, nil
 }
 
-func (i *Issuer) IssueToken(subj uuid.UUID, ttl time.Duration) (string, jwt.Claims, error) {
+func (i *Issuer) IssueToken(subject string, ttl time.Duration) (string, jwt.Claims, error) {
 	now := time.Now()
 	token := jwt.NewWithClaims(jwt.SigningMethodES256, &jwt.RegisteredClaims{
-		Subject:   subj.String(),
+		Subject:   subject,
 		IssuedAt:  jwt.NewNumericDate(now),
 		ExpiresAt: jwt.NewNumericDate(now.Add(ttl)),
 	})
@@ -46,9 +47,4 @@ func (i *Issuer) IssueToken(subj uuid.UUID, ttl time.Duration) (string, jwt.Clai
 	}
 
 	return tokenString, token.Claims, nil
-}
-
-// KeyID returns the key ID used by this issuer (kid hint).
-func (i *Issuer) KeyID() string {
-	return i.kid
 }
