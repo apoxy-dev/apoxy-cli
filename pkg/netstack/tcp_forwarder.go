@@ -36,7 +36,7 @@ func tcpHandler(ctx context.Context, upstream network.Network) func(req *tcp.For
 		reqDetails := req.ID()
 
 		srcAddrPort := netip.AddrPortFrom(addrFromNetstackIP(reqDetails.RemoteAddress), reqDetails.RemotePort)
-		dstAddrPort := netip.AddrPortFrom(netip.AddrFrom4([4]byte{127, 0, 0, 1}), reqDetails.LocalPort)
+		dstAddrPort := netip.AddrPortFrom(addrFromNetstackIP(reqDetails.LocalAddress), reqDetails.LocalPort)
 
 		logger := slog.With(
 			slog.String("src", srcAddrPort.String()),
