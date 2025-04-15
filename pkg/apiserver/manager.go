@@ -2,20 +2,11 @@ package apiserver
 
 import (
 	"context"
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
-	"crypto/rsa"
 	"crypto/tls"
-	"crypto/x509"
-	"crypto/x509/pkix"
-	"encoding/pem"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
-	"math"
-	"math/big"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -39,7 +30,6 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	certutil "k8s.io/client-go/util/cert"
 	"k8s.io/klog/v2"
 	netutils "k8s.io/utils/net"
 	"sigs.k8s.io/apiserver-runtime/pkg/builder"
@@ -53,6 +43,7 @@ import (
 	"github.com/apoxy-dev/apoxy-cli/pkg/apiserver/controllers"
 	extensionscontroller "github.com/apoxy-dev/apoxy-cli/pkg/apiserver/extensions"
 	"github.com/apoxy-dev/apoxy-cli/pkg/apiserver/gateway"
+	"github.com/apoxy-dev/apoxy-cli/pkg/cryptoutils"
 	gw "github.com/apoxy-dev/apoxy-cli/pkg/gateway"
 	"github.com/apoxy-dev/apoxy-cli/pkg/log"
 
@@ -81,35 +72,6 @@ func init() {
 	utilruntime.Must(gatewayv1.Install(scheme))
 
 	gateway.Install(scheme)
-}
-
-func generateJWTKeyPair() (privKey, pubKey []byte, err error) {
-	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to generate ECDSA key: %v", err)
-	}
-
-	privateKeyBytes, err := x509.MarshalPKCS8PrivateKey(privateKey)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to marshal private key: %v", err)
-	}
-
-	privateKeyPem := pem.EncodeToMemory(&pem.Block{
-		Type:  "PRIVATE KEY",
-		Bytes: privateKeyBytes,
-	})
-
-	publicKeyBytes, err := x509.MarshalPKIXPublicKey(&privateKey.PublicKey)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to marshal public key: %v", err)
-	}
-
-	publicKeyPem := pem.EncodeToMemory(&pem.Block{
-		Type:  "PUBLIC KEY",
-		Bytes: publicKeyBytes,
-	})
-
-	return privateKeyPem, publicKeyPem, nil
 }
 
 func waitForReadyz(url string, timeout time.Duration) error {
@@ -167,62 +129,24 @@ func waitForAPIService(ctx context.Context, c *rest.Config, groupVersion metav1.
 }
 
 func generateSelfSignedCerts(certDir, pairName string) (certFile, keyFile string, caFile string, err error) {
-	caKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		return "", "", "", fmt.Errorf("failed to generate private key: %w", err)
-	}
-	cfg := certutil.Config{
-		CommonName: apiserverCA,
-	}
-	caCert, err := certutil.NewSelfSignedCACert(cfg, caKey)
+	caCert, serverCert, err := cryptoutils.GenerateSelfSignedTLSCert(apiserverUser)
 	if err != nil {
 		return "", "", "", fmt.Errorf("failed to generate self-signed certificate: %w", err)
-	}
-
-	certKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		return "", "", "", fmt.Errorf("failed to generate private key: %w", err)
-	}
-	serial, err := rand.Int(rand.Reader, new(big.Int).SetInt64(math.MaxInt64-1))
-	if err != nil {
-		return "", "", "", fmt.Errorf("failed to generate serial number: %w", err)
-	}
-	serial = new(big.Int).Add(serial, big.NewInt(1))
-	validFrom := time.Now().Add(-time.Hour)
-	template := x509.Certificate{
-		SerialNumber: serial,
-		Subject: pkix.Name{
-			CommonName: apiserverUser,
-		},
-
-		NotBefore: validFrom,
-		NotAfter:  validFrom.Add(365 * 24 * time.Hour),
-
-		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		BasicConstraintsValid: true,
-	}
-	certBytes, err := x509.CreateCertificate(rand.Reader, &template, caCert, certKey.Public(), caKey)
-	if err != nil {
-		return "", "", "", fmt.Errorf("failed to create certificate: %w", err)
 	}
 
 	if err := os.MkdirAll(certDir, 0755); err != nil {
 		return "", "", "", fmt.Errorf("failed to create certificate directory: %w", err)
 	}
-	certFile = filepath.Join(certDir, pairName+".crt")
-	keyFile = filepath.Join(certDir, pairName+".key")
-	caFile = filepath.Join(certDir, "ca.crt")
-	if err := os.WriteFile(certFile, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certBytes}), 0644); err != nil {
-		return "", "", "", fmt.Errorf("failed to write certificate: %w", err)
+
+	if err := cryptoutils.SaveCertificatePEM(caCert, certDir, "ca", true); err != nil {
+		return "", "", "", fmt.Errorf("failed to save CA certificate: %w", err)
 	}
-	if err := os.WriteFile(keyFile, pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(certKey)}), 0600); err != nil {
-		return "", "", "", fmt.Errorf("failed to write private key: %w", err)
+
+	if err := cryptoutils.SaveCertificatePEM(serverCert, certDir, pairName, false); err != nil {
+		return "", "", "", fmt.Errorf("failed to save server certificate: %w", err)
 	}
-	if err := os.WriteFile(caFile, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: caCert.Raw}), 0644); err != nil {
-		return "", "", "", fmt.Errorf("failed to write CA certificate: %w", err)
-	}
-	return certFile, keyFile, caFile, nil
+
+	return filepath.Join(certDir, pairName+".crt"), filepath.Join(certDir, pairName+".key"), filepath.Join(certDir, "ca.crt"), nil
 }
 
 type certSource struct {
@@ -398,7 +322,7 @@ func defaultOptions() (*options, error) {
 	// Generate default JWT key pair if not provided
 	if opts.jwtPublicKey == nil || opts.jwtPrivateKey == nil {
 		var err error
-		if opts.jwtPrivateKey, opts.jwtPublicKey, err = generateJWTKeyPair(); err != nil {
+		if opts.jwtPrivateKey, opts.jwtPublicKey, err = cryptoutils.GenerateEllipticKeyPair(); err != nil {
 			return nil, fmt.Errorf("failed to generate JWT key pair: %w", err)
 		}
 	}

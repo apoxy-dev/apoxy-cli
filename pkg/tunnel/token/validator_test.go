@@ -1,22 +1,23 @@
 package token
 
 import (
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
-	"crypto/x509"
-	"encoding/pem"
 	"testing"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/require"
+
+	"github.com/apoxy-dev/apoxy-cli/pkg/cryptoutils"
 )
 
 func TestTokenValidator(t *testing.T) {
-	privateKey, publicKey := generateKeyPair(t)
+	privateKeyPEM, publicKeyPEM, err := cryptoutils.GenerateEllipticKeyPair()
+	require.NoError(t, err)
 
-	validator, err := NewInMemoryValidator(publicKey)
+	privateKey, err := cryptoutils.ParseEllipticPrivateKeyPEM(privateKeyPEM)
+	require.NoError(t, err)
+
+	validator, err := NewInMemoryValidator(publicKeyPEM)
 	require.NoError(t, err)
 
 	t.Run("Valid", func(t *testing.T) {
@@ -56,19 +57,4 @@ func TestTokenValidator(t *testing.T) {
 		_, err = validator.Validate(authToken, subject)
 		require.Error(t, err)
 	})
-}
-
-func generateKeyPair(t *testing.T) (*ecdsa.PrivateKey, []byte) {
-	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	require.NoError(t, err)
-
-	publicKeyBytes, err := x509.MarshalPKIXPublicKey(&privateKey.PublicKey)
-	require.NoError(t, err)
-
-	pemData := pem.EncodeToMemory(&pem.Block{
-		Type:  "PUBLIC KEY",
-		Bytes: publicKeyBytes,
-	})
-
-	return privateKey, pemData
 }

@@ -3,8 +3,6 @@ package token
 import (
 	"context"
 	"crypto/ecdsa"
-	"crypto/x509"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -13,6 +11,8 @@ import (
 
 	"github.com/MicahParks/keyfunc/v3"
 	"github.com/golang-jwt/jwt/v5"
+
+	"github.com/apoxy-dev/apoxy-cli/pkg/cryptoutils"
 )
 
 const (
@@ -62,23 +62,13 @@ type InMemoryValidator struct {
 }
 
 // NewInMemoryValidator creates a new Validator with the public key.
-func NewInMemoryValidator(pubKey []byte) (*InMemoryValidator, error) {
-	block, _ := pem.Decode(pubKey)
-	if block == nil {
-		return nil, errors.New("failed to decode PEM block containing public key")
-	}
-
-	publicKey, err := x509.ParsePKIXPublicKey(block.Bytes)
+func NewInMemoryValidator(publicKeyPEM []byte) (*InMemoryValidator, error) {
+	publicKey, err := cryptoutils.ParseEllipticPublicKeyPEM(publicKeyPEM)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse ECDSA public key: %w", err)
 	}
 
-	ecdsaPublicKey, ok := publicKey.(*ecdsa.PublicKey)
-	if !ok {
-		return nil, errors.New("not an ECDSA public key")
-	}
-
-	return &InMemoryValidator{publicKey: ecdsaPublicKey}, nil
+	return &InMemoryValidator{publicKey: publicKey}, nil
 }
 
 // Validate validates the token is valid and was issued for the specified subject.
@@ -106,7 +96,7 @@ func (v *RemoteValidator) Validate(tokenStr, subject string) (jwt.Claims, error)
 	return validate(func(token *jwt.Token) (any, error) {
 		key, err := v.rkf.Keyfunc(token)
 		if err != nil {
-			slog.Error("failed to get key", err)
+			slog.Error("failed to get key", slog.Any("error", err))
 			return nil, err
 		}
 		if key == nil {

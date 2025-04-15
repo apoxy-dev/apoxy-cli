@@ -4,11 +4,6 @@ package tunnel_test
 
 import (
 	"context"
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
-	"crypto/x509"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -25,12 +20,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	apimachinerytypes "k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
+	"github.com/apoxy-dev/apoxy-cli/pkg/cryptoutils"
 	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel"
 	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/token"
 	"github.com/apoxy-dev/apoxy-cli/pkg/utils"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 func TestTunnelEndToEnd(t *testing.T) {
@@ -48,13 +44,13 @@ func TestTunnelEndToEnd(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	serverCert, rootCAs, err := utils.GenerateSelfSignedTLSCert()
+	caCert, serverCert, err := cryptoutils.GenerateSelfSignedTLSCert("localhost")
 	require.NoError(t, err)
 
 	certsDir := t.TempDir()
 
 	// Save the server certificate and private key to the temporary directory as PEM files
-	err = utils.SaveTLSCertificatePEM(serverCert, certsDir)
+	err = cryptoutils.SaveCertificatePEM(serverCert, certsDir, "server", false)
 	require.NoError(t, err)
 
 	// Create a client UUID and JWT token
@@ -62,7 +58,11 @@ func TestTunnelEndToEnd(t *testing.T) {
 	// The JWT token is used for authentication and contains the client's UUID as the subject.
 	clientUUID := uuid.New()
 
-	jwtPrivateKey, jwtPublicKey := generateKeyPair(t)
+	jwtPrivateKeyPEM, jwtPublicKeyPEM, err := cryptoutils.GenerateEllipticKeyPair()
+	require.NoError(t, err)
+
+	jwtPrivateKey, err := cryptoutils.ParseEllipticPrivateKeyPEM(jwtPrivateKeyPEM)
+	require.NoError(t, err)
 
 	clientAuthToken, err := jwt.NewWithClaims(jwt.SigningMethodES256, jwt.MapClaims{
 		"sub": clientUUID.String(),
@@ -89,14 +89,14 @@ func TestTunnelEndToEnd(t *testing.T) {
 	kubeClient := fake.NewClientBuilder().WithScheme(scheme).
 		WithObjects(clientTunnelNode).WithStatusSubresource(clientTunnelNode).Build()
 
-	jwtValidator, err := token.NewInMemoryValidator(jwtPublicKey)
+	jwtValidator, err := token.NewInMemoryValidator(jwtPublicKeyPEM)
 	require.NoError(t, err)
 
 	server := tunnel.NewTunnelServer(
 		kubeClient,
 		jwtValidator,
-		tunnel.WithCertPath(filepath.Join(certsDir, "cert.pem")),
-		tunnel.WithKeyPath(filepath.Join(certsDir, "key.pem")),
+		tunnel.WithCertPath(filepath.Join(certsDir, "server.crt")),
+		tunnel.WithKeyPath(filepath.Join(certsDir, "server.key")),
 	)
 
 	// Register the client with the server
@@ -106,7 +106,7 @@ func TestTunnelEndToEnd(t *testing.T) {
 	client, err := tunnel.NewTunnelClient(
 		tunnel.WithUUID(clientUUID),
 		tunnel.WithAuthToken(clientAuthToken),
-		tunnel.WithRootCAs(rootCAs),
+		tunnel.WithRootCAs(cryptoutils.CertPoolForCertificate(caCert)),
 		tunnel.WithPcapPath("client.pcap"),
 	)
 	require.NoError(t, err)
@@ -191,19 +191,4 @@ func TestTunnelEndToEnd(t *testing.T) {
 	})
 
 	require.NoError(t, g.Wait())
-}
-
-func generateKeyPair(t *testing.T) (*ecdsa.PrivateKey, []byte) {
-	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	require.NoError(t, err)
-
-	publicKeyBytes, err := x509.MarshalPKIXPublicKey(&privateKey.PublicKey)
-	require.NoError(t, err)
-
-	pemData := pem.EncodeToMemory(&pem.Block{
-		Type:  "PUBLIC KEY",
-		Bytes: publicKeyBytes,
-	})
-
-	return privateKey, pemData
 }

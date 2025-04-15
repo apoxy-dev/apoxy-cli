@@ -2,11 +2,6 @@ package controllers
 
 import (
 	"context"
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
-	"crypto/x509"
-	"encoding/pem"
 	"testing"
 	"time"
 
@@ -20,6 +15,7 @@ import (
 
 	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
 	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/token"
+	"github.com/apoxy-dev/apoxy-cli/pkg/utils"
 )
 
 func TestTunnelNodeReconciler(t *testing.T) {
@@ -29,7 +25,9 @@ func TestTunnelNodeReconciler(t *testing.T) {
 	// Create a fake client with the registered scheme.
 	k8sClient := fake.NewClientBuilder().WithScheme(scheme).Build()
 
-	privKey, pubKey := generateKeyPair(t)
+	privKey, pubKey, err := utils.GenerateEllipticKeyPair()
+	require.NoError(t, err)
+
 	r := NewTunnelNodeReconciler(
 		k8sClient,
 		"localhost",
@@ -39,7 +37,6 @@ func TestTunnelNodeReconciler(t *testing.T) {
 		time.Minute,
 	)
 
-	var err error
 	r.validator, err = token.NewInMemoryValidator(r.jwtPublicKey)
 	require.NoError(t, err)
 	r.issuer, err = token.NewIssuer(r.jwtPrivateKey)
@@ -65,27 +62,4 @@ func TestTunnelNodeReconciler(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-}
-
-func generateKeyPair(t *testing.T) ([]byte, []byte) {
-	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	require.NoError(t, err)
-
-	privateKeyBytes, err := x509.MarshalPKCS8PrivateKey(privateKey)
-	require.NoError(t, err)
-
-	privateKeyPem := pem.EncodeToMemory(&pem.Block{
-		Type:  "PRIVATE KEY",
-		Bytes: privateKeyBytes,
-	})
-
-	publicKeyBytes, err := x509.MarshalPKIXPublicKey(&privateKey.PublicKey)
-	require.NoError(t, err)
-
-	pubKeyPem := pem.EncodeToMemory(&pem.Block{
-		Type:  "PUBLIC KEY",
-		Bytes: publicKeyBytes,
-	})
-
-	return privateKeyPem, pubKeyPem
 }
