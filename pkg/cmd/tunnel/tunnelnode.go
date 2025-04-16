@@ -41,6 +41,8 @@ var (
 	scheme       = runtime.NewScheme()
 	codecFactory = serializer.NewCodecFactory(scheme)
 	decodeFn     = codecFactory.UniversalDeserializer().Decode
+
+	tunnelNodePcapPath string
 )
 
 func init() {
@@ -188,7 +190,9 @@ func (t *tunnelNodeReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, err
 	}
 
-	var cOpts []tunnel.TunnelClientOption
+	cOpts := []tunnel.TunnelClientOption{
+		tunnel.WithPcapPath(tunnelNodePcapPath),
+	}
 	tnUUID, err := uuid.Parse(string(tunnelNode.ObjectMeta.UID))
 	if err != nil { // This can only happen in a test environment.
 		log.Error(err, "Failed to parse UID", "uid", tunnelNode.ObjectMeta.UID)
