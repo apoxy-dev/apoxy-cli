@@ -9,7 +9,6 @@ import (
 
 	"github.com/dpeckett/network"
 	"golang.zx2c4.com/wireguard/tun"
-	"k8s.io/utils/ptr"
 
 	"gvisor.dev/gvisor/pkg/buffer"
 	"gvisor.dev/gvisor/pkg/tcpip"
@@ -66,12 +65,8 @@ func NewTunDevice(localAddresses []netip.Prefix, mtu *int, pcapPath string) (*Tu
 		return nil, fmt.Errorf("could not set TCP congestion control: %v", tcpipErr)
 	}
 
-	if mtu == nil {
-		mtu = ptr.To(IPv6MinMTU)
-	}
-
 	nicID := ipstack.NextNICID()
-	linkEP := channel.New(4096, uint32(*mtu), "")
+	linkEP := channel.New(4096, uint32(IPv6MinMTU), "")
 	var nicEP stack.LinkEndpoint = linkEP
 
 	var pcapFile *os.File
@@ -82,7 +77,7 @@ func NewTunDevice(localAddresses []netip.Prefix, mtu *int, pcapPath string) (*Tu
 			return nil, fmt.Errorf("could not create pcap file: %w", err)
 		}
 
-		nicEP, err = sniffer.NewWithWriter(linkEP, pcapFile, uint32(*mtu))
+		nicEP, err = sniffer.NewWithWriter(linkEP, pcapFile, linkEP.MTU())
 		if err != nil {
 			return nil, fmt.Errorf("could not create packet sniffer: %w", err)
 		}
