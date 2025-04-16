@@ -102,6 +102,7 @@ func (m *MuxedConnection) ReadPacket(pkt []byte) (int, error) {
 
 	n := copy(pkt, *p)
 
+	*p = (*p)[:cap(*p)]
 	m.packetBufferPool.Put(p)
 
 	return n, nil
