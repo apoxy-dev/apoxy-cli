@@ -145,7 +145,9 @@ func (r *Runtime) setOptions(opts ...Option) {
 		opt(r)
 	}
 	if r.Release == nil {
-		r.Release = &GitHubRelease{}
+		r.Release = &LatestCachedRelease{
+			Path: fmt.Sprintf("%s/envoy", config.ApoxyDir()),
+		}
 	}
 	if r.Cluster == "" {
 		r.Cluster = uuid.New().String()
@@ -315,7 +317,7 @@ func (r *Runtime) envoyPath() string {
 	if r.EnvoyPath != "" {
 		return r.EnvoyPath
 	}
-	return config.ApoxyDir() + "/envoy/envoy"
+	return fmt.Sprintf("%s/envoy/%s/envoy", config.ApoxyDir(), r.Release.String())
 }
 
 // vendorEnvoyIfNotExists vendors the Envoy binary for the release if it does

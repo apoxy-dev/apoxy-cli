@@ -331,9 +331,9 @@ func (r *ProxyReconciler) Reconcile(ctx context.Context, request reconcile.Reque
 			opts = append(opts, envoy.WithRelease(&envoy.URLRelease{
 				URL: r.options.releaseURL,
 			}))
-		} else {
+		} else if r.options.useEnvoyContrib {
 			opts = append(opts, envoy.WithRelease(&envoy.GitHubRelease{
-				Contrib: r.options.useEnvoyContrib,
+				Contrib: true,
 			}))
 		}
 
@@ -511,9 +511,9 @@ func (r *ProxyReconciler) DownloadEnvoy(ctx context.Context) error {
 		opts = append(opts, envoy.WithRelease(&envoy.URLRelease{
 			URL: r.options.releaseURL,
 		}))
-	} else {
+	} else if r.options.useEnvoyContrib {
 		opts = append(opts, envoy.WithRelease(&envoy.GitHubRelease{
-			Contrib: r.options.useEnvoyContrib,
+			Contrib: true,
 		}))
 	}
 

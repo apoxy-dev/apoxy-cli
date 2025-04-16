@@ -374,7 +374,6 @@ func (m *ApoxyCli) BuildBackplane(
 
 	runtimeCtr := m.PullEdgeRuntime(ctx, platform)
 
-	customReleaseURL := "https://apoxy-envoy-releases.s3.us-west-2.amazonaws.com/envoy-contrib-dev-cfedcdbc0bf1e687d0fc2ad243e7277ed004673d-" + canonArchFromGoArch(goarch)
 	return dag.Container(dagger.ContainerOpts{Platform: p}).
 		From("cgr.dev/chainguard/wolfi-base:latest").
 		WithExec([]string{"apk", "add", "-u", "iptables", "iproute2", "net-tools"}).
@@ -389,7 +388,6 @@ func (m *ApoxyCli) BuildBackplane(
 			"--replica=apoxy",
 			"--apiserver_addr=localhost:8443",
 			"--use_envoy_contrib=true",
-			"--envoy_release_url=" + customReleaseURL,
 			"--download_envoy_only=true",
 		}).
 		WithEntrypoint([]string{"/bin/backplane"})
