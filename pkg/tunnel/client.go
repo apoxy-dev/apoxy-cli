@@ -155,10 +155,6 @@ func (c *TunnelClient) Start(ctx context.Context) error {
 		// Otherwise we could be DoS'd by a network loop.
 		DeniedPorts: []uint16{uint16(socksListenPort)},
 		Upstream:    network.Loopback(),
-		AllowedDestinations: []netip.Prefix{
-			netip.MustParsePrefix("127.0.0.0/24"),
-			netip.MustParsePrefix("::1/128"),
-		},
 	})); err != nil {
 		return fmt.Errorf("failed to forward to loopback: %w", err)
 	}

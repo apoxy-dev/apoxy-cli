@@ -2,11 +2,6 @@ package controllers
 
 import (
 	"context"
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
-	"crypto/x509"
-	"encoding/pem"
 	"testing"
 	"time"
 
@@ -19,31 +14,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
+	"github.com/apoxy-dev/apoxy-cli/pkg/cryptoutils"
 	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/token"
 )
 
 func TestTunnelNodeReconciler(t *testing.T) {
 	scheme := runtime.NewScheme()
 	require.NoError(t, corev1alpha.Install(scheme))
-
-	// Create a fake client with the registered scheme.
-	k8sClient := fake.NewClientBuilder().WithScheme(scheme).Build()
-
-	privKey, pubKey := generateKeyPair(t)
-	r := NewTunnelNodeReconciler(
-		k8sClient,
-		"localhost",
-		9444,
-		privKey,
-		pubKey,
-		time.Minute,
-	)
-
-	var err error
-	r.validator, err = token.NewInMemoryValidator(r.jwtPublicKey)
-	require.NoError(t, err)
-	r.issuer, err = token.NewIssuer(r.jwtPrivateKey)
-	require.NoError(t, err)
 
 	tunnelNode := &corev1alpha.TunnelNode{
 		ObjectMeta: metav1.ObjectMeta{
@@ -53,8 +30,27 @@ func TestTunnelNodeReconciler(t *testing.T) {
 		},
 	}
 
-	// Add the TunnelNode to the fake client.
-	err = k8sClient.Create(context.TODO(), tunnelNode)
+	// Create a fake client with the registered scheme and the TunnelNode object.
+	k8sClient := fake.NewClientBuilder().WithScheme(scheme).
+		WithObjects(tunnelNode).
+		WithStatusSubresource(tunnelNode).
+		Build()
+
+	privKey, pubKey, err := cryptoutils.GenerateEllipticKeyPair()
+	require.NoError(t, err)
+
+	r := NewTunnelNodeReconciler(
+		k8sClient,
+		"localhost",
+		9444,
+		privKey,
+		pubKey,
+		time.Minute,
+	)
+
+	r.validator, err = token.NewInMemoryValidator(r.jwtPublicKeyPEM)
+	require.NoError(t, err)
+	r.issuer, err = token.NewIssuer(r.jwtPrivateKeyPEM)
 	require.NoError(t, err)
 
 	// Call the reconcile method.
@@ -65,27 +61,4 @@ func TestTunnelNodeReconciler(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-}
-
-func generateKeyPair(t *testing.T) ([]byte, []byte) {
-	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	require.NoError(t, err)
-
-	privateKeyBytes, err := x509.MarshalPKCS8PrivateKey(privateKey)
-	require.NoError(t, err)
-
-	privateKeyPem := pem.EncodeToMemory(&pem.Block{
-		Type:  "PRIVATE KEY",
-		Bytes: privateKeyBytes,
-	})
-
-	publicKeyBytes, err := x509.MarshalPKIXPublicKey(&privateKey.PublicKey)
-	require.NoError(t, err)
-
-	pubKeyPem := pem.EncodeToMemory(&pem.Block{
-		Type:  "PUBLIC KEY",
-		Bytes: publicKeyBytes,
-	})
-
-	return privateKeyPem, pubKeyPem
 }

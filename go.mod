@@ -6,6 +6,8 @@ toolchain go1.23.2
 
 require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.23.2
+	github.com/MicahParks/jwkset v0.9.5
+	github.com/MicahParks/keyfunc/v3 v3.3.10
 	github.com/alphadose/haxmap v1.4.1
 	github.com/buraksezer/olric v0.5.6
 	github.com/cncf/xds/go v0.0.0-20240905190251-b4127c9b8d78
@@ -15,7 +17,7 @@ require (
 	github.com/dgraph-io/badger/v4 v4.5.0
 	github.com/docker/docker v27.2.0+incompatible
 	github.com/dpeckett/contextio v0.5.1
-	github.com/dpeckett/network v0.3.3
+	github.com/dpeckett/network v0.3.4
 	github.com/dpeckett/triemap v0.3.1
 	github.com/envoyproxy/gateway v0.5.0-rc.1.0.20240618131507-bdff5d56b59d
 	github.com/envoyproxy/go-control-plane v0.13.0
@@ -26,6 +28,7 @@ require (
 	github.com/getsentry/sentry-go v0.26.0
 	github.com/go-logr/logr v1.4.2
 	github.com/goccy/go-json v0.9.11
+	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/golang-jwt/jwt/v5 v5.2.2
 	github.com/golang-migrate/migrate/v4 v4.17.1
 	github.com/golang/protobuf v1.5.4
@@ -65,7 +68,6 @@ require (
 	golang.org/x/sys v0.29.0
 	golang.org/x/tools v0.26.0
 	golang.zx2c4.com/wireguard v0.0.0-20231211153847-12269c276173
-	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20230429144221-925a1e7659e6
 	google.golang.org/grpc v1.68.0
 	google.golang.org/protobuf v1.35.2
 	gopkg.in/yaml.v2 v2.4.0
@@ -108,8 +110,6 @@ require (
 	github.com/Azure/go-autorest/logger v0.2.1 // indirect
 	github.com/Azure/go-autorest/tracing v0.6.0 // indirect
 	github.com/ClickHouse/ch-go v0.61.5 // indirect
-	github.com/MicahParks/jwkset v0.9.5 // indirect
-	github.com/MicahParks/keyfunc/v3 v3.3.10 // indirect
 	github.com/NYTimes/gziphandler v1.1.1 // indirect
 	github.com/Rican7/retry v0.1.0 // indirect
 	github.com/RoaringBitmap/roaring v1.2.1 // indirect
@@ -178,7 +178,6 @@ require (
 	github.com/gocql/gocql v1.6.0 // indirect
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
-	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.1 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/mock v1.7.0-rc.1 // indirect
@@ -226,7 +225,6 @@ require (
 	github.com/jmoiron/sqlx v1.4.0 // indirect
 	github.com/jonboulle/clockwork v0.2.2 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
-	github.com/josharian/native v1.1.0 // indirect
 	github.com/joyent/triton-go v0.0.0-20180628001255-830d2b111e62 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
@@ -243,9 +241,6 @@ require (
 	github.com/mattn/go-runewidth v0.0.15 // indirect
 	github.com/mattn/go-sqlite3 v1.14.22 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
-	github.com/mdlayher/genetlink v1.3.2 // indirect
-	github.com/mdlayher/netlink v1.7.2 // indirect
-	github.com/mdlayher/socket v0.4.1 // indirect
 	github.com/minio/highwayhash v1.0.2 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/moby/sys/mountinfo v0.7.1 // indirect
