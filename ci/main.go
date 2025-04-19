@@ -296,9 +296,8 @@ func (m *ApoxyCli) BuildEdgeRuntime(
 // PullEdgeRuntime pulls the edge runtime image from dockerhub.
 func (m *ApoxyCli) PullEdgeRuntime(
 	ctx context.Context,
-	platform string,
+	p dagger.Platform,
 ) *dagger.Container {
-	p := dagger.Platform(platform)
 	return dag.Container(dagger.ContainerOpts{Platform: p}).
 		From("docker.io/supabase/edge-runtime:v1.62.2")
 }
@@ -307,20 +306,25 @@ func (m *ApoxyCli) PullEdgeRuntime(
 func (m *ApoxyCli) BuildAPIServer(
 	ctx context.Context,
 	src *dagger.Directory,
+	// +optional
+	platform string,
 ) *dagger.Container {
-	platform := dagger.Platform("linux/amd64")
-	goarch := "amd64"
-	targetArch := "x86_64"
+	if platform == "" {
+		platform = runtime.GOOS + "/" + runtime.GOARCH
+	}
+	p := dagger.Platform(platform)
+	goarch := archOf(p)
+
 	builder := m.BuilderContainer(ctx, src).
 		WithEnvVariable("GOARCH", goarch).
 		WithEnvVariable("GOOS", "linux").
 		WithEnvVariable("CGO_ENABLED", "1").
-		WithEnvVariable("CC", fmt.Sprintf("zig-wrapper cc --target=%s-linux-musl", targetArch)).
+		WithEnvVariable("CC", fmt.Sprintf("zig-wrapper cc --target=%s-linux-musl", canonArchFromGoArch(goarch))).
 		WithExec([]string{"go", "build", "-o", "apiserver", "./cmd/apiserver"})
 
-	runtimeCtr := m.PullEdgeRuntime(ctx, string(platform))
+	runtimeCtr := m.PullEdgeRuntime(ctx, p)
 
-	return dag.Container(dagger.ContainerOpts{Platform: platform}).
+	return dag.Container(dagger.ContainerOpts{Platform: p}).
 		From("cgr.dev/chainguard/wolfi-base:latest").
 		WithFile("/bin/apiserver", builder.File("/src/apiserver")).
 		WithFile("/bin/edge-runtime", runtimeCtr.File("/usr/local/bin/edge-runtime")).
@@ -372,7 +376,7 @@ func (m *ApoxyCli) BuildBackplane(
 		WithExec([]string{"go", "build", "-o", "/src/" + otelOut}).
 		WithWorkdir("/src")
 
-	runtimeCtr := m.PullEdgeRuntime(ctx, platform)
+	runtimeCtr := m.PullEdgeRuntime(ctx, p)
 
 	return dag.Container(dagger.ContainerOpts{Platform: p}).
 		From("cgr.dev/chainguard/wolfi-base:latest").
@@ -434,14 +438,20 @@ func (m *ApoxyCli) PublishImages(
 	registryPassword *dagger.Secret,
 	tag string,
 ) error {
-	aCtr := m.BuildAPIServer(ctx, src)
-	addr, err := aCtr.
+	var apiCtrs []*dagger.Container
+	for _, platform := range []string{"linux/amd64", "linux/arm64"} {
+		apiCtrs = append(apiCtrs, m.BuildAPIServer(ctx, src, platform))
+	}
+
+	addr, err := dag.Container().
 		WithRegistryAuth(
 			"registry-1.docker.io",
 			"apoxy",
 			registryPassword,
 		).
-		Publish(ctx, "docker.io/apoxy/apiserver:"+tag)
+		Publish(ctx, "docker.io/apoxy/apiserver:"+tag, dagger.ContainerPublishOpts{
+			PlatformVariants: apiCtrs,
+		})
 	if err != nil {
 		return err
 	}
@@ -450,8 +460,7 @@ func (m *ApoxyCli) PublishImages(
 
 	var bCtrs []*dagger.Container
 	for _, platform := range []string{"linux/amd64", "linux/arm64"} {
-		bCtr := m.BuildBackplane(ctx, src, platform)
-		bCtrs = append(bCtrs, bCtr)
+		bCtrs = append(bCtrs, m.BuildBackplane(ctx, src, platform))
 	}
 
 	addr, err = dag.Container().
@@ -471,8 +480,7 @@ func (m *ApoxyCli) PublishImages(
 
 	var tpCtrs []*dagger.Container
 	for _, platform := range []string{"linux/amd64", "linux/arm64"} {
-		tpCtr := m.BuildTunnelproxy(ctx, src, platform)
-		tpCtrs = append(tpCtrs, tpCtr)
+		tpCtrs = append(tpCtrs, m.BuildTunnelproxy(ctx, src, platform))
 	}
 
 	addr, err = dag.Container().
