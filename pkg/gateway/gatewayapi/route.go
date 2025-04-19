@@ -348,7 +348,6 @@ func (t *Translator) processHTTPRouteRule(httpRoute *HTTPRouteContext, ruleIdx i
 			Name: irRouteName(httpRoute, ruleIdx, matchIdx),
 		}
 		processTimeout(irRoute, rule)
-
 		// TODO(dilyevsky): Get this setting from the Proxy object. Put in reasonable defaults for now.
 		// https://linear.app/apoxy/issue/APO-258/implement-tcpkeepalive-settting
 		irRoute.TCPKeepalive = &ir.TCPKeepalive{
@@ -723,6 +722,7 @@ func (t *Translator) processHTTPRouteParentRefListener(route RouteContext, route
 					Timeout:               routeRoute.Timeout,
 					Retry:                 routeRoute.Retry,
 					IsHTTP2:               routeRoute.IsHTTP2,
+					TCPKeepalive:          routeRoute.TCPKeepalive,
 				}
 				perHostRoutes = append(perHostRoutes, hostRoute)
 			}
