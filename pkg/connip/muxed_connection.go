@@ -102,6 +102,8 @@ func (m *MuxedConnection) ReadPacket(pkt []byte) (int, error) {
 
 	n := copy(pkt, *p)
 
+	// Slice len must be reset to capacity or else next time it's used,
+	// it may be too short.
 	*p = (*p)[:cap(*p)]
 	m.packetBufferPool.Put(p)
 

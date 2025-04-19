@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/edgefunc"
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -22,13 +21,15 @@ import (
 	gwapiv1a2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	mcsapi "sigs.k8s.io/mcs-api/pkg/apis/v1alpha1"
 
-	"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
-	extensionsv1alpha2 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2"
-	agwapiv1a1 "github.com/apoxy-dev/apoxy-cli/api/gateway/v1"
 	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/gatewayapi/status"
 	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/ir"
 	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/utils/regex"
 	"github.com/apoxy-dev/apoxy-cli/pkg/log"
+	apoxynet "github.com/apoxy-dev/apoxy-cli/pkg/net"
+
+	"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
+	extensionsv1alpha2 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2"
+	agwapiv1a1 "github.com/apoxy-dev/apoxy-cli/api/gateway/v1"
 )
 
 const (
@@ -1563,7 +1564,7 @@ func (t *Translator) processEdgeFunctionDestinationSetting(
 		Protocol: protocol,
 		Endpoints: []*ir.DestinationEndpoint{
 			{
-				Host: fmt.Sprintf("%s.%s", rev.Name, edgefunc.DomainSuffix),
+				Host: fmt.Sprintf("%s.%s", rev.Name, apoxynet.DomainSuffix),
 				Port: uint32(port),
 			},
 		},

@@ -38,9 +38,9 @@ import (
 	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/wasm/ext_proc"
 	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/wasm/manifest"
 	"github.com/apoxy-dev/apoxy-cli/pkg/cmd/utils"
-	"github.com/apoxy-dev/apoxy-cli/pkg/edgefunc/dns"
 	"github.com/apoxy-dev/apoxy-cli/pkg/edgefunc/runc"
 	"github.com/apoxy-dev/apoxy-cli/pkg/log"
+	"github.com/apoxy-dev/apoxy-cli/pkg/net/dns"
 
 	ctrlv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
 	extensionv1alpha2 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2"

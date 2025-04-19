@@ -8,9 +8,9 @@ import (
 	"github.com/coredns/coredns/plugin"
 	"github.com/miekg/dns"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/edgefunc"
 	"github.com/apoxy-dev/apoxy-cli/pkg/edgefunc/runc/network"
 	"github.com/apoxy-dev/apoxy-cli/pkg/log"
+	apoxynet "github.com/apoxy-dev/apoxy-cli/pkg/net"
 )
 
 // Resolver implements edgefunc.Runtime.Resolver.
@@ -21,15 +21,15 @@ func (r *runtime) Resolver(next plugin.Handler) plugin.Handler {
 		}
 
 		qname := req.Question[0].Name
-		if !strings.HasSuffix(qname, edgefunc.DomainSuffix+".") {
-			log.Debugf("qname %v does not end with %v", qname, edgefunc.DomainSuffix)
+		if !strings.HasSuffix(qname, apoxynet.DomainSuffix+".") {
+			log.Debugf("Query name %v does not end with %q", qname, apoxynet.DomainSuffix)
 			return plugin.NextOrFailure(qname, next, ctx, w, req)
 		}
 
-		name := strings.TrimSuffix(qname, edgefunc.DomainSuffix+".")
+		name := strings.TrimSuffix(qname, apoxynet.DomainSuffix+".")
 		name = strings.TrimSuffix(name, ".")
 		if name == "" {
-			log.Debugf("empty name from %v", qname)
+			log.Debugf("Empty name from %v", qname)
 			return dns.RcodeNameError, nil
 		}
 

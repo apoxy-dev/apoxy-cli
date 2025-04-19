@@ -8,10 +8,6 @@ import (
 	"github.com/coredns/coredns/plugin"
 )
 
-const (
-	DomainSuffix = "apoxy.local"
-)
-
 var (
 	ErrAlreadyExists = errors.New("function already exists")
 	ErrNotFound      = errors.New("function not found")

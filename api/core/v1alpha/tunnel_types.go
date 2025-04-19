@@ -36,9 +36,11 @@ type AgentStatus struct {
 	ConnectedAt *metav1.Time `json:"connectedAt,omitempty"`
 
 	// Overlay address of the agent that is routable on the internal Apoxy network.
+	// Valid values are IPv4, IPv6, or a hostname.
 	PrivateAddress string `json:"privateAddress,omitempty"`
 
 	// Address of the agent (publicly routable) that it has connected with to establish a tunnel.
+	// Valid values are IPv4, IPv6, or a hostname.
 	AgentAddress string `json:"agentAddress,omitempty"`
 }
 

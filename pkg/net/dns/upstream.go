@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
+	"net/netip"
 	"time"
 
 	"github.com/coredns/coredns/plugin"
@@ -28,17 +29,26 @@ type upstream struct {
 // Name implements the plugin.Handler interface.
 func (u *upstream) Name() string { return "upstream" }
 
+// isULA checks if the given address is a Unique Local Address (ULA).
+func isULA(addr netip.Addr) bool {
+	ulaRange := netip.MustParsePrefix("fc00::/7")
+	if addr.Is6() && ulaRange.Contains(addr) {
+		return true
+	}
+	return false
+}
+
 // ServeDNS implements the plugin.Handler interface.
 func (u *upstream) ServeDNS(ctx context.Context, w mdns.ResponseWriter, r *mdns.Msg) (int, error) {
-	log.Debugf("upstream.ServeDNS: %v", r.Question)
+	log.Debugf("Upstream.ServeDNS: %v", r.Question)
 	if len(u.Upstreams) == 0 {
-		log.Debugf("no upstreams, using next")
+		log.Debugf("No upstreams, using next")
 		return u.Next.ServeDNS(ctx, w, r)
 	}
 
 	upstream := u.Upstreams[rand.Intn(len(u.Upstreams))]
 
-	log.Debugf("using upstream %v:%d", upstream, upstreamPort)
+	log.Debugf("Using upstream %v:%d", upstream, upstreamPort)
 
 	client := &mdns.Client{}
 	client.Dialer = &net.Dialer{
@@ -48,8 +58,29 @@ func (u *upstream) ServeDNS(ctx context.Context, w mdns.ResponseWriter, r *mdns.
 
 	response, _, err := client.Exchange(r, fmt.Sprintf("%v:%d", upstream, upstreamPort))
 	if err != nil {
-		log.Debugf("failed to exchange: %v", err)
+		log.Debugf("Failed to exchange: %v", err)
 		return mdns.RcodeServerFailure, err
+	}
+
+	// Responses referencing non-global unicast IPs are not allowed
+	// at this point.
+	for _, answer := range response.Answer {
+		if a, ok := answer.(*mdns.A); ok {
+			ip := a.A
+			if !ip.IsGlobalUnicast() || ip.IsPrivate() || ip.IsLoopback() {
+				log.Warnf("Answer contains non-global unicast IP: %v, returning NXDOMAIN", ip)
+				response.Rcode = mdns.RcodeNameError // NXDOMAIN
+				break
+			}
+		} else if aaaa, ok := answer.(*mdns.AAAA); ok {
+			ip := aaaa.AAAA
+			ipAddr, _ := netip.AddrFromSlice(ip)
+			if !ip.IsGlobalUnicast() || ip.IsPrivate() || ip.IsLoopback() || isULA(ipAddr) {
+				log.Warnf("Answer contains non-global unicast IPv6: %v, returning NXDOMAIN", ip)
+				response.Rcode = mdns.RcodeNameError // NXDOMAIN
+				break
+			}
+		}
 	}
 
 	w.WriteMsg(response)
