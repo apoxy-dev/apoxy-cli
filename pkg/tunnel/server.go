@@ -61,8 +61,8 @@ func defaultServerOptions() *tunnelServerOptions {
 		proxyAddr:  "0.0.0.0:9443",
 		localRoute: netip.MustParsePrefix("2001:db8::/64"),
 		ulaPrefix:  netip.MustParsePrefix("fd00::/64"),
-		certPath:   "/etc/apoxy/certs/cert.pem",
-		keyPath:    "/etc/apoxy/certs/key.pem",
+		certPath:   "/etc/apoxy/certs/tunnelproxy.crt",
+		keyPath:    "/etc/apoxy/certs/tunnelproxy.key",
 		ipam:       NewRandomULA(),
 	}
 }
