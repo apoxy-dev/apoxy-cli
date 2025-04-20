@@ -31,6 +31,10 @@ func NewKineStorage(ctx context.Context, dsn string) (rest.StoreFn, error) {
 		ConnectionPoolConfig: driversgeneric.ConnectionPoolConfig{
 			MaxOpen: goruntime.NumCPU(),
 		},
+		// Default is taken from kine: https://github.com/k3s-io/kine/blob/c1b2bd81f697c6b7aec85ea2562bcbcdfb981307/pkg/app/app.go#L106
+		NotifyInterval: 5 * time.Second,
+		// Default is taken from kine: https://github.com/k3s-io/kine/blob/c1b2bd81f697c6b7aec85ea2562bcbcdfb981307/pkg/app/app.go#L112
+		EmulatedETCDVersion: "3.5.13",
 	})
 	if err != nil {
 		return nil, err
@@ -50,7 +54,8 @@ type kineRESTOptionsGetter struct {
 	groupVersioner runtime.GroupVersioner
 }
 
-func (g *kineRESTOptionsGetter) GetRESTOptions(resource schema.GroupResource) (generic.RESTOptions, error) {
+// GetRESTOptions implements generic.RESTOptionsGetter.
+func (g *kineRESTOptionsGetter) GetRESTOptions(resource schema.GroupResource, _ runtime.Object) (generic.RESTOptions, error) {
 	s := json.NewSerializer(json.DefaultMetaFactory, g.scheme, g.scheme, false)
 	codec := serializer.NewCodecFactory(g.scheme).
 		CodecForVersions(s, s, g.groupVersioner, g.groupVersioner)

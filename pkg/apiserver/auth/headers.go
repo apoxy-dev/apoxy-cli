@@ -26,7 +26,7 @@ func NewHeaderAuthenticator() authenticator.Request {
 	)
 	return union.New(
 		rhAuth,
-		anonymous.NewAuthenticator(),
+		anonymous.NewAuthenticator(nil /* conditions */),
 	)
 }
 

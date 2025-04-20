@@ -121,6 +121,7 @@ func (r *EdgeFunctionRevisionGCReconciler) SetupWithManager(
 		return err
 	}
 	return ctrl.NewControllerManagedBy(mgr).
+		Named("edgefunctionrevision-gc").
 		For(&extensionsv1alpha2.EdgeFunction{}).
 		Complete(r)
 }

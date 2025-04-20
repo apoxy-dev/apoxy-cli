@@ -181,6 +181,7 @@ func (r *EdgeFunctionReconciler) Reconcile(ctx context.Context, request reconcil
 // SetupWithManager sets up the controller with the Controller Manager.
 func (r *EdgeFunctionReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
+		Named("edgefunction-ingest").
 		For(&extensionsv1alpha2.EdgeFunction{}).
 		Owns(&extensionsv1alpha2.EdgeFunctionRevision{}).
 		Complete(r)
