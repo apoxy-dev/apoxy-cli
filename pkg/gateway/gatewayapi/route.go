@@ -330,10 +330,36 @@ func setTCPKeepalive(irRoute *ir.HTTPRoute, idleTime, interval uint32) {
 	}
 }
 
-func setRetry(irRoute *ir.HTTPRoute) {
-	// If this is not nil, defaults are set from:
-	// https://github.com/apoxy-dev/apoxy-cli/blob/fcf9377eba517845286065afda7746a8bf1dc076/pkg/gateway/xds/translator/route.go#L105-L106
-	irRoute.Retry = &ir.Retry{}
+func setRetry(irRoute *ir.HTTPRoute, rule gwapiv1.HTTPRouteRule) error {
+	if rule.Retry != nil {
+		// If this is not nil, defaults are set from:
+		// https://github.com/apoxy-dev/apoxy-cli/blob/fcf9377eba517845286065afda7746a8bf1dc076/pkg/gateway/xds/translator/route.go#L105-L106
+		irRoute.Retry = &ir.Retry{}
+
+		if len(rule.Retry.Codes) > 0 {
+			irRoute.Retry.RetryOn = &ir.RetryOn{}
+			for _, code := range rule.Retry.Codes {
+				irRoute.Retry.RetryOn.HTTPStatusCodes = append(irRoute.Retry.RetryOn.HTTPStatusCodes, ir.HTTPStatus(code))
+			}
+		}
+		if rule.Retry.Attempts != nil {
+			irRoute.Retry.NumRetries = ptr.To(uint32(*rule.Retry.Attempts))
+		}
+		if rule.Retry.Backoff != nil {
+			d, err := time.ParseDuration(string(*rule.Retry.Backoff))
+			if err != nil {
+				return err
+			}
+			irRoute.Retry.PerRetry = &ir.PerRetryPolicy{
+				BackOff: &ir.BackOffPolicy{
+					BaseInterval: &metav1.Duration{
+						Duration: d,
+					},
+				},
+			}
+		}
+	}
+	return nil
 }
 
 func (t *Translator) processHTTPRouteRule(httpRoute *HTTPRouteContext, ruleIdx int, httpFiltersContext *HTTPFiltersContext, rule gwapiv1.HTTPRouteRule) ([]*ir.HTTPRoute, error) {
@@ -346,7 +372,9 @@ func (t *Translator) processHTTPRouteRule(httpRoute *HTTPRouteContext, ruleIdx i
 		}
 		processTimeout(irRoute, rule)
 		setTCPKeepalive(irRoute, 30, 10)
-		setRetry(irRoute)
+		if err := setRetry(irRoute, rule); err != nil {
+			return nil, err
+		}
 		applyHTTPFiltersContextToIRRoute(httpFiltersContext, irRoute)
 		ruleRoutes = append(ruleRoutes, irRoute)
 	}
@@ -360,7 +388,9 @@ func (t *Translator) processHTTPRouteRule(httpRoute *HTTPRouteContext, ruleIdx i
 		}
 		processTimeout(irRoute, rule)
 		setTCPKeepalive(irRoute, 30, 10)
-		setRetry(irRoute)
+		if err := setRetry(irRoute, rule); err != nil {
+			return nil, err
+		}
 
 		if match.Path != nil {
 			switch PathMatchTypeDerefOr(match.Path.Type, gwapiv1.PathMatchPathPrefix) {
@@ -576,6 +606,12 @@ func (t *Translator) processGRPCRouteRules(grpcRoute *GRPCRouteContext, parentRe
 	return routeRoutes, nil
 }
 
+func setGRPCRetry(irRoute *ir.HTTPRoute) {
+	// If this is not nil, defaults are set from:
+	// https://github.com/apoxy-dev/apoxy-cli/blob/fcf9377eba517845286065afda7746a8bf1dc076/pkg/gateway/xds/translator/route.go#L105-L106
+	irRoute.Retry = &ir.Retry{}
+}
+
 func (t *Translator) processGRPCRouteRule(grpcRoute *GRPCRouteContext, ruleIdx int, httpFiltersContext *HTTPFiltersContext, rule gwapiv1.GRPCRouteRule) ([]*ir.HTTPRoute, error) {
 	var ruleRoutes []*ir.HTTPRoute
 
@@ -585,7 +621,7 @@ func (t *Translator) processGRPCRouteRule(grpcRoute *GRPCRouteContext, ruleIdx i
 			Name: irRouteName(grpcRoute, ruleIdx, -1),
 		}
 		setTCPKeepalive(irRoute, 30, 10)
-		setRetry(irRoute)
+		setGRPCRetry(irRoute)
 		applyHTTPFiltersContextToIRRoute(httpFiltersContext, irRoute)
 		ruleRoutes = append(ruleRoutes, irRoute)
 	}
@@ -598,7 +634,7 @@ func (t *Translator) processGRPCRouteRule(grpcRoute *GRPCRouteContext, ruleIdx i
 			Name: irRouteName(grpcRoute, ruleIdx, matchIdx),
 		}
 		setTCPKeepalive(irRoute, 30, 10)
-		setRetry(irRoute)
+		setGRPCRetry(irRoute)
 
 		for _, headerMatch := range match.Headers {
 			switch GRPCHeaderMatchTypeDerefOr(headerMatch.Type, gwapiv1.GRPCHeaderMatchExact) {
