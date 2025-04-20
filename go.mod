@@ -114,7 +114,6 @@ require (
 	github.com/Rican7/retry v0.1.0 // indirect
 	github.com/RoaringBitmap/roaring v1.2.1 // indirect
 	github.com/andybalholm/brotli v1.1.0 // indirect
-	github.com/antlr/antlr4/runtime/Go/antlr/v4 v4.0.0-20230305170008-8188dc5388df // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
 	github.com/apache/thrift v0.20.0 // indirect
 	github.com/apparentlymart/go-cidr v1.1.0 // indirect
