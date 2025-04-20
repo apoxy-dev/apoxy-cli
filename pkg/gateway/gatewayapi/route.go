@@ -321,6 +321,21 @@ func setRequestTimeout(irTimeout *ir.Timeout, d metav1.Duration) {
 	}
 }
 
+func setTCPKeepalive(irRoute *ir.HTTPRoute, idleTime, interval uint32) {
+	// TODO(dilyevsky): Get this setting from the Proxy object. Put in reasonable defaults for now.
+	// https://linear.app/apoxy/issue/APO-258/implement-tcpkeepalive-settting
+	irRoute.TCPKeepalive = &ir.TCPKeepalive{
+		IdleTime: ptr.To(idleTime),
+		Interval: ptr.To(interval),
+	}
+}
+
+func setRetry(irRoute *ir.HTTPRoute) {
+	// If this is not nil, defaults are set from:
+	// https://github.com/apoxy-dev/apoxy-cli/blob/fcf9377eba517845286065afda7746a8bf1dc076/pkg/gateway/xds/translator/route.go#L105-L106
+	irRoute.Retry = &ir.Retry{}
+}
+
 func (t *Translator) processHTTPRouteRule(httpRoute *HTTPRouteContext, ruleIdx int, httpFiltersContext *HTTPFiltersContext, rule gwapiv1.HTTPRouteRule) ([]*ir.HTTPRoute, error) {
 	var ruleRoutes []*ir.HTTPRoute
 
@@ -330,12 +345,8 @@ func (t *Translator) processHTTPRouteRule(httpRoute *HTTPRouteContext, ruleIdx i
 			Name: irRouteName(httpRoute, ruleIdx, -1),
 		}
 		processTimeout(irRoute, rule)
-		// TODO(dilyevsky): Get this setting from the Proxy object. Put in reasonable defaults for now.
-		// https://linear.app/apoxy/issue/APO-258/implement-tcpkeepalive-settting
-		irRoute.TCPKeepalive = &ir.TCPKeepalive{
-			IdleTime: ptr.To(uint32(30)),
-			Interval: ptr.To(uint32(10)),
-		}
+		setTCPKeepalive(irRoute, 30, 10)
+		setRetry(irRoute)
 		applyHTTPFiltersContextToIRRoute(httpFiltersContext, irRoute)
 		ruleRoutes = append(ruleRoutes, irRoute)
 	}
@@ -348,12 +359,8 @@ func (t *Translator) processHTTPRouteRule(httpRoute *HTTPRouteContext, ruleIdx i
 			Name: irRouteName(httpRoute, ruleIdx, matchIdx),
 		}
 		processTimeout(irRoute, rule)
-		// TODO(dilyevsky): Get this setting from the Proxy object. Put in reasonable defaults for now.
-		// https://linear.app/apoxy/issue/APO-258/implement-tcpkeepalive-settting
-		irRoute.TCPKeepalive = &ir.TCPKeepalive{
-			IdleTime: ptr.To(uint32(30)),
-			Interval: ptr.To(uint32(10)),
-		}
+		setTCPKeepalive(irRoute, 30, 10)
+		setRetry(irRoute)
 
 		if match.Path != nil {
 			switch PathMatchTypeDerefOr(match.Path.Type, gwapiv1.PathMatchPathPrefix) {
@@ -577,6 +584,8 @@ func (t *Translator) processGRPCRouteRule(grpcRoute *GRPCRouteContext, ruleIdx i
 		irRoute := &ir.HTTPRoute{
 			Name: irRouteName(grpcRoute, ruleIdx, -1),
 		}
+		setTCPKeepalive(irRoute, 30, 10)
+		setRetry(irRoute)
 		applyHTTPFiltersContextToIRRoute(httpFiltersContext, irRoute)
 		ruleRoutes = append(ruleRoutes, irRoute)
 	}
@@ -588,6 +597,8 @@ func (t *Translator) processGRPCRouteRule(grpcRoute *GRPCRouteContext, ruleIdx i
 		irRoute := &ir.HTTPRoute{
 			Name: irRouteName(grpcRoute, ruleIdx, matchIdx),
 		}
+		setTCPKeepalive(irRoute, 30, 10)
+		setRetry(irRoute)
 
 		for _, headerMatch := range match.Headers {
 			switch HeaderMatchTypeDerefOr(headerMatch.Type, gwapiv1.HeaderMatchExact) {
