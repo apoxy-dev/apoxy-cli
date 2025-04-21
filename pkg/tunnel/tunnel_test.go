@@ -28,6 +28,7 @@ import (
 	"github.com/apoxy-dev/apoxy-cli/pkg/cryptoutils"
 	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel"
 	tunnelnet "github.com/apoxy-dev/apoxy-cli/pkg/tunnel/net"
+	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/router"
 	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/token"
 	"github.com/apoxy-dev/apoxy-cli/pkg/utils"
 )
@@ -100,9 +101,13 @@ func TestTunnelEndToEnd(t *testing.T) {
 
 	fmt.Println("Local route:", lr)
 
+	// Create a mock router for testing
+	mockRouter := router.NewMockRouter()
+
 	server := tunnel.NewTunnelServer(
 		kubeClient,
 		jwtValidator,
+		mockRouter,
 		tunnel.WithLocalRoute(lr),
 		tunnel.WithCertPath(filepath.Join(certsDir, "server.crt")),
 		tunnel.WithKeyPath(filepath.Join(certsDir, "server.key")),

@@ -24,6 +24,7 @@ import (
 	"github.com/apoxy-dev/apoxy-cli/pkg/log"
 	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel"
 	tunnelnet "github.com/apoxy-dev/apoxy-cli/pkg/tunnel/net"
+	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/router"
 	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/token"
 
 	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
@@ -112,9 +113,15 @@ func main() {
 		}
 	}
 
+	r, err := router.NewNetlinkRouter()
+	if err != nil {
+		log.Fatalf("Failed to create netlink router: %v", err)
+	}
+
 	srv := tunnel.NewTunnelServer(
 		mgr.GetClient(),
 		jwtValidator,
+		r,
 		tunnel.WithLocalRoute(lr),
 	)
 	g.Go(func() error {

@@ -18,10 +18,8 @@ import (
 	connectip "github.com/quic-go/connect-ip-go"
 	"github.com/quic-go/quic-go"
 	"github.com/quic-go/quic-go/http3"
-	"github.com/vishvananda/netlink"
 	"github.com/yosida95/uritemplate/v3"
 	"golang.org/x/sync/errgroup"
-	"golang.zx2c4.com/wireguard/tun"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -33,7 +31,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/apoxy-dev/apoxy-cli/pkg/connip"
-	"github.com/apoxy-dev/apoxy-cli/pkg/netstack"
+	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/router"
 	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/token"
 
 	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
@@ -46,7 +44,6 @@ var (
 type TunnelServerOption func(*tunnelServerOptions)
 
 type tunnelServerOptions struct {
-	tunName    string
 	proxyAddr  string
 	localRoute netip.Prefix
 	ulaPrefix  netip.Prefix
@@ -57,20 +54,12 @@ type tunnelServerOptions struct {
 
 func defaultServerOptions() *tunnelServerOptions {
 	return &tunnelServerOptions{
-		tunName:    "tun0",
 		proxyAddr:  "0.0.0.0:9443",
 		localRoute: netip.MustParsePrefix("2001:db8::/64"),
 		ulaPrefix:  netip.MustParsePrefix("fd00::/64"),
 		certPath:   "/etc/apoxy/certs/tunnelproxy.crt",
 		keyPath:    "/etc/apoxy/certs/tunnelproxy.key",
 		ipam:       NewRandomULA(),
-	}
-}
-
-// WithTUNName sets the name of the TUN interface.
-func WithTUNName(name string) TunnelServerOption {
-	return func(o *tunnelServerOptions) {
-		o.tunName = name
 	}
 }
 
@@ -123,8 +112,8 @@ type TunnelServer struct {
 
 	options      *tunnelServerOptions
 	jwtValidator token.JWTValidator
-	dev          tun.Device
 	ln           *quic.EarlyListener
+	router       router.Router
 
 	// Connections
 	mux *connip.MuxedConnection
@@ -140,6 +129,7 @@ type TunnelServer struct {
 func NewTunnelServer(
 	client client.Client,
 	v token.JWTValidator,
+	r router.Router,
 	opts ...TunnelServerOption,
 ) *TunnelServer {
 	options := defaultServerOptions()
@@ -155,6 +145,7 @@ func NewTunnelServer(
 
 		options:      options,
 		jwtValidator: v,
+		router:       r,
 
 		mux:         connip.NewMuxedConnection(),
 		tunnelNodes: haxmap.New[string, *corev1alpha.TunnelNode](),
@@ -175,31 +166,6 @@ func (t *TunnelServer) SetupWithManager(mgr ctrl.Manager) error {
 
 func (t *TunnelServer) Start(ctx context.Context) error {
 	t.tunnelCtx, t.tunnelCtxCancel = context.WithCancel(ctx)
-
-	// TODO (dpeckett): allow creating a userspace netstack based TUN device so
-	// that we can more easily test this on non-Linux systems.
-
-	// 1. Setup QUIC server.
-	var err error
-	t.dev, err = tun.CreateTUN(t.options.tunName, netstack.IPv6MinMTU)
-	if err != nil {
-		return fmt.Errorf("failed to create TUN interface: %w", err)
-	}
-
-	// Bring up the TUN interface.
-	tunName, err := t.dev.Name()
-	if err != nil {
-		return fmt.Errorf("failed to get TUN interface name: %w", err)
-	}
-
-	link, err := netlink.LinkByName(tunName)
-	if err != nil {
-		return fmt.Errorf("failed to get TUN interface: %w", err)
-	}
-
-	if err := netlink.LinkSetUp(link); err != nil {
-		return fmt.Errorf("failed to bring up TUN interface: %w", err)
-	}
 
 	bindTo, err := netip.ParseAddrPort(t.options.proxyAddr)
 	if err != nil {
@@ -235,15 +201,7 @@ func (t *TunnelServer) Start(ctx context.Context) error {
 	g.Go(func() error {
 		<-ctx.Done()
 
-		slog.Debug("Closing TUN device")
-
-		if err := t.dev.Close(); err != nil {
-			return fmt.Errorf("failed to close TUN device: %w", err)
-		}
-
-		slog.Debug("Closing QUIC listener")
-
-		if err := t.Shutdown(context.Background()); err != nil {
+		if err := t.Stop(); err != nil {
 			return fmt.Errorf("failed to shutdown QUIC server: %w", err)
 		}
 
@@ -252,17 +210,12 @@ func (t *TunnelServer) Start(ctx context.Context) error {
 
 	g.Go(func() error {
 		slog.Info("Starting HTTP/3 server", slog.String("addr", t.ln.Addr().String()))
-
 		return t.ServeListener(t.ln)
 	})
 
-	// TODO (dpeckett): Move tun muxing concerns into connip.ServerTransport and use
-	// the transport abstraction to handle the tunnel packet shuffling logistics.
+	// Start the router to handle network traffic.
 	g.Go(func() error {
-		slog.Info("Starting TUN muxer")
-		defer slog.Debug("TUN muxer stopped")
-
-		return connip.Splice(t.dev, t.mux)
+		return t.router.Start(ctx)
 	})
 
 	return g.Wait()
@@ -280,9 +233,17 @@ func upsertAgentStatus(s *corev1alpha.TunnelNodeStatus, agent *corev1alpha.Agent
 }
 
 func (t *TunnelServer) Stop() error {
+	if err := t.Shutdown(context.Background()); err != nil {
+		slog.Error("Failed to shutdown server", slog.Any("error", err))
+	}
+
 	// Stop any background tasks if they are running.
 	if t.tunnelCtxCancel != nil {
 		t.tunnelCtxCancel()
+	}
+
+	if err := t.router.Close(); err != nil {
+		slog.Error("Failed to close router", slog.Any("error", err))
 	}
 
 	return t.Server.Close()
@@ -366,14 +327,12 @@ func (t *TunnelServer) handleConnect(w http.ResponseWriter, r *http.Request) {
 
 	logger.Info("Client prefix assigned", slog.String("ip", peerPrefix.String()))
 
-	if err := t.addTUNPeer(peerPrefix); err != nil {
+	if err := t.router.AddPeer(peerPrefix, conn); err != nil {
 		logger.Error("Failed to add TUN peer", slog.Any("error", err))
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = w.Write([]byte(err.Error()))
 		return
 	}
-
-	t.mux.AddConnection(peerPrefix, conn)
 
 	agent := &corev1alpha.AgentStatus{
 		Name:           uuid.NewString(),
@@ -406,15 +365,11 @@ func (t *TunnelServer) handleConnect(w http.ResponseWriter, r *http.Request) {
 		logger.Error("Failed to close connection", slog.Any("error", err))
 	}
 
-	if err := t.mux.RemoveConnection(peerPrefix); err != nil {
-		logger.Error("Failed to remove connection", slog.Any("error", err))
-	}
-
 	if err := t.options.ipam.Release(peerPrefix); err != nil {
 		logger.Error("Failed to deallocate IP address", slog.Any("error", err))
 	}
 
-	if err := t.removeTUNPeer(peerPrefix); err != nil {
+	if err := t.router.RemovePeer(peerPrefix); err != nil {
 		logger.Error("Failed to remove TUN peer", slog.Any("error", err))
 	}
 
@@ -442,60 +397,6 @@ func (t *TunnelServer) handleConnect(w http.ResponseWriter, r *http.Request) {
 	}
 
 	logger.Info("Agent removed", slog.String("name", agent.Name))
-}
-
-func (t *TunnelServer) addTUNPeer(peer netip.Prefix) error {
-	tunName, err := t.dev.Name()
-	if err != nil {
-		return fmt.Errorf("failed to get TUN interface name: %w", err)
-	}
-	link, err := netlink.LinkByName(tunName)
-	if err != nil {
-		return fmt.Errorf("failed to get TUN interface: %w", err)
-	}
-
-	slog.Debug("Adding route", slog.String("prefix", peer.String()))
-
-	r := &netlink.Route{
-		LinkIndex: link.Attrs().Index,
-		Dst: &net.IPNet{
-			IP:   peer.Addr().AsSlice(),
-			Mask: net.CIDRMask(peer.Bits(), 128),
-		},
-		Scope: netlink.SCOPE_LINK,
-	}
-	if err := netlink.RouteAdd(r); err != nil {
-		return fmt.Errorf("failed to add route: %w", err)
-	}
-
-	return nil
-}
-
-func (t *TunnelServer) removeTUNPeer(peer netip.Prefix) error {
-	tunName, err := t.dev.Name()
-	if err != nil {
-		return fmt.Errorf("failed to get TUN interface name: %w", err)
-	}
-	link, err := netlink.LinkByName(tunName)
-	if err != nil {
-		return fmt.Errorf("failed to get TUN interface: %w", err)
-	}
-
-	slog.Debug("Removing route", slog.String("prefix", peer.String()))
-
-	r := &netlink.Route{
-		LinkIndex: link.Attrs().Index,
-		Dst: &net.IPNet{
-			IP:   peer.Addr().AsSlice(),
-			Mask: net.CIDRMask(peer.Bits(), 128),
-		},
-		Scope: netlink.SCOPE_LINK,
-	}
-	if err := netlink.RouteDel(r); err != nil {
-		return fmt.Errorf("failed to remove route: %w", err)
-	}
-
-	return nil
 }
 
 func (t *TunnelServer) reconcile(ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
