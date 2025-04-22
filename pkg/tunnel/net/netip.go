@@ -1,8 +1,9 @@
-package tunnel
+package net
 
 import "net/netip"
 
-func lastIP(prefix netip.Prefix) netip.Addr {
+// LastIP returns the last IP address in the given prefix.
+func LastIP(prefix netip.Prefix) netip.Addr {
 	addr := prefix.Addr()
 	bytes := addr.AsSlice()
 

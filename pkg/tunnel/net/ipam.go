@@ -1,4 +1,4 @@
-package tunnel
+package net
 
 import (
 	"crypto/rand"

@@ -31,6 +31,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/apoxy-dev/apoxy-cli/pkg/connip"
+	tunnet "github.com/apoxy-dev/apoxy-cli/pkg/tunnel/net"
 	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/router"
 	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/token"
 
@@ -49,7 +50,7 @@ type tunnelServerOptions struct {
 	ulaPrefix  netip.Prefix
 	certPath   string
 	keyPath    string
-	ipam       IPAM
+	ipam       tunnet.IPAM
 }
 
 func defaultServerOptions() *tunnelServerOptions {
@@ -59,7 +60,7 @@ func defaultServerOptions() *tunnelServerOptions {
 		ulaPrefix:  netip.MustParsePrefix("fd00::/64"),
 		certPath:   "/etc/apoxy/certs/tunnelproxy.crt",
 		keyPath:    "/etc/apoxy/certs/tunnelproxy.key",
-		ipam:       NewRandomULA(),
+		ipam:       tunnet.NewRandomULA(),
 	}
 }
 
@@ -100,7 +101,7 @@ func WithKeyPath(path string) TunnelServerOption {
 }
 
 // WithIPAM sets the IPAM to use.
-func WithIPAM(ipam IPAM) TunnelServerOption {
+func WithIPAM(ipam tunnet.IPAM) TunnelServerOption {
 	return func(o *tunnelServerOptions) {
 		o.ipam = ipam
 	}
@@ -316,7 +317,7 @@ func (t *TunnelServer) handleConnect(w http.ResponseWriter, r *http.Request) {
 	if err := conn.AdvertiseRoute(r.Context(), []connectip.IPRoute{
 		{
 			StartIP: t.options.localRoute.Addr(),
-			EndIP:   lastIP(t.options.localRoute),
+			EndIP:   tunnet.LastIP(t.options.localRoute),
 		},
 	}); err != nil {
 		logger.Error("Failed to advertise route to connection", slog.Any("error", err))
