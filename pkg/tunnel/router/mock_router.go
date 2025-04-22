@@ -2,7 +2,6 @@ package router
 
 import (
 	"context"
-	"net"
 	"net/netip"
 	"sync"
 
@@ -15,7 +14,6 @@ import (
 type MockRouter struct {
 	lock          sync.Mutex
 	routes        map[string]netip.Prefix
-	connections   map[string]net.Conn
 	tunDev        tun.Device
 	mux           *connip.MuxedConnection
 	startErr      error
@@ -28,9 +26,8 @@ type MockRouter struct {
 // NewMockRouter creates a new MockRouter for testing.
 func NewMockRouter() *MockRouter {
 	return &MockRouter{
-		routes:      make(map[string]netip.Prefix),
-		connections: make(map[string]net.Conn),
-		mux:         connip.NewMuxedConnection(),
+		routes: make(map[string]netip.Prefix),
+		mux:    connip.NewMuxedConnection(),
 	}
 }
 
@@ -86,18 +83,6 @@ func (m *MockRouter) GetRoutes() []netip.Prefix {
 		routes = append(routes, route)
 	}
 	return routes
-}
-
-// GetConnections returns all connections currently added to the router.
-func (m *MockRouter) GetConnections() map[string]net.Conn {
-	m.lock.Lock()
-	defer m.lock.Unlock()
-
-	connections := make(map[string]net.Conn, len(m.connections))
-	for k, v := range m.connections {
-		connections[k] = v
-	}
-	return connections
 }
 
 // GetMuxedConnection returns the muxed connection for testing.
@@ -162,6 +147,5 @@ func (m *MockRouter) Close() error {
 	}
 
 	m.routes = make(map[string]netip.Prefix)
-	m.connections = make(map[string]net.Conn)
 	return nil
 }
