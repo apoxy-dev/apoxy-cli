@@ -13,10 +13,11 @@ type Router interface {
 	// It's a blocking call that should be run in a separate goroutine.
 	Start(ctx context.Context) error
 
-	// AddPeer adds a peer route to the tunnel.
-	AddPeer(peer netip.Prefix, conn connip.Connection) error
+	// AddPeer adds a peer route to the tunnel. Returns the list of IP prefixes
+	// to be advertised to the peer (if none returned, no prefixes should be advertised).
+	AddPeer(peer netip.Prefix, conn connip.Connection) ([]netip.Prefix, error)
 
-	// RemovePeer removes a peer route from the tunnel.
+	// RemovePeer removes a peer route from the tunnel identified by the given prefix.
 	RemovePeer(peer netip.Prefix) error
 
 	// Close releases any resources associated with the router.

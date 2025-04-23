@@ -13,6 +13,10 @@ import (
 	"github.com/apoxy-dev/apoxy-cli/pkg/netstack"
 )
 
+var (
+	_ Router = (*NetstackRouter)(nil)
+)
+
 // NetstackRouter implements Router using a userspace network stack.
 // This is a placeholder implementation that will be expanded in the future.
 type NetstackRouter struct {
@@ -61,11 +65,11 @@ func (r *NetstackRouter) Start(ctx context.Context) error {
 }
 
 // AddPeer adds a peer route to the tunnel.
-func (r *NetstackRouter) AddPeer(peer netip.Prefix, conn connip.Connection) error {
+func (r *NetstackRouter) AddPeer(peer netip.Prefix, conn connip.Connection) ([]netip.Prefix, error) {
 	slog.Debug("Adding route in netstack", slog.String("prefix", peer.String()))
 	// For now, we'll just log the request but not actually implement routing
 	// This will be expanded in the future
-	return fmt.Errorf("netstack router route addition not yet implemented")
+	return nil, fmt.Errorf("netstack router route addition not yet implemented")
 }
 
 // RemovePeer removes a peer route from the tunnel.

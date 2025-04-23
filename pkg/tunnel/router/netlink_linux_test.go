@@ -17,10 +17,7 @@ func TestNetlinkRouterMock(t *testing.T) {
 	// This is a mock test that doesn't actually create routes
 	// but validates the struct and interface implementation
 
-	r := &NetlinkRouter{
-		tunName: "tun0",
-		// We don't initialize link as this is just a mock test
-	}
+	r := &NetlinkRouter{}
 
 	// Test that it implements the Router interface
 	var _ Router = r
@@ -41,7 +38,7 @@ func TestNetlinkRouterMock(t *testing.T) {
 
 	// Test AddPeer
 	prefix := netip.MustParsePrefix("fd00::1/128")
-	err := r.AddPeer(prefix, conn)
+	_, err := r.AddPeer(prefix, conn)
 	// Should fail since we didn't initialize the link
 	assert.Error(t, err)
 

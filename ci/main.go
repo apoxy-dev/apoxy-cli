@@ -380,7 +380,7 @@ func (m *ApoxyCli) BuildBackplane(
 
 	return dag.Container(dagger.ContainerOpts{Platform: p}).
 		From("cgr.dev/chainguard/wolfi-base:latest").
-		WithExec([]string{"apk", "add", "-u", "iptables", "iproute2", "net-tools"}).
+		WithExec([]string{"apk", "add", "-u", "iptables", "ip6tables", "iproute2", "net-tools"}).
 		WithFile("/bin/backplane", builder.File(bpOut)).
 		WithFile("/bin/dial-stdio", builder.File(dsOut)).
 		WithFile("/bin/otel-collector", builder.File(otelOut)).
@@ -426,7 +426,7 @@ func (m *ApoxyCli) BuildTunnelproxy(
 
 	return dag.Container(dagger.ContainerOpts{Platform: p}).
 		From("cgr.dev/chainguard/wolfi-base:latest").
-		WithExec([]string{"apk", "add", "-u", "iptables", "iproute2", "net-tools", "sed", "coreutils"}).
+		WithExec([]string{"apk", "add", "-u", "iptables", "ip6tables", "iproute2", "net-tools", "sed", "coreutils"}).
 		WithFile("/bin/tunnelproxy", builder.File(tpOut)).
 		WithEntrypoint([]string{"/bin/tunnelproxy"})
 }

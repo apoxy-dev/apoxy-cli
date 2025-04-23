@@ -45,22 +45,20 @@ var (
 type TunnelServerOption func(*tunnelServerOptions)
 
 type tunnelServerOptions struct {
-	proxyAddr  string
-	localRoute netip.Prefix
-	ulaPrefix  netip.Prefix
-	certPath   string
-	keyPath    string
-	ipam       tunnet.IPAM
+	proxyAddr string
+	ulaPrefix netip.Prefix
+	certPath  string
+	keyPath   string
+	ipam      tunnet.IPAM
 }
 
 func defaultServerOptions() *tunnelServerOptions {
 	return &tunnelServerOptions{
-		proxyAddr:  "0.0.0.0:9443",
-		localRoute: netip.MustParsePrefix("2001:db8::/64"),
-		ulaPrefix:  netip.MustParsePrefix("fd00::/64"),
-		certPath:   "/etc/apoxy/certs/tunnelproxy.crt",
-		keyPath:    "/etc/apoxy/certs/tunnelproxy.key",
-		ipam:       tunnet.NewRandomULA(),
+		proxyAddr: "0.0.0.0:9443",
+		ulaPrefix: netip.MustParsePrefix("fd00::/64"),
+		certPath:  "/etc/apoxy/certs/tunnelproxy.crt",
+		keyPath:   "/etc/apoxy/certs/tunnelproxy.key",
+		ipam:      tunnet.NewRandomULA(),
 	}
 }
 
@@ -68,14 +66,6 @@ func defaultServerOptions() *tunnelServerOptions {
 func WithProxyAddr(addr string) TunnelServerOption {
 	return func(o *tunnelServerOptions) {
 		o.proxyAddr = addr
-	}
-}
-
-// WithLocalRoute sets a network prefix that can route
-// traffic to/from the tunnel.
-func WithLocalRoute(prefix netip.Prefix) TunnelServerOption {
-	return func(o *tunnelServerOptions) {
-		o.localRoute = prefix
 	}
 }
 
@@ -250,6 +240,18 @@ func (t *TunnelServer) Stop() error {
 	return t.Server.Close()
 }
 
+func iproutesFromPrefixes(ps []netip.Prefix) []connectip.IPRoute {
+	routes := make([]connectip.IPRoute, len(ps))
+	for i, p := range ps {
+		routes[i] = connectip.IPRoute{
+			StartIP:    p.Masked().Addr(),
+			EndIP:      tunnet.LastIP(p.Masked()),
+			IPProtocol: 0, // Allow all protocols.
+		}
+	}
+	return routes
+}
+
 func (t *TunnelServer) handleConnect(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(strings.TrimPrefix(r.URL.Path, "/connect/"))
 	if err != nil {
@@ -314,22 +316,21 @@ func (t *TunnelServer) handleConnect(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(err.Error()))
 		return
 	}
-	if err := conn.AdvertiseRoute(r.Context(), []connectip.IPRoute{
-		{
-			StartIP: t.options.localRoute.Addr(),
-			EndIP:   tunnet.LastIP(t.options.localRoute),
-		},
-	}); err != nil {
-		logger.Error("Failed to advertise route to connection", slog.Any("error", err))
+
+	logger.Info("Client prefix assigned", slog.String("ip", peerPrefix.String()))
+
+	advRoutes, err := t.router.AddPeer(peerPrefix, conn)
+	if err != nil {
+		logger.Error("Failed to add TUN peer", slog.Any("error", err))
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = w.Write([]byte(err.Error()))
 		return
 	}
 
-	logger.Info("Client prefix assigned", slog.String("ip", peerPrefix.String()))
+	logger.Info("Advertising routes", slog.Any("routes", advRoutes))
 
-	if err := t.router.AddPeer(peerPrefix, conn); err != nil {
-		logger.Error("Failed to add TUN peer", slog.Any("error", err))
+	if err := conn.AdvertiseRoute(r.Context(), iproutesFromPrefixes(advRoutes)); err != nil {
+		logger.Error("Failed to advertise route to connection", slog.Any("error", err))
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = w.Write([]byte(err.Error()))
 		return

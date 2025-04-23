@@ -1,18 +1,16 @@
 package net
 
 import (
-	"errors"
 	"log/slog"
 	gonet "net"
 	"net/netip"
-	"sort"
 )
 
-// LocalRouteIPv6 finds the local IPv6 address and returns it as a netip.Prefix.
-func LocalRouteIPv6() (netip.Prefix, error) {
+// LocalIPv6Routes finds the local IPv6 address and returns it as a netip.Prefix.
+func LocalIPv6Routes() ([]netip.Prefix, error) {
 	ifaces, err := gonet.Interfaces()
 	if err != nil {
-		return netip.Prefix{}, err
+		return nil, err
 	}
 
 	var prefixes []netip.Prefix
@@ -39,27 +37,5 @@ func LocalRouteIPv6() (netip.Prefix, error) {
 		}
 	}
 
-	// Pick the most specific prefix first (giving priority to ULA addresses).
-	sort.SliceStable(prefixes, func(i, j int) bool {
-		ulaI, ulaJ := isULA(prefixes[i].Addr()), isULA(prefixes[j].Addr())
-		if ulaI != ulaJ {
-			return ulaI
-		}
-		return prefixes[i].Bits() > prefixes[j].Bits()
-	})
-
-	if len(prefixes) > 0 {
-		return prefixes[0], nil
-	}
-
-	return netip.Prefix{}, errors.New("no IP address found")
-}
-
-// isULA checks if the given address is a Unique Local Address (ULA).
-func isULA(addr netip.Addr) bool {
-	ulaRange := netip.MustParsePrefix("fc00::/7")
-	if addr.Is6() && ulaRange.Contains(addr) {
-		return true
-	}
-	return false
+	return prefixes, nil
 }

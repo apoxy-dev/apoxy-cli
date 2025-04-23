@@ -105,16 +105,16 @@ func (m *MockRouter) Start(ctx context.Context) error {
 }
 
 // AddPeer adds a peer route to the tunnel.
-func (m *MockRouter) AddPeer(peer netip.Prefix, conn connip.Connection) error {
+func (m *MockRouter) AddPeer(peer netip.Prefix, conn connip.Connection) ([]netip.Prefix, error) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
 	if m.addPeerErr != nil {
-		return m.addPeerErr
+		return nil, m.addPeerErr
 	}
 
 	m.routes[peer.String()] = peer
-	return nil
+	return []netip.Prefix{peer}, nil
 }
 
 // RemovePeer removes a peer route from the tunnel.

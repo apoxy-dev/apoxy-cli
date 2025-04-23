@@ -75,6 +75,15 @@ func (m *MuxedConnection) RemoveConnection(prefix netip.Prefix) error {
 	return nil
 }
 
+func (m *MuxedConnection) Prefixes() []netip.Prefix {
+	var prefixes []netip.Prefix
+	m.conns.ForEach(func(prefix netip.Prefix, value Connection) bool {
+		prefixes = append(prefixes, prefix)
+		return true
+	})
+	return prefixes
+}
+
 func (m *MuxedConnection) Close() error {
 	// Close all connections in the map.
 	m.conns.ForEach(func(prefix netip.Prefix, conn Connection) bool {

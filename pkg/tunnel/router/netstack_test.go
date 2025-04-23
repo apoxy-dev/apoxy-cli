@@ -17,9 +17,6 @@ func TestNetstackRouter(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, r)
 
-	// Test that it implements the Router interface
-	var _ Router = r
-
 	// Test Start method with timeout context
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
@@ -39,7 +36,7 @@ func TestNetstackRouter(t *testing.T) {
 	// Test AddPeer
 	prefix := netip.MustParsePrefix("fd00::1/128")
 	conn := connip.NewMuxedConnection()
-	err = r.AddPeer(prefix, conn)
+	_, err = r.AddPeer(prefix, conn)
 	// Should fail since the netstack implementation is not complete
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "not implemented")

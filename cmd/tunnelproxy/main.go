@@ -5,7 +5,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"net/netip"
 	"strings"
 	"time"
 
@@ -23,7 +22,6 @@ import (
 	"github.com/apoxy-dev/apoxy-cli/pkg/apiserver"
 	"github.com/apoxy-dev/apoxy-cli/pkg/log"
 	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel"
-	tunnelnet "github.com/apoxy-dev/apoxy-cli/pkg/tunnel/net"
 	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/router"
 	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/token"
 
@@ -46,7 +44,6 @@ var (
 
 	apiServerAddr = flag.String("apiserver_addr", "host.docker.internal:8443", "APIServer address.")
 	jwksURLs      = flag.String("jwks_urls", "", "Comma-separated URLs of the JWKS endpoints.")
-	localRoute    = flag.String("local_route", "", "Local route for the tunnel.")
 )
 
 func main() {
@@ -100,19 +97,6 @@ func main() {
 		log.Fatalf("Failed to create JWT validator: %v", err)
 	}
 
-	var lr netip.Prefix
-	if *localRoute != "" {
-		lr, err = netip.ParsePrefix(*localRoute)
-		if err != nil {
-			log.Fatalf("Failed to parse local route: %v", err)
-		}
-	} else {
-		lr, err = tunnelnet.LocalRouteIPv6()
-		if err != nil {
-			log.Fatalf("Failed to create local route: %v", err)
-		}
-	}
-
 	r, err := router.NewNetlinkRouter()
 	if err != nil {
 		log.Fatalf("Failed to create netlink router: %v", err)
@@ -122,7 +106,6 @@ func main() {
 		mgr.GetClient(),
 		jwtValidator,
 		r,
-		tunnel.WithLocalRoute(lr),
 	)
 	g.Go(func() error {
 		log.Infof("Starting Tunnel Proxy server")
