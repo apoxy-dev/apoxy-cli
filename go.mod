@@ -381,6 +381,7 @@ require (
 	gopkg.in/validator.v2 v2.0.1 // indirect
 	k8s.io/apiextensions-apiserver v0.31.1 // indirect
 	k8s.io/component-base v0.31.1 // indirect
+	k8s.io/component-helpers v0.31.1 // indirect
 	k8s.io/kms v0.32.3 // indirect
 	lukechampine.com/uint128 v1.3.0 // indirect
 	modernc.org/cc/v3 v3.41.0 // indirect

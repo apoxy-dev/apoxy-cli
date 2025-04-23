@@ -3,6 +3,7 @@
 package router
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"log/slog"
@@ -15,6 +16,7 @@ import (
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sync/errgroup"
 	"golang.zx2c4.com/wireguard/tun"
+	proxyutil "k8s.io/kubernetes/pkg/proxy/util"
 	utiliptables "k8s.io/kubernetes/pkg/util/iptables"
 	utilexec "k8s.io/utils/exec"
 
@@ -33,6 +35,7 @@ type NetlinkRouter struct {
 	tunLink netlink.Link
 
 	extPrefixes []netip.Prefix
+	ipt         utiliptables.Interface
 
 	mux *connip.MuxedConnection
 }
@@ -148,20 +151,20 @@ func NewNetlinkRouter(opts ...Option) (*NetlinkRouter, error) {
 		tunLink: tunLink,
 
 		extPrefixes: lrs,
+		ipt:         utiliptables.New(utilexec.New(), utiliptables.ProtocolIPv6),
 
 		mux: connip.NewMuxedConnection(),
 	}, nil
 }
 
 const (
-	chainName = "A3Y-TUN-RULES"
+	ChainA3yTunRules utiliptables.Chain = "A3Y-TUN-RULES"
 )
 
 func (r *NetlinkRouter) setupDNAT() error {
-	ipt := utiliptables.New(utilexec.New(), utiliptables.ProtocolIPv6)
-	exists, err := ipt.EnsureChain(utiliptables.TableNAT, chainName)
+	exists, err := r.ipt.EnsureChain(utiliptables.TableNAT, ChainA3yTunRules)
 	if err != nil {
-		return fmt.Errorf("failed to ensure %s chain: %w", chainName, err)
+		return fmt.Errorf("failed to ensure %s chain: %w", ChainA3yTunRules, err)
 	}
 	if exists { // Jump and forwarding rules should be already set up.
 		return nil
@@ -177,8 +180,8 @@ func (r *NetlinkRouter) setupDNAT() error {
 	}
 	slices.Sort(dsts)
 	slog.Info("Setting up jump rule", slog.String("ext_iface", extName), slog.String("tun_iface", tunName), slog.String("dsts", strings.Join(dsts, ",")))
-	jRuleSpec := []string{"-d", strings.Join(dsts, ","), "-i", extName, "-j", chainName}
-	if _, err := ipt.EnsureRule(utiliptables.Append, utiliptables.TableNAT, utiliptables.ChainPrerouting, jRuleSpec...); err != nil {
+	jRuleSpec := []string{"-d", strings.Join(dsts, ","), "-i", extName, "-j", string(ChainA3yTunRules)}
+	if _, err := r.ipt.EnsureRule(utiliptables.Append, utiliptables.TableNAT, utiliptables.ChainPrerouting, jRuleSpec...); err != nil {
 		return fmt.Errorf("failed to ensure jump rule: %w", err)
 	}
 
@@ -189,7 +192,7 @@ func (r *NetlinkRouter) setupDNAT() error {
 	}
 	slog.Info("Setting up forwarding rules", slog.String("ext_iface", extName), slog.String("tun_iface", tunName))
 	for _, ruleSpec := range fwdRuleSpecs {
-		if _, err := ipt.EnsureRule(utiliptables.Append, utiliptables.TableFilter, utiliptables.ChainForward, ruleSpec...); err != nil {
+		if _, err := r.ipt.EnsureRule(utiliptables.Append, utiliptables.TableFilter, utiliptables.ChainForward, ruleSpec...); err != nil {
 			return fmt.Errorf("failed to ensure forwarding rule: %w", err)
 		}
 	}
@@ -197,7 +200,7 @@ func (r *NetlinkRouter) setupDNAT() error {
 	// Setup NAT for traffic returning from the tunnel.
 	masqRuleSpec := []string{"-o", extName, "-j", "MASQUERADE"}
 	slog.Info("Setting up masquerade rule", slog.String("ext_iface", extName))
-	if _, err := ipt.EnsureRule(utiliptables.Append, utiliptables.TableNAT, utiliptables.ChainPostrouting, masqRuleSpec...); err != nil {
+	if _, err := r.ipt.EnsureRule(utiliptables.Append, utiliptables.TableNAT, utiliptables.ChainPostrouting, masqRuleSpec...); err != nil {
 		return fmt.Errorf("failed to ensure masquerade rule: %w", err)
 	}
 
@@ -238,8 +241,47 @@ func (r *NetlinkRouter) Start(ctx context.Context) error {
 	return g.Wait()
 }
 
-func (r *NetlinkRouter) updateDNATRules() error {
-	// TBD: save and restore DNAT rules with updated peers.
+func probability(n int) string {
+	return fmt.Sprintf("%0.10f", 1.0/float64(n))
+}
+
+func (r *NetlinkRouter) syncDNATChain() error {
+	//iptData := bytes.NewBuffer(nil)
+	//if err := r.ipt.SaveInto(utiliptables.TableNAT, iptData); err != nil {
+	//	return fmt.Errorf("failed to execute iptables-save: %w", err)
+	//}
+	//existingNATChains := utiliptables.GetChainsFromTable(iptData.Bytes())
+
+	natChains := proxyutil.NewLineBuffer()
+	natChains.Write(utiliptables.MakeChainLine(ChainA3yTunRules))
+
+	natRules := proxyutil.NewLineBuffer()
+	peers := r.mux.Prefixes()
+	for i, peer := range peers {
+		natRules.Write(
+			"-A", string(ChainA3yTunRules),
+			"-m", "statistic",
+			"--mode", "random",
+			"--probability", probability(len(peers)-i),
+			"-j", "DNAT",
+			"--to-destination", peer.Addr().String(),
+		)
+	}
+
+	iptNewData := bytes.NewBuffer(nil)
+	iptNewData.WriteString("*nat\n")
+	iptNewData.Write(natChains.Bytes())
+	iptNewData.Write(natRules.Bytes())
+	iptNewData.WriteString("COMMIT\n")
+
+	if err := r.ipt.Restore(
+		utiliptables.TableNAT,
+		iptNewData.Bytes(),
+		utiliptables.NoFlushTables,
+		utiliptables.RestoreCounters,
+	); err != nil {
+		return fmt.Errorf("failed to execute iptables-restore: %w", err)
+	}
 
 	return nil
 }
@@ -261,6 +303,9 @@ func (r *NetlinkRouter) AddPeer(peer netip.Prefix, conn connip.Connection) ([]ne
 	}
 
 	r.mux.AddConnection(peer, conn)
+	if err := r.syncDNATChain(); err != nil {
+		return nil, fmt.Errorf("failed to sync DNAT chain: %w", err)
+	}
 
 	return r.extPrefixes, nil
 }
@@ -271,6 +316,9 @@ func (r *NetlinkRouter) RemovePeer(peer netip.Prefix) error {
 
 	if err := r.mux.RemoveConnection(peer); err != nil {
 		slog.Error("failed to remove connection", err)
+	}
+	if err := r.syncDNATChain(); err != nil {
+		return fmt.Errorf("failed to sync DNAT chain: %w", err)
 	}
 
 	route := &netlink.Route{

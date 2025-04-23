@@ -1580,6 +1580,8 @@ k8s.io/component-base v0.18.2/go.mod h1:kqLlMuhJNHQ9lz8Z7V5bxUUtjFZnrypArGl58gmD
 k8s.io/component-base v0.18.4/go.mod h1:7jr/Ef5PGmKwQhyAz/pjByxJbC58mhKAhiaDu0vXfPk=
 k8s.io/component-base v0.31.1 h1:UpOepcrX3rQ3ab5NB6g5iP0tvsgJWzxTyAo20sgYSy8=
 k8s.io/component-base v0.31.1/go.mod h1:WGeaw7t/kTsqpVTaCoVEtillbqAhF2/JgvO0LDOMa0w=
+k8s.io/component-helpers v0.31.1 h1:5hZUf3747atdgtR3gPntrG35rC2CkK7rYq2KUraz6Os=
+k8s.io/component-helpers v0.31.1/go.mod h1:ye0Gi8KzFNTfpIuzvVDtxJQMP/0Owkukf1vGf22Hl6U=
 k8s.io/gengo v0.0.0-20190128074634-0689ccc1d7d6/go.mod h1:ezvh/TsK7cY6rbqRK0oQQ8IAqLxYwwyPxAX1Pzy0ii0=
 k8s.io/gengo v0.0.0-20200114144118-36b2048a9120/go.mod h1:ezvh/TsK7cY6rbqRK0oQQ8IAqLxYwwyPxAX1Pzy0ii0=
 k8s.io/klog v0.0.0-20181102134211-b9b56d5dfc92/go.mod h1:Gq+BEi5rUBO/HRz0bTSXDUcqjScdoY3a9IHpCEIOOfk=
