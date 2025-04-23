@@ -6,10 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/connip"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/connection"
 )
 
 func TestNetstackRouter(t *testing.T) {
@@ -35,7 +36,7 @@ func TestNetstackRouter(t *testing.T) {
 
 	// Test AddPeer
 	prefix := netip.MustParsePrefix("fd00::1/128")
-	conn := connip.NewMuxedConnection()
+	conn := connection.NewMuxedConnection()
 	_, err = r.AddPeer(prefix, conn)
 	// Should fail since the netstack implementation is not complete
 	assert.Error(t, err)

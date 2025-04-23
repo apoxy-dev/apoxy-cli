@@ -9,8 +9,8 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.zx2c4.com/wireguard/tun"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/connip"
 	"github.com/apoxy-dev/apoxy-cli/pkg/netstack"
+	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/connection"
 )
 
 var (
@@ -21,7 +21,7 @@ var (
 // This is a placeholder implementation that will be expanded in the future.
 type NetstackRouter struct {
 	tunDev tun.Device
-	mux    *connip.MuxedConnection
+	mux    *connection.MuxedConnection
 }
 
 // NewNetstackRouter creates a new netstack-based tunnel router.
@@ -34,7 +34,7 @@ func NewNetstackRouter() (*NetstackRouter, error) {
 
 	return &NetstackRouter{
 		tunDev: tunDev,
-		mux:    connip.NewMuxedConnection(),
+		mux:    connection.NewMuxedConnection(),
 	}, nil
 }
 
@@ -58,14 +58,14 @@ func (r *NetstackRouter) Start(ctx context.Context) error {
 
 	// Start the splicing operation
 	g.Go(func() error {
-		return connip.Splice(r.tunDev, r.mux)
+		return connection.Splice(r.tunDev, r.mux)
 	})
 
 	return g.Wait()
 }
 
 // AddPeer adds a peer route to the tunnel.
-func (r *NetstackRouter) AddPeer(peer netip.Prefix, conn connip.Connection) ([]netip.Prefix, error) {
+func (r *NetstackRouter) AddPeer(peer netip.Prefix, conn connection.Connection) ([]netip.Prefix, error) {
 	slog.Debug("Adding route in netstack", slog.String("prefix", peer.String()))
 	// For now, we'll just log the request but not actually implement routing
 	// This will be expanded in the future

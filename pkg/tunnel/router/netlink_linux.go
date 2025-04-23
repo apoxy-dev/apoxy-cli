@@ -20,8 +20,8 @@ import (
 	utiliptables "k8s.io/kubernetes/pkg/util/iptables"
 	utilexec "k8s.io/utils/exec"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/connip"
 	"github.com/apoxy-dev/apoxy-cli/pkg/netstack"
+	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/connection"
 )
 
 var (
@@ -37,7 +37,7 @@ type NetlinkRouter struct {
 	extPrefixes []netip.Prefix
 	ipt         utiliptables.Interface
 
-	mux *connip.MuxedConnection
+	mux *connection.MuxedConnection
 }
 
 func extPrefixes(link netlink.Link) ([]netip.Prefix, error) {
@@ -153,7 +153,7 @@ func NewNetlinkRouter(opts ...Option) (*NetlinkRouter, error) {
 		extPrefixes: lrs,
 		ipt:         utiliptables.New(utilexec.New(), utiliptables.ProtocolIPv6),
 
-		mux: connip.NewMuxedConnection(),
+		mux: connection.NewMuxedConnection(),
 	}, nil
 }
 
@@ -235,7 +235,7 @@ func (r *NetlinkRouter) Start(ctx context.Context) error {
 
 	// Start the splicing operation
 	g.Go(func() error {
-		return connip.Splice(r.tunDev, r.mux)
+		return connection.Splice(r.tunDev, r.mux)
 	})
 
 	return g.Wait()
@@ -287,7 +287,7 @@ func (r *NetlinkRouter) syncDNATChain() error {
 }
 
 // AddPeer adds a peer route to the tunnel.
-func (r *NetlinkRouter) AddPeer(peer netip.Prefix, conn connip.Connection) ([]netip.Prefix, error) {
+func (r *NetlinkRouter) AddPeer(peer netip.Prefix, conn connection.Connection) ([]netip.Prefix, error) {
 	slog.Debug("Adding route", slog.String("prefix", peer.String()))
 
 	route := &netlink.Route{
@@ -337,7 +337,7 @@ func (r *NetlinkRouter) RemovePeer(peer netip.Prefix) error {
 }
 
 // GetMuxedConnection returns the muxed connection for adding/removing connections.
-func (r *NetlinkRouter) GetMuxedConnection() *connip.MuxedConnection {
+func (r *NetlinkRouter) GetMuxedConnection() *connection.MuxedConnection {
 	return r.mux
 }
 

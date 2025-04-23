@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/connip"
+	"github.com/apoxy-dev/apoxy-cli/pkg/connection"
 )
 
 func TestNetlinkRouterMock(t *testing.T) {
@@ -34,7 +34,7 @@ func TestNetlinkRouterMock(t *testing.T) {
 		assert.True(t, getTunnelDeviceMethod.IsValid(), "GetTunnelDevice method should exist")
 	})
 
-	conn := connip.NewMuxedConnection()
+	conn := connection.NewMuxedConnection()
 
 	// Test AddPeer
 	prefix := netip.MustParsePrefix("fd00::1/128")

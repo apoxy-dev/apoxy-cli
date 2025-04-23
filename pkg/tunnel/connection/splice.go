@@ -1,4 +1,4 @@
-package connip
+package connection
 
 import (
 	"errors"

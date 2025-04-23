@@ -1,4 +1,4 @@
-package connip_test
+package connection_test
 
 import (
 	"net"
@@ -6,9 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/connip"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+
+	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/connection"
 )
 
 type MockConnection struct {
@@ -39,7 +40,7 @@ func (m *MockConnection) Close() error {
 
 func TestMuxedConnection(t *testing.T) {
 	t.Run("Add and Remove Connection", func(t *testing.T) {
-		mux := connip.NewMuxedConnection()
+		mux := connection.NewMuxedConnection()
 		mockConn := new(MockConnection)
 		mockConn.On("ReadPacket", mock.Anything).Return(0, []byte{}, nil).Maybe()
 		mockConn.On("Close").Return(nil).Once()
@@ -55,14 +56,14 @@ func TestMuxedConnection(t *testing.T) {
 	})
 
 	t.Run("Remove Connection - Invalid Prefix", func(t *testing.T) {
-		mux := connip.NewMuxedConnection()
+		mux := connection.NewMuxedConnection()
 		prefix := netip.MustParsePrefix("192.0.2.0/24")
 		err := mux.RemoveConnection(prefix)
 		assert.Error(t, err)
 	})
 
 	t.Run("WritePacket - Success", func(t *testing.T) {
-		mux := connip.NewMuxedConnection()
+		mux := connection.NewMuxedConnection()
 		mockConn := new(MockConnection)
 		mockConn.On("ReadPacket", mock.Anything).Return(0, []byte{}, nil).Maybe()
 
@@ -82,7 +83,7 @@ func TestMuxedConnection(t *testing.T) {
 	})
 
 	t.Run("WritePacket - No Connection Found", func(t *testing.T) {
-		mux := connip.NewMuxedConnection()
+		mux := connection.NewMuxedConnection()
 
 		pkt := make([]byte, 40)
 		pkt[0] = 0x60
@@ -94,7 +95,7 @@ func TestMuxedConnection(t *testing.T) {
 	})
 
 	t.Run("ReadPacket - Success", func(t *testing.T) {
-		mux := connip.NewMuxedConnection()
+		mux := connection.NewMuxedConnection()
 		mockConn := new(MockConnection)
 
 		expected := []byte("hello")
@@ -114,7 +115,7 @@ func TestMuxedConnection(t *testing.T) {
 	})
 
 	t.Run("ReadPacket - Closed Channel", func(t *testing.T) {
-		mux := connip.NewMuxedConnection()
+		mux := connection.NewMuxedConnection()
 		_ = mux.Close()
 
 		buf := make([]byte, 1500)
@@ -124,7 +125,7 @@ func TestMuxedConnection(t *testing.T) {
 	})
 
 	t.Run("Close - All Connections", func(t *testing.T) {
-		mux := connip.NewMuxedConnection()
+		mux := connection.NewMuxedConnection()
 		mockConn := new(MockConnection)
 		mockConn.On("ReadPacket", mock.Anything).Return(0, []byte{}, nil).Maybe()
 		mockConn.On("Close").Return(nil).Once()
