@@ -100,9 +100,6 @@ const ApplicationCodeOK quic.ApplicationErrorCode = 0x0
 
 type TunnelClient struct {
 	options            *tunnelClientOptions
-	proxy              *socksproxy.ProxyServer
-	tunnelCtx          context.Context
-	tunnelCtxCancel    context.CancelFunc
 	insecureSkipVerify bool
 	uuid               uuid.UUID
 	authToken          string
@@ -113,6 +110,7 @@ type TunnelClient struct {
 	conn      *connectip.Conn
 	tun       *netstack.TunDevice
 	netstack  *network.NetstackNetwork
+	proxy     *socksproxy.ProxyServer
 	closeOnce sync.Once
 }
 
@@ -144,9 +142,9 @@ func NewTunnelClient(opts ...TunnelClientOption) (*TunnelClient, error) {
 }
 
 // Start establishes a connection to the server and begins forwarding traffic.
+// TODO: this is non blocking and does not match the behavior of the router.Start()
+// method, we should probably change it.
 func (c *TunnelClient) Start(ctx context.Context) error {
-	c.tunnelCtx, c.tunnelCtxCancel = context.WithCancel(ctx)
-
 	tlsConfig := &tls.Config{
 		ServerName:         "proxy",
 		NextProtos:         []string{http3.NextProtoH3},
@@ -229,7 +227,7 @@ func (c *TunnelClient) Start(ctx context.Context) error {
 		slog.Any("searchDomains", resolveConf.SearchDomains),
 		slog.Any("nDots", resolveConf.NDots))
 
-	c.tun, err = netstack.NewTunDevice(filteredLocalPrefixes, nil, c.pcapPath)
+	c.tun, err = netstack.NewTunDevice(filteredLocalPrefixes, c.pcapPath)
 	if err != nil {
 		return fmt.Errorf("failed to create virtual TUN device: %w", err)
 	}
@@ -250,7 +248,7 @@ func (c *TunnelClient) Start(ctx context.Context) error {
 
 	slog.Info("Forwarding all inbound traffic to loopback interface")
 
-	if err := c.tun.ForwardTo(c.tunnelCtx, network.Filtered(&network.FilteredNetworkConfig{
+	if err := c.tun.ForwardTo(ctx, network.Filtered(&network.FilteredNetworkConfig{
 		DeniedPorts: []uint16{uint16(socksListenPort)},
 		Upstream:    network.Loopback(),
 	})); err != nil {
@@ -259,10 +257,9 @@ func (c *TunnelClient) Start(ctx context.Context) error {
 
 	slog.Info("Starting SOCKS5 proxy", slog.String("listenAddr", c.options.socksListenAddr))
 
+	c.proxy = socksproxy.NewServer(c.options.socksListenAddr, c.netstack, network.Host())
 	go func() {
-		c.proxy = socksproxy.NewServer(c.options.socksListenAddr, c.netstack, network.Host())
-
-		if err := c.proxy.ListenAndServe(c.tunnelCtx); err != nil {
+		if err := c.proxy.ListenAndServe(ctx); err != nil {
 			slog.Error("SOCKS proxy error", slog.String("error", err.Error()))
 		}
 	}()
@@ -271,40 +268,48 @@ func (c *TunnelClient) Start(ctx context.Context) error {
 }
 
 // Stop closes the tunnel client and stops forwarding traffic.
-func (c *TunnelClient) Stop() error {
-	// Stop any background tasks (and the SOCKS5 proxy).
-	if c.tunnelCtxCancel != nil {
-		c.tunnelCtxCancel()
-	}
-	return c.Close()
-}
-
 func (c *TunnelClient) Close() error {
-	var closeErr error
+	var firstErr error
 	c.closeOnce.Do(func() {
 		if c.conn != nil {
 			if err := c.conn.Close(); err != nil {
-				closeErr = fmt.Errorf("failed to close connect-ip connection: %w", err)
-			}
-		}
-		if c.tun != nil {
-			if err := c.tun.Close(); err != nil {
-				if closeErr != nil {
-					closeErr = fmt.Errorf("%v; also failed to close TUN device: %w", closeErr, err)
-				} else {
-					closeErr = fmt.Errorf("failed to close TUN device: %w", err)
+				slog.Error("Failed to close connect-ip connection", slog.Any("error", err))
+				if firstErr == nil {
+					firstErr = fmt.Errorf("failed to close connect-ip connection: %w", err)
 				}
 			}
 		}
+
+		if c.tun != nil {
+			if err := c.tun.Close(); err != nil {
+				slog.Error("Failed to close TUN device", slog.Any("error", err))
+				if firstErr == nil {
+					firstErr = fmt.Errorf("failed to close TUN device: %w", err)
+				}
+			}
+		}
+
 		if c.hConn != nil {
 			if err := c.hConn.CloseWithError(ApplicationCodeOK, ""); err != nil {
-				if closeErr != nil {
-					closeErr = fmt.Errorf("%v; also failed to close HTTP/3 connection: %w", closeErr, err)
-				} else {
-					closeErr = fmt.Errorf("failed to close HTTP/3 connection: %w", err)
+				slog.Error("Failed to close HTTP/3 connection", slog.Any("error", err))
+				if firstErr == nil {
+					firstErr = fmt.Errorf("failed to close HTTP/3 connection: %w", err)
+				}
+			}
+		}
+
+		if c.proxy != nil {
+			if err := c.proxy.Close(); err != nil {
+				slog.Error("Failed to close SOCKS proxy", slog.Any("error", err))
+				if firstErr == nil {
+					firstErr = fmt.Errorf("failed to close SOCKS proxy: %w", err)
 				}
 			}
 		}
 	})
-	return closeErr
+	return firstErr
+}
+
+func (c *TunnelClient) LocalAddresses() ([]netip.Prefix, error) {
+	return c.tun.LocalAddresses()
 }

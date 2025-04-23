@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"strings"
 
 	"golang.org/x/sync/errgroup"
 	"golang.zx2c4.com/wireguard/device"
@@ -29,6 +30,11 @@ func Splice(tun tun.Device, conn Connection) error {
 		for {
 			_, err := tun.Read([][]byte{pkt[:]}, sizes, 0)
 			if err != nil {
+				if strings.Contains(err.Error(), "file already closed") {
+					slog.Debug("TUN device closed")
+					return nil
+				}
+
 				return fmt.Errorf("failed to read from TUN: %w", err)
 			}
 

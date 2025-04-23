@@ -12,6 +12,8 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"sync"
+	"sync/atomic"
 
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sync/errgroup"
@@ -38,6 +40,9 @@ type NetlinkRouter struct {
 	ipt         utiliptables.Interface
 
 	mux *connection.MuxedConnection
+
+	closeOnce sync.Once
+	closed    atomic.Bool
 }
 
 func extPrefixes(link netlink.Link) ([]netip.Prefix, error) {
@@ -226,11 +231,8 @@ func (r *NetlinkRouter) Start(ctx context.Context) error {
 	// Setup cleanup handler
 	g.Go(func() error {
 		<-gctx.Done()
-		slog.Debug("Closing TUN device")
-		if err := r.tunDev.Close(); err != nil {
-			return fmt.Errorf("failed to close TUN device: %w", err)
-		}
-		return nil
+		slog.Debug("Closing router")
+		return r.Close()
 	})
 
 	// Start the splicing operation
@@ -315,7 +317,7 @@ func (r *NetlinkRouter) RemovePeer(peer netip.Prefix) error {
 	slog.Debug("Removing route", slog.String("prefix", peer.String()))
 
 	if err := r.mux.RemoveConnection(peer); err != nil {
-		slog.Error("failed to remove connection", err)
+		slog.Error("failed to remove connection", slog.Any("error", err))
 	}
 	if err := r.syncDNATChain(); err != nil {
 		return fmt.Errorf("failed to sync DNAT chain: %w", err)
@@ -343,8 +345,21 @@ func (r *NetlinkRouter) GetMuxedConnection() *connection.MuxedConnection {
 
 // Close releases any resources associated with the router.
 func (r *NetlinkRouter) Close() error {
-	if r.tunDev != nil {
-		return r.tunDev.Close()
-	}
-	return nil
+	var firstErr error
+	r.closeOnce.Do(func() {
+		if err := r.mux.Close(); err != nil {
+			slog.Error("Failed to close mux", slog.Any("error", err))
+			if firstErr == nil {
+				firstErr = fmt.Errorf("failed to close mux: %w", err)
+			}
+		}
+
+		if err := r.tunDev.Close(); err != nil {
+			slog.Error("Failed to close TUN device", slog.Any("error", err))
+			if firstErr == nil {
+				firstErr = fmt.Errorf("failed to close TUN device: %w", err)
+			}
+		}
+	})
+	return firstErr
 }

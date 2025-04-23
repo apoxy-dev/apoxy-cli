@@ -15,8 +15,10 @@ import (
 
 // ProxyServer is a SOCKS5 proxy server.
 type ProxyServer struct {
-	Addr   string
-	server *socks5.Server
+	Addr           string
+	server         *socks5.Server
+	proxyCtx       context.Context
+	proxyCtxCancel context.CancelFunc
 }
 
 // NewServer creates a new SOCKS5 proxy server.
@@ -31,10 +33,20 @@ func NewServer(addr string, upstream network.Network, fallback network.Network) 
 		socks5.WithAuthMethods([]socks5.Authenticator{socks5.NoAuthAuthenticator{}}),
 	}
 
+	// Set up the context for the proxy server
+	proxyCtx, proxyCtxCancel := context.WithCancel(context.Background())
+
 	return &ProxyServer{
-		Addr:   addr,
-		server: socks5.NewServer(options...),
+		Addr:           addr,
+		server:         socks5.NewServer(options...),
+		proxyCtx:       proxyCtx,
+		proxyCtxCancel: proxyCtxCancel,
 	}
+}
+
+func (s *ProxyServer) Close() error {
+	s.proxyCtxCancel()
+	return nil
 }
 
 func (s *ProxyServer) ListenAndServe(ctx context.Context) error {
@@ -44,7 +56,10 @@ func (s *ProxyServer) ListenAndServe(ctx context.Context) error {
 	}
 
 	go func() {
-		<-ctx.Done()
+		select {
+		case <-ctx.Done():
+		case <-s.proxyCtx.Done():
+		}
 
 		if err := lis.Close(); err != nil {
 			slog.Warn("failed to close listener", slog.Any("error", err))
