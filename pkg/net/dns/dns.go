@@ -16,15 +16,15 @@ var (
 )
 
 // ListenAndServe starts a DNS server.
-func ListenAndServe(addr string, p plugin.Plugin) error {
+func ListenAndServe(addr string, plugins ...plugin.Plugin) error {
 	// runtime -> cache -> upstream
 	up := &upstream{}
 	if err := up.LoadResolvConf(); err != nil {
 		return err
 	}
 
-	chain := cache.New()
-	chain.Next = up
+	upChain := cache.New()
+	upChain.Next = up
 
 	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
@@ -37,7 +37,11 @@ func ListenAndServe(addr string, p plugin.Plugin) error {
 		Port:        port,
 		Debug:       true,
 	}
-	c.AddPlugin(func(next plugin.Handler) plugin.Handler { return p(chain) })
+	var stack plugin.Handler = upChain
+	for i := len(plugins) - 1; i >= 0; i-- {
+		stack = plugins[i](stack)
+	}
+	c.AddPlugin(func(next plugin.Handler) plugin.Handler { return stack })
 
 	log.Infof("Starting DNS server on %v:%v", host, port)
 

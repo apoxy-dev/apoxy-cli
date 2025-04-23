@@ -36,7 +36,7 @@ func TestNetstackRouter(t *testing.T) {
 	// Test AddPeer
 	prefix := netip.MustParsePrefix("fd00::1/128")
 	conn := connection.NewMuxedConnection()
-	_, err = r.AddPeer(prefix, conn)
+	_, _, err = r.AddPeer(prefix, conn)
 	require.NoError(t, err)
 
 	// Test RemovePeer

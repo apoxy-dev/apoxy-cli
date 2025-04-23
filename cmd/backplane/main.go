@@ -41,8 +41,10 @@ import (
 	"github.com/apoxy-dev/apoxy-cli/pkg/edgefunc/runc"
 	"github.com/apoxy-dev/apoxy-cli/pkg/log"
 	"github.com/apoxy-dev/apoxy-cli/pkg/net/dns"
+	tundns "github.com/apoxy-dev/apoxy-cli/pkg/tunnel/dns"
 
 	ctrlv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
+	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
 	extensionv1alpha2 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2"
 )
 
@@ -51,6 +53,7 @@ var scheme = runtime.NewScheme()
 func init() {
 	utilruntime.Must(ctrlv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(extensionv1alpha2.AddToScheme(scheme))
+	utilruntime.Must(corev1alpha.AddToScheme(scheme))
 }
 
 var (
@@ -327,8 +330,13 @@ func main() {
 		log.Fatalf("failed to set up EdgeFunction controller: %v", err)
 	}
 
+	tunnelResolver := tundns.NewTunnelNodeDNSReconciler(mgr.GetClient())
+	if err := tunnelResolver.SetupWithManager(mgr); err != nil {
+		log.Fatalf("failed to set up TunnelNodeDNS controller: %v", err)
+	}
+
 	go func() {
-		if err := dns.ListenAndServe(fmt.Sprintf(":%d", *dnsPort), edgeRuntime.Resolver); err != nil {
+		if err := dns.ListenAndServe(fmt.Sprintf(":%d", *dnsPort), edgeRuntime.Resolver, tunnelResolver.Resolver); err != nil {
 			log.Fatalf("failed to start DNS server: %v", err)
 		}
 	}()

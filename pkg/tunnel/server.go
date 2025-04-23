@@ -319,7 +319,7 @@ func (t *TunnelServer) handleConnect(w http.ResponseWriter, r *http.Request) {
 
 	logger.Info("Client prefix assigned", slog.String("ip", peerPrefix.String()))
 
-	advRoutes, err := t.router.AddPeer(peerPrefix, conn)
+	addr, advRoutes, err := t.router.AddPeer(peerPrefix, conn)
 	if err != nil {
 		logger.Error("Failed to add TUN peer", slog.Any("error", err))
 		w.WriteHeader(http.StatusInternalServerError)
@@ -339,7 +339,7 @@ func (t *TunnelServer) handleConnect(w http.ResponseWriter, r *http.Request) {
 	agent := &corev1alpha.AgentStatus{
 		Name:           uuid.NewString(),
 		ConnectedAt:    ptr.To(metav1.Now()),
-		PrivateAddress: peerPrefix.String(),
+		PrivateAddress: addr.String(),
 		AgentAddress:   r.RemoteAddr,
 	}
 	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {

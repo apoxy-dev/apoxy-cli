@@ -36,6 +36,7 @@ type NetlinkRouter struct {
 	tunDev  tun.Device
 	tunLink netlink.Link
 
+	extAddr     netip.Addr
 	extPrefixes []netip.Prefix
 	ipt         utiliptables.Interface
 
@@ -45,14 +46,15 @@ type NetlinkRouter struct {
 	closed    atomic.Bool
 }
 
-func extPrefixes(link netlink.Link) ([]netip.Prefix, error) {
+func extPrefixes(link netlink.Link) (netip.Addr, []netip.Prefix, error) {
 	slog.Info("Checking link", slog.String("name", link.Attrs().Name))
 
 	addrs, err := netlink.AddrList(link, netlink.FAMILY_V6)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get addresses for link: %w", err)
+		return netip.Addr{}, nil, fmt.Errorf("failed to get addresses for link: %w", err)
 	}
 
+	var extAddr netip.Addr
 	var prefixes []netip.Prefix
 	for _, addr := range addrs {
 		slog.Debug("Checking address", slog.String("addr", addr.String()))
@@ -73,11 +75,15 @@ func extPrefixes(link netlink.Link) ([]netip.Prefix, error) {
 
 		slog.Info("Found IPv6 address", slog.String("ip", addr.IP.String()), slog.String("mask", addr.Mask.String()))
 
+		if !extAddr.IsValid() {
+			extAddr = ip
+		}
+
 		bits, _ := addr.Mask.Size()
 		prefixes = append(prefixes, netip.PrefixFrom(ip, bits))
 	}
 
-	return prefixes, nil
+	return extAddr, prefixes, nil
 }
 
 // NewNetlinkRouter creates a new netlink-based tunnel router.
@@ -121,7 +127,7 @@ func NewNetlinkRouter(opts ...Option) (*NetlinkRouter, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get external interface: %w", err)
 	}
-	lrs, err := extPrefixes(extLink)
+	extAddr, lrs, err := extPrefixes(extLink)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get local routes: %w", err)
 	}
@@ -155,6 +161,7 @@ func NewNetlinkRouter(opts ...Option) (*NetlinkRouter, error) {
 		tunDev:  tunDev,
 		tunLink: tunLink,
 
+		extAddr:     extAddr,
 		extPrefixes: lrs,
 		ipt:         utiliptables.New(utilexec.New(), utiliptables.ProtocolIPv6),
 
@@ -248,12 +255,6 @@ func probability(n int) string {
 }
 
 func (r *NetlinkRouter) syncDNATChain() error {
-	//iptData := bytes.NewBuffer(nil)
-	//if err := r.ipt.SaveInto(utiliptables.TableNAT, iptData); err != nil {
-	//	return fmt.Errorf("failed to execute iptables-save: %w", err)
-	//}
-	//existingNATChains := utiliptables.GetChainsFromTable(iptData.Bytes())
-
 	natChains := proxyutil.NewLineBuffer()
 	natChains.Write(utiliptables.MakeChainLine(ChainA3yTunRules))
 
@@ -289,7 +290,7 @@ func (r *NetlinkRouter) syncDNATChain() error {
 }
 
 // AddPeer adds a peer route to the tunnel.
-func (r *NetlinkRouter) AddPeer(peer netip.Prefix, conn connection.Connection) ([]netip.Prefix, error) {
+func (r *NetlinkRouter) AddPeer(peer netip.Prefix, conn connection.Connection) (netip.Addr, []netip.Prefix, error) {
 	slog.Debug("Adding route", slog.String("prefix", peer.String()))
 
 	route := &netlink.Route{
@@ -301,15 +302,15 @@ func (r *NetlinkRouter) AddPeer(peer netip.Prefix, conn connection.Connection) (
 		Scope: netlink.SCOPE_LINK,
 	}
 	if err := netlink.RouteAdd(route); err != nil {
-		return nil, fmt.Errorf("failed to add route: %w", err)
+		return netip.Addr{}, nil, fmt.Errorf("failed to add route: %w", err)
 	}
 
 	r.mux.AddConnection(peer, conn)
 	if err := r.syncDNATChain(); err != nil {
-		return nil, fmt.Errorf("failed to sync DNAT chain: %w", err)
+		return netip.Addr{}, nil, fmt.Errorf("failed to sync DNAT chain: %w", err)
 	}
 
-	return r.extPrefixes, nil
+	return r.extAddr, r.extPrefixes, nil
 }
 
 // RemovePeer removes a peer route from the tunnel.

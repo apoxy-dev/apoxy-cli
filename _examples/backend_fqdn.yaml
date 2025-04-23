@@ -50,26 +50,11 @@ spec:
   hostnames:
     - ifconfig.me
   rules:
-    - filters:
-        - type: ExtensionRef
-          extensionRef:
-            kind: EdgeFunction
-            group: extensions.apoxy.dev
-            name: websocket
-      backendRefs:
+    - backendRefs:
         - kind: Backend
           name: ifconfig
           port: 80
----
-apiVersion: extensions.apoxy.dev/v1alpha1
-kind: EdgeFunction
-metadata:
-  name: websocket
-spec:
-  template:
-    mode: filter
-    code:
-      goPluginSource:
-        oci:
-          repo: registry-1.docker.io/apoxy/websocket
-          tag: "5091d06"
+      retry:
+        codes:
+          - 503
+          - 504

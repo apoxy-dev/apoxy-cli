@@ -1611,7 +1611,7 @@ func (t *Translator) processEdgeFunctionDestinationSetting(
 		Protocol: protocol,
 		Endpoints: []*ir.DestinationEndpoint{
 			{
-				Host: fmt.Sprintf("%s.%s", rev.Name, apoxynet.DomainSuffix),
+				Host: fmt.Sprintf("%s.%s", rev.Name, apoxynet.EdgeFuncDomain),
 				Port: uint32(port),
 			},
 		},

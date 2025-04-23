@@ -152,11 +152,11 @@ func (r *NetstackRouter) Start(ctx context.Context) error {
 }
 
 // AddPeer adds a peer route to the tunnel.
-func (r *NetstackRouter) AddPeer(peer netip.Prefix, conn connection.Connection) ([]netip.Prefix, error) {
+func (r *NetstackRouter) AddPeer(peer netip.Prefix, conn connection.Connection) (netip.Addr, []netip.Prefix, error) {
 	slog.Debug("Adding route in netstack", slog.String("prefix", peer.String()))
 
 	r.mux.AddConnection(peer, conn)
-	return r.localAddresses, nil
+	return peer.Addr(), r.localAddresses, nil
 }
 
 // RemovePeer removes a peer route from the tunnel.

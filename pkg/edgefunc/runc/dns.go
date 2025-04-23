@@ -13,6 +13,10 @@ import (
 	apoxynet "github.com/apoxy-dev/apoxy-cli/pkg/net"
 )
 
+const (
+	resolverName = "edgefunc-resolver"
+)
+
 // Resolver implements edgefunc.Runtime.Resolver.
 func (r *runtime) Resolver(next plugin.Handler) plugin.Handler {
 	return plugin.HandlerFunc(func(ctx context.Context, w dns.ResponseWriter, req *dns.Msg) (int, error) {
@@ -21,12 +25,12 @@ func (r *runtime) Resolver(next plugin.Handler) plugin.Handler {
 		}
 
 		qname := req.Question[0].Name
-		if !strings.HasSuffix(qname, apoxynet.DomainSuffix+".") {
-			log.Debugf("Query name %v does not end with %q", qname, apoxynet.DomainSuffix)
-			return plugin.NextOrFailure(qname, next, ctx, w, req)
+		if !strings.HasSuffix(qname, strings.TrimSuffix(apoxynet.EdgeFuncDomain, ".")+".") {
+			log.Debugf("Query name %v does not end with %q", qname, apoxynet.EdgeFuncDomain)
+			return plugin.NextOrFailure(resolverName, next, ctx, w, req)
 		}
 
-		name := strings.TrimSuffix(qname, apoxynet.DomainSuffix+".")
+		name := strings.TrimSuffix(qname, apoxynet.EdgeFuncDomain+".")
 		name = strings.TrimSuffix(name, ".")
 		if name == "" {
 			log.Debugf("Empty name from %v", qname)

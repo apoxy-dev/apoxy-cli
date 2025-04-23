@@ -77,7 +77,7 @@ func buildEndpointType(settings []*ir.DestinationSetting) EndpointType {
 func buildXdsCluster(args *xdsClusterArgs) *clusterv3.Cluster {
 	cluster := &clusterv3.Cluster{
 		Name:            args.name,
-		DnsLookupFamily: clusterv3.Cluster_V4_ONLY,
+		DnsLookupFamily: clusterv3.Cluster_AUTO,
 		CommonLbConfig: &clusterv3.Cluster_CommonLbConfig{
 			LocalityConfigSpecifier: &clusterv3.Cluster_CommonLbConfig_LocalityWeightedLbConfig_{
 				LocalityWeightedLbConfig: &clusterv3.Cluster_CommonLbConfig_LocalityWeightedLbConfig{}}},
