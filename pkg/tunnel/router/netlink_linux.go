@@ -12,6 +12,8 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"sync"
+	"sync/atomic"
 
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sync/errgroup"
@@ -20,8 +22,8 @@ import (
 	utiliptables "k8s.io/kubernetes/pkg/util/iptables"
 	utilexec "k8s.io/utils/exec"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/connip"
 	"github.com/apoxy-dev/apoxy-cli/pkg/netstack"
+	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/connection"
 )
 
 var (
@@ -37,7 +39,10 @@ type NetlinkRouter struct {
 	extPrefixes []netip.Prefix
 	ipt         utiliptables.Interface
 
-	mux *connip.MuxedConnection
+	mux *connection.MuxedConnection
+
+	closeOnce sync.Once
+	closed    atomic.Bool
 }
 
 func extPrefixes(link netlink.Link) ([]netip.Prefix, error) {
@@ -153,7 +158,7 @@ func NewNetlinkRouter(opts ...Option) (*NetlinkRouter, error) {
 		extPrefixes: lrs,
 		ipt:         utiliptables.New(utilexec.New(), utiliptables.ProtocolIPv6),
 
-		mux: connip.NewMuxedConnection(),
+		mux: connection.NewMuxedConnection(),
 	}, nil
 }
 
@@ -226,16 +231,13 @@ func (r *NetlinkRouter) Start(ctx context.Context) error {
 	// Setup cleanup handler
 	g.Go(func() error {
 		<-gctx.Done()
-		slog.Debug("Closing TUN device")
-		if err := r.tunDev.Close(); err != nil {
-			return fmt.Errorf("failed to close TUN device: %w", err)
-		}
-		return nil
+		slog.Debug("Closing router")
+		return r.Close()
 	})
 
 	// Start the splicing operation
 	g.Go(func() error {
-		return connip.Splice(r.tunDev, r.mux)
+		return connection.Splice(r.tunDev, r.mux)
 	})
 
 	return g.Wait()
@@ -287,7 +289,7 @@ func (r *NetlinkRouter) syncDNATChain() error {
 }
 
 // AddPeer adds a peer route to the tunnel.
-func (r *NetlinkRouter) AddPeer(peer netip.Prefix, conn connip.Connection) ([]netip.Prefix, error) {
+func (r *NetlinkRouter) AddPeer(peer netip.Prefix, conn connection.Connection) ([]netip.Prefix, error) {
 	slog.Debug("Adding route", slog.String("prefix", peer.String()))
 
 	route := &netlink.Route{
@@ -315,7 +317,7 @@ func (r *NetlinkRouter) RemovePeer(peer netip.Prefix) error {
 	slog.Debug("Removing route", slog.String("prefix", peer.String()))
 
 	if err := r.mux.RemoveConnection(peer); err != nil {
-		slog.Error("failed to remove connection", err)
+		slog.Error("failed to remove connection", slog.Any("error", err))
 	}
 	if err := r.syncDNATChain(); err != nil {
 		return fmt.Errorf("failed to sync DNAT chain: %w", err)
@@ -337,14 +339,27 @@ func (r *NetlinkRouter) RemovePeer(peer netip.Prefix) error {
 }
 
 // GetMuxedConnection returns the muxed connection for adding/removing connections.
-func (r *NetlinkRouter) GetMuxedConnection() *connip.MuxedConnection {
+func (r *NetlinkRouter) GetMuxedConnection() *connection.MuxedConnection {
 	return r.mux
 }
 
 // Close releases any resources associated with the router.
 func (r *NetlinkRouter) Close() error {
-	if r.tunDev != nil {
-		return r.tunDev.Close()
-	}
-	return nil
+	var firstErr error
+	r.closeOnce.Do(func() {
+		if err := r.mux.Close(); err != nil {
+			slog.Error("Failed to close mux", slog.Any("error", err))
+			if firstErr == nil {
+				firstErr = fmt.Errorf("failed to close mux: %w", err)
+			}
+		}
+
+		if err := r.tunDev.Close(); err != nil {
+			slog.Error("Failed to close TUN device", slog.Any("error", err))
+			if firstErr == nil {
+				firstErr = fmt.Errorf("failed to close TUN device: %w", err)
+			}
+		}
+	})
+	return firstErr
 }

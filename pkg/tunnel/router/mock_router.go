@@ -7,7 +7,7 @@ import (
 
 	"golang.zx2c4.com/wireguard/tun"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/connip"
+	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/connection"
 )
 
 // MockRouter implements the Router interface for testing purposes.
@@ -15,7 +15,7 @@ type MockRouter struct {
 	lock          sync.Mutex
 	routes        map[string]netip.Prefix
 	tunDev        tun.Device
-	mux           *connip.MuxedConnection
+	mux           *connection.MuxedConnection
 	startErr      error
 	getTunDevErr  error
 	addPeerErr    error
@@ -27,7 +27,7 @@ type MockRouter struct {
 func NewMockRouter() *MockRouter {
 	return &MockRouter{
 		routes: make(map[string]netip.Prefix),
-		mux:    connip.NewMuxedConnection(),
+		mux:    connection.NewMuxedConnection(),
 	}
 }
 
@@ -86,7 +86,7 @@ func (m *MockRouter) GetRoutes() []netip.Prefix {
 }
 
 // GetMuxedConnection returns the muxed connection for testing.
-func (m *MockRouter) GetMuxedConnection() *connip.MuxedConnection {
+func (m *MockRouter) GetMuxedConnection() *connection.MuxedConnection {
 	return m.mux
 }
 
@@ -105,7 +105,7 @@ func (m *MockRouter) Start(ctx context.Context) error {
 }
 
 // AddPeer adds a peer route to the tunnel.
-func (m *MockRouter) AddPeer(peer netip.Prefix, conn connip.Connection) ([]netip.Prefix, error) {
+func (m *MockRouter) AddPeer(peer netip.Prefix, conn connection.Connection) ([]netip.Prefix, error) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 

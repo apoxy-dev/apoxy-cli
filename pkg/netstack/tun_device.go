@@ -37,7 +37,7 @@ type TunDevice struct {
 	mtu            int
 }
 
-func NewTunDevice(localAddresses []netip.Prefix, mtu *int, pcapPath string) (*TunDevice, error) {
+func NewTunDevice(localAddresses []netip.Prefix, pcapPath string) (*TunDevice, error) {
 	opts := stack.Options{
 		NetworkProtocols: []stack.NetworkProtocolFactory{
 			ipv4.NewProtocol,

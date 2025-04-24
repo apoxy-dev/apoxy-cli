@@ -4,7 +4,7 @@ import (
 	"context"
 	"net/netip"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/connip"
+	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/connection"
 )
 
 // Router is an interface for managing tunnel routing.
@@ -15,7 +15,7 @@ type Router interface {
 
 	// AddPeer adds a peer route to the tunnel. Returns the list of IP prefixes
 	// to be advertised to the peer (if none returned, no prefixes should be advertised).
-	AddPeer(peer netip.Prefix, conn connip.Connection) ([]netip.Prefix, error)
+	AddPeer(peer netip.Prefix, conn connection.Connection) ([]netip.Prefix, error)
 
 	// RemovePeer removes a peer route from the tunnel identified by the given prefix.
 	RemovePeer(peer netip.Prefix) error

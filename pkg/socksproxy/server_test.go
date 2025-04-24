@@ -32,6 +32,10 @@ func TestProxyServer(t *testing.T) {
 	publicNet := network.Host()
 
 	srv := socksproxy.NewServer("localhost:9050", privateNet, publicNet)
+	t.Cleanup(func() {
+		require.NoError(t, srv.Close())
+	})
+
 	go func() {
 		if err := srv.ListenAndServe(ctx); err != nil {
 			os.Exit(1)

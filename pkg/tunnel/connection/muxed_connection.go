@@ -1,4 +1,4 @@
-package connip
+package connection
 
 import (
 	"errors"
@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/netip"
 	"sync"
+	"sync/atomic"
 
 	"github.com/dpeckett/triemap"
 
@@ -31,6 +32,9 @@ type MuxedConnection struct {
 	conns            *triemap.TrieMap[Connection]
 	incomingPackets  chan *[]byte
 	packetBufferPool sync.Pool
+
+	closeOnce sync.Once
+	closed    atomic.Bool
 }
 
 func NewMuxedConnection() *MuxedConnection {
@@ -56,6 +60,12 @@ func (m *MuxedConnection) AddConnection(prefix netip.Prefix, conn Connection) {
 }
 
 func (m *MuxedConnection) RemoveConnection(prefix netip.Prefix) error {
+	// Has the connection already been closed?
+	if m.closed.Load() {
+		// Then this becomes a no-op.
+		return nil
+	}
+
 	if prefix.IsValid() && prefix.Addr().Is6() {
 		conn, ok := m.conns.Get(prefix.Addr())
 		if !ok {
@@ -85,22 +95,31 @@ func (m *MuxedConnection) Prefixes() []netip.Prefix {
 }
 
 func (m *MuxedConnection) Close() error {
-	// Close all connections in the map.
-	m.conns.ForEach(func(prefix netip.Prefix, conn Connection) bool {
-		if err := conn.Close(); err != nil {
-			slog.Warn("Failed to close connection",
-				slog.String("prefix", prefix.String()), slog.Any("error", err))
-		}
-		return true
+	var firstErr error
+	m.closeOnce.Do(func() {
+		// Close all connections in the map.
+		m.conns.ForEach(func(prefix netip.Prefix, conn Connection) bool {
+			if err := conn.Close(); err != nil {
+				slog.Warn("Failed to close connection",
+					slog.String("prefix", prefix.String()), slog.Any("error", err))
+				if firstErr == nil {
+					firstErr = fmt.Errorf("failed to close connection: %w", err)
+				}
+			}
+			return true
+		})
+
+		// Clear the map.
+		m.conns.Clear()
+
+		// Close the incoming packets channel.
+		close(m.incomingPackets)
+
+		// Mark the connection as closed.
+		m.closed.Store(true)
 	})
 
-	// Clear the map.
-	m.conns.Clear()
-
-	// Close the incoming packets channel.
-	close(m.incomingPackets)
-
-	return nil
+	return firstErr
 }
 
 func (m *MuxedConnection) ReadPacket(pkt []byte) (int, error) {

@@ -18,6 +18,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	proxyclient "golang.org/x/net/proxy"
 	"golang.org/x/sync/errgroup"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -29,19 +30,11 @@ import (
 	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel"
 	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/router"
 	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/token"
-	"github.com/apoxy-dev/apoxy-cli/pkg/utils"
 )
 
 func TestTunnelEndToEnd(t *testing.T) {
 	if testing.Verbose() {
 		slog.SetLogLoggerLevel(slog.LevelDebug)
-	}
-
-	netAdmin, err := utils.IsNetAdmin()
-	require.NoError(t, err)
-
-	if !netAdmin {
-		t.Skip("requires NET_ADMIN capability")
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -95,13 +88,16 @@ func TestTunnelEndToEnd(t *testing.T) {
 	jwtValidator, err := token.NewInMemoryValidator(jwtPublicKeyPEM)
 	require.NoError(t, err)
 
-	// Create a mock router for testing
-	mockRouter := router.NewMockRouter()
+	netstackRouter, err := router.NewNetstackRouter(
+		router.WithSocksListenAddr("localhost:1080"),
+		router.WithPcapPath("server.pcap"),
+	)
+	require.NoError(t, err)
 
 	server := tunnel.NewTunnelServer(
 		kubeClient,
 		jwtValidator,
-		mockRouter,
+		netstackRouter,
 		tunnel.WithCertPath(filepath.Join(certsDir, "server.crt")),
 		tunnel.WithKeyPath(filepath.Join(certsDir, "server.key")),
 	)
@@ -114,11 +110,14 @@ func TestTunnelEndToEnd(t *testing.T) {
 		tunnel.WithUUID(clientUUID),
 		tunnel.WithAuthToken(clientAuthToken),
 		tunnel.WithRootCAs(cryptoutils.CertPoolForCertificate(caCert)),
+		tunnel.WithSocksListenAddr("localhost:1081"),
 		tunnel.WithPcapPath("client.pcap"),
 	)
 	require.NoError(t, err)
 
-	g, ctx := errgroup.WithContext(ctx)
+	gCtx, gCancel := context.WithCancel(ctx)
+	t.Cleanup(gCancel)
+	g, gctx := errgroup.WithContext(gCtx)
 
 	// Start a little http server listening on localhost (to test the tunnel)
 	httpListener, err := net.Listen("tcp", "localhost:0")
@@ -133,8 +132,13 @@ func TestTunnelEndToEnd(t *testing.T) {
 	}
 
 	g.Go(func() error {
-		defer t.Log("HTTP test server closed")
+		g.Go(func() error {
+			<-gctx.Done()
+			t.Log("Closing HTTP test server")
+			return httpServer.Close()
+		})
 
+		defer t.Log("HTTP test server closed")
 		t.Log("Starting HTTP test server")
 
 		if err := httpServer.Serve(httpListener); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -150,7 +154,7 @@ func TestTunnelEndToEnd(t *testing.T) {
 
 		t.Log("Starting tunnel server")
 
-		if err := server.Start(ctx); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		if err := server.Start(gctx); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			return fmt.Errorf("unable to start server: %v", err)
 		}
 
@@ -159,20 +163,20 @@ func TestTunnelEndToEnd(t *testing.T) {
 
 	// Start the client
 	g.Go(func() error {
-		// Stop the server and http test server when the client is done
-		defer func() {
-			_ = server.Stop()
-			_ = httpServer.Close()
-		}()
+		defer t.Log("Tunnel client closed")
+
+		defer gCancel() // Abort everything when the client is done
 
 		// Wait for the server to start
 		time.Sleep(1 * time.Second)
 
-		if err := client.Start(ctx); err != nil {
+		t.Log("Starting tunnel client")
+
+		if err := client.Start(gCtx); err != nil {
 			return fmt.Errorf("unable to connect to server: %v", err)
 		}
 		defer func() {
-			_ = client.Stop()
+			_ = client.Close()
 		}()
 
 		clientAddresses, err := client.LocalAddresses()
@@ -182,15 +186,20 @@ func TestTunnelEndToEnd(t *testing.T) {
 
 		t.Logf("Assigned client addresses: %v", clientAddresses)
 
-		// TODO (dpeckett): Make a request to the test http server
-		// This will fail atm due the servers TUN device not being assigned a
-		// valid IP address.
+		// Connect to the netstack routers / servers socks5 proxy
+		dialer, err := proxyclient.SOCKS5("tcp", "localhost:1080", nil, proxyclient.Direct)
+		require.NoError(t, err)
 
-		t.Log("Attempting connection")
+		client := &http.Client{
+			Transport: &http.Transport{
+				Dial: dialer.Dial,
+			},
+		}
+
+		t.Log("Connecting to HTTP server through server SOCKS5 proxy")
 
 		httpPort := httpListener.Addr().(*net.TCPAddr).Port
-
-		resp, err := http.Get("http://" + net.JoinHostPort(clientAddresses[0].Addr().String(), fmt.Sprintf("%d", httpPort)))
+		resp, err := client.Get("http://" + net.JoinHostPort(clientAddresses[0].Addr().String(), fmt.Sprintf("%d", httpPort)))
 		require.NoError(t, err)
 		defer resp.Body.Close()
 

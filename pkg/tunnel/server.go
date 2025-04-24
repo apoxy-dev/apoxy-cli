@@ -30,7 +30,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/connip"
+	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/connection"
 	tunnet "github.com/apoxy-dev/apoxy-cli/pkg/tunnel/net"
 	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/router"
 	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/token"
@@ -107,7 +107,7 @@ type TunnelServer struct {
 	router       router.Router
 
 	// Connections
-	mux *connip.MuxedConnection
+	mux *connection.MuxedConnection
 	// Maps
 	tunnelNodes *haxmap.Map[string, *corev1alpha.TunnelNode]
 
@@ -138,7 +138,7 @@ func NewTunnelServer(
 		jwtValidator: v,
 		router:       r,
 
-		mux:         connip.NewMuxedConnection(),
+		mux:         connection.NewMuxedConnection(),
 		tunnelNodes: haxmap.New[string, *corev1alpha.TunnelNode](),
 	}
 

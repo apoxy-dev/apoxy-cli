@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/connip"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/connection"
 )
 
 func TestNetstackRouter(t *testing.T) {
@@ -17,37 +17,35 @@ func TestNetstackRouter(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, r)
 
-	// Test Start method with timeout context
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-	defer cancel()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
 
-	g, ctx := errgroup.WithContext(ctx)
+	// Start the router
+	var g errgroup.Group
+
 	g.Go(func() error {
 		return r.Start(ctx)
 	})
 
-	// Wait for context timeout
-	time.Sleep(110 * time.Millisecond)
+	t.Cleanup(func() {
+		require.NoError(t, r.Close())
+	})
 
-	// Verify Start returns after context is done
-	err = g.Wait()
-	assert.NoError(t, err)
+	time.Sleep(100 * time.Millisecond) // Give some time for the router to start
 
 	// Test AddPeer
 	prefix := netip.MustParsePrefix("fd00::1/128")
-	conn := connip.NewMuxedConnection()
+	conn := connection.NewMuxedConnection()
 	_, err = r.AddPeer(prefix, conn)
-	// Should fail since the netstack implementation is not complete
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "not implemented")
+	require.NoError(t, err)
 
 	// Test RemovePeer
 	err = r.RemovePeer(prefix)
-	// Should fail since the netstack implementation is not complete
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "not implemented")
+	require.NoError(t, err)
 
 	// Test Close
-	err = r.Close()
+	cancel()
+
+	err = g.Wait()
 	require.NoError(t, err)
 }
