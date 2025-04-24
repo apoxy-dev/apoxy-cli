@@ -232,7 +232,9 @@ func (t *Translator) addXdsHTTPFilterChain(xdsListener *listenerv3.Listener, irL
 		MergeSlashes:                 irListener.Path.MergeSlashes,
 		PathWithEscapedSlashesAction: translateEscapePath(irListener.Path.EscapedSlashesAction),
 		CommonHttpProtocolOptions: &corev3.HttpProtocolOptions{
-			HeadersWithUnderscoresAction: corev3.HttpProtocolOptions_REJECT_REQUEST,
+			// Envoy's default is ALLOW. This is also consistent with most
+			// CDN proxies.
+			HeadersWithUnderscoresAction: corev3.HttpProtocolOptions_ALLOW,
 		},
 		GenerateRequestId: &wrappers.BoolValue{Value: hcmTracing != nil},
 		Tracing:           hcmTracing,
