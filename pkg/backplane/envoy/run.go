@@ -21,6 +21,8 @@ import (
 	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/logs"
 	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/otel"
 	"github.com/apoxy-dev/apoxy-cli/pkg/log"
+
+	_ "github.com/apoxy-dev/apoxy-cli/pkg/gateway/xds/extensions"
 )
 
 const (
