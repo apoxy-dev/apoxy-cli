@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	retryDefaultRetryOn             = "connect-failure,refused-stream,unavailable,cancelled,retriable-status-codes"
+	retryDefaultRetryOn             = "cancelled,connect-failure,refused-stream,reset,retriable-status-codes,unavailable"
 	retryDefaultRetriableStatusCode = 503
 	retryDefaultNumRetries          = 2
 )
