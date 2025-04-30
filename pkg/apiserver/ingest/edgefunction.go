@@ -365,9 +365,8 @@ func (w *worker) DownloadWasmActivity(
 ) (*IngestResult, error) {
 	log := tlog.With(activity.GetLogger(ctx), "Name", in.Obj.Name, "ResourceVersion", in.Obj.ResourceVersion)
 
-	wid := activity.GetInfo(ctx).WorkflowExecution.ID
 	rid := activity.GetInfo(ctx).WorkflowExecution.RunID
-	d := w.stagingDir(wid, rid)
+	d := w.stagingDir(in.Obj.Name, rid)
 
 	if err := os.MkdirAll(d, 0755); err != nil {
 		log.Error("Failed to create target directory", "Error", err)
@@ -396,9 +395,7 @@ func (w *worker) StoreWasmActivity(
 	log := tlog.With(activity.GetLogger(ctx), "Name", in.Obj.Name, "ResourceVersion", in.Obj.ResourceVersion)
 	log.Info("Storing Edge Function .wasm file in object store")
 
-	wid := activity.GetInfo(ctx).WorkflowExecution.ID
-
-	targetDir := w.storeDir(wid)
+	targetDir := w.storeDir(in.Obj.Name)
 	if err := os.MkdirAll(targetDir, 0755); err != nil {
 		log.Error("Failed to create target directory", "Error", err)
 		return err
@@ -581,9 +578,8 @@ func (w *worker) DownloadGoPluginActivity(
 
 	log.Info("Downloading Edge Function Go plugin .so file", "URL", in.Obj.Spec.Code.GoPluginSource.URL)
 
-	wid := activity.GetInfo(ctx).WorkflowExecution.ID
 	rid := activity.GetInfo(ctx).WorkflowExecution.RunID
-	targetDir := w.stagingDir(wid, rid)
+	targetDir := w.stagingDir(in.Obj.Name, rid)
 
 	if err := os.MkdirAll(targetDir, 0755); err != nil {
 		log.Error("Failed to create target directory", "Error", err)
@@ -628,9 +624,7 @@ func (w *worker) StoreGoPluginActivity(
 	log := tlog.With(activity.GetLogger(ctx), "Name", in.Obj.Name, "ResourceVersion", in.Obj.ResourceVersion)
 	log.Info("Storing Edge Function .so file in object store")
 
-	wid := activity.GetInfo(ctx).WorkflowExecution.ID
-
-	targetDir := w.storeDir(wid)
+	targetDir := w.storeDir(in.Obj.Name)
 	if err := os.MkdirAll(targetDir, 0755); err != nil {
 		log.Error("Failed to create target directory", "Error", err)
 		return err
@@ -653,10 +647,8 @@ func (w *worker) DownloadJsActivity(
 ) (*IngestResult, error) {
 	log := tlog.With(activity.GetLogger(ctx), "Name", in.Obj.Name, "ResourceVersion", in.Obj.ResourceVersion)
 
-	wid := activity.GetInfo(ctx).WorkflowExecution.ID
 	rid := activity.GetInfo(ctx).WorkflowExecution.RunID
-
-	jsDir := filepath.Join(w.stagingDir(wid, rid), "js")
+	jsDir := filepath.Join(w.stagingDir(in.Obj.Name, rid), "js")
 	if err := os.MkdirAll(jsDir, 0755); err != nil {
 		log.Error("Failed to create target directory", "Error", err)
 		return nil, err
@@ -710,10 +702,8 @@ func (w *worker) BundleJsActivity(
 ) (*IngestResult, error) {
 	log := tlog.With(activity.GetLogger(ctx), "Name", in.Obj.Name, "ResourceVersion", in.Obj.ResourceVersion)
 
-	wid := activity.GetInfo(ctx).WorkflowExecution.ID
 	rid := activity.GetInfo(ctx).WorkflowExecution.RunID
-
-	d := w.stagingDir(wid, rid)
+	d := w.stagingDir(in.Obj.Name, rid)
 	binDir := filepath.Join(d, "bin")
 	if err := os.MkdirAll(binDir, 0755); err != nil {
 		log.Error("Failed to create bin directory", "Error", err)
@@ -762,8 +752,7 @@ func (w *worker) StoreEsZipActivity(
 ) error {
 	log := tlog.With(activity.GetLogger(ctx), "Name", in.Obj.Name, "ResourceVersion", in.Obj.ResourceVersion)
 
-	wid := activity.GetInfo(ctx).WorkflowExecution.ID
-	storeDir := w.storeDir(wid)
+	storeDir := w.storeDir(in.Obj.Name)
 	if err := os.MkdirAll(storeDir, 0755); err != nil {
 		log.Error("Failed to create target directory", "Error", err)
 		return err
@@ -890,9 +879,8 @@ func (w *worker) CleanupStagedData(
 	log := tlog.With(activity.GetLogger(ctx), "Name", in.Obj.Name, "ResourceVersion", in.Obj.ResourceVersion)
 	log.Info("Cleaning up staged data")
 
-	wid := activity.GetInfo(ctx).WorkflowExecution.ID
 	rid := activity.GetInfo(ctx).WorkflowExecution.RunID
-	stagingDir := filepath.Dir(w.stagingDir(wid, rid))
+	stagingDir := filepath.Dir(w.stagingDir(in.Obj.Name, rid))
 
 	log.Info("Removing staging directory", "Directory", stagingDir)
 
@@ -912,9 +900,7 @@ func (w *worker) CleanupStoredData(
 	log := tlog.With(activity.GetLogger(ctx), "Name", in.Obj.Name, "ResourceVersion", in.Obj.ResourceVersion)
 	log.Info("Cleaning up stored data")
 
-	wid := activity.GetInfo(ctx).WorkflowExecution.ID
-	storeDir := w.storeDir(wid)
-
+	storeDir := w.storeDir(in.Obj.Name)
 	if err := os.RemoveAll(storeDir); err != nil {
 		log.Error("Failed to remove store directory", "Error", err)
 		return err
