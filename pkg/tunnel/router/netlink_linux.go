@@ -87,38 +87,38 @@ func extPrefixes(link netlink.Link) (netip.Addr, []netip.Prefix, error) {
 }
 
 // NewNetlinkRouter creates a new netlink-based tunnel router.
-// Option represents a router configuration option.
-type Option func(*routerOptions)
+// NetlinkRouterOption represents a router configuration option.
+type NetlinkRouterOption func(*netlinkRouterOptions)
 
-type routerOptions struct {
+type netlinkRouterOptions struct {
 	extIfaceName string
 	tunIfaceName string
 }
 
-func defaultOptions() *routerOptions {
-	return &routerOptions{
+func defaultNetlinkOptions() *netlinkRouterOptions {
+	return &netlinkRouterOptions{
 		extIfaceName: "eth0",
 		tunIfaceName: "tun0",
 	}
 }
 
 // WithExternalInterface sets the external interface name.
-func WithExternalInterface(name string) Option {
-	return func(o *routerOptions) {
+func WithExternalInterface(name string) NetlinkRouterOption {
+	return func(o *netlinkRouterOptions) {
 		o.extIfaceName = name
 	}
 }
 
 // WithTunnelInterface sets the tunnel interface name.
-func WithTunnelInterface(name string) Option {
-	return func(o *routerOptions) {
+func WithTunnelInterface(name string) NetlinkRouterOption {
+	return func(o *netlinkRouterOptions) {
 		o.tunIfaceName = name
 	}
 }
 
 // NewNetlinkRouter creates a new netlink-based tunnel router.
-func NewNetlinkRouter(opts ...Option) (*NetlinkRouter, error) {
-	options := defaultOptions()
+func NewNetlinkRouter(opts ...NetlinkRouterOption) (*NetlinkRouter, error) {
+	options := defaultNetlinkOptions()
 	for _, opt := range opts {
 		opt(options)
 	}

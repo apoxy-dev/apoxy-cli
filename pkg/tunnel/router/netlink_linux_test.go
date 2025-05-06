@@ -1,53 +1,60 @@
 //go:build linux
 
-package router
+package router_test
 
 import (
+	"context"
 	"net/netip"
-	"reflect"
 	"testing"
+	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/connection"
+	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/router"
+	"github.com/apoxy-dev/apoxy-cli/pkg/utils/vm"
 )
 
-func TestNetlinkRouterMock(t *testing.T) {
-	// This is a mock test that doesn't actually create routes
-	// but validates the struct and interface implementation
+func TestNetlinkRouter(t *testing.T) {
+	// Run the test in a linux VM
+	child := vm.RunTestInVM(t)
+	if !child {
+		return
+	}
 
-	r := &NetlinkRouter{}
+	r, err := router.NewNetlinkRouter()
+	require.NoError(t, err)
 
-	// Test that it implements the Router interface
-	var _ Router = r
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
 
-	// Test Start method existence
-	assert.NotPanics(t, func() {
-		startMethod := reflect.ValueOf(r).MethodByName("Start")
-		assert.True(t, startMethod.IsValid(), "Start method should exist")
+	// Start the router
+	var g errgroup.Group
+
+	g.Go(func() error {
+		return r.Start(ctx)
 	})
 
-	// Test GetTunnelDevice method existence
-	assert.NotPanics(t, func() {
-		getTunnelDeviceMethod := reflect.ValueOf(r).MethodByName("GetTunnelDevice")
-		assert.True(t, getTunnelDeviceMethod.IsValid(), "GetTunnelDevice method should exist")
+	t.Cleanup(func() {
+		require.NoError(t, r.Close())
 	})
 
-	conn := connection.NewMuxedConnection()
+	time.Sleep(100 * time.Millisecond) // Give some time for the router to start
 
 	// Test AddPeer
 	prefix := netip.MustParsePrefix("fd00::1/128")
-	_, _, err := r.AddPeer(prefix, conn)
-	// Should fail since we didn't initialize the link
-	assert.Error(t, err)
+	conn := connection.NewMuxedConnection()
+	_, _, err = r.AddPeer(prefix, conn)
+	require.NoError(t, err)
 
 	// Test RemovePeer
 	err = r.RemovePeer(prefix)
-	// Should fail since we didn't initialize the link
-	assert.Error(t, err)
+	require.NoError(t, err)
 
 	// Test Close
-	err = r.Close()
+	cancel()
+
+	err = g.Wait()
 	require.NoError(t, err)
 }
