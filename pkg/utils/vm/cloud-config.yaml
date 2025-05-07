@@ -1,0 +1,8 @@
+#cloud-config
+users:
+  - name: apoxy
+    passwd: "$y$j9T$DYK6iqqZ4oLpelFrIImj9/$HDnxX01K563KozrNIzmSr4TFtqwn9qE.403Y9D7p/81" # apoxy
+    lock_passwd: false
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+ssh_pwauth: true

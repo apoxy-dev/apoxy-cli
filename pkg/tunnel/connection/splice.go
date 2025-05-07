@@ -30,7 +30,7 @@ func Splice(tun tun.Device, conn Connection) error {
 		for {
 			_, err := tun.Read([][]byte{pkt[:]}, sizes, 0)
 			if err != nil {
-				if strings.Contains(err.Error(), "file already closed") {
+				if strings.Contains(err.Error(), "closed") {
 					slog.Debug("TUN device closed")
 					return nil
 				}

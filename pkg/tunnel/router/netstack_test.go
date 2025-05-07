@@ -1,4 +1,4 @@
-package router
+package router_test
 
 import (
 	"context"
@@ -10,10 +10,11 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/connection"
+	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/router"
 )
 
 func TestNetstackRouter(t *testing.T) {
-	r, err := NewNetstackRouter()
+	r, err := router.NewNetstackRouter()
 	require.NoError(t, err)
 	require.NotNil(t, r)
 
