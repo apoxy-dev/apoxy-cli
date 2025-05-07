@@ -13,7 +13,6 @@ import (
 	"slices"
 	"strings"
 	"sync"
-	"sync/atomic"
 
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sync/errgroup"
@@ -24,6 +23,7 @@ import (
 
 	"github.com/apoxy-dev/apoxy-cli/pkg/netstack"
 	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/connection"
+	tunnet "github.com/apoxy-dev/apoxy-cli/pkg/tunnel/net"
 )
 
 var (
@@ -43,7 +43,6 @@ type NetlinkRouter struct {
 	mux *connection.MuxedConnection
 
 	closeOnce sync.Once
-	closed    atomic.Bool
 }
 
 func extPrefixes(link netlink.Link) (netip.Addr, []netip.Prefix, error) {
@@ -87,38 +86,8 @@ func extPrefixes(link netlink.Link) (netip.Addr, []netip.Prefix, error) {
 }
 
 // NewNetlinkRouter creates a new netlink-based tunnel router.
-// NetlinkRouterOption represents a router configuration option.
-type NetlinkRouterOption func(*netlinkRouterOptions)
-
-type netlinkRouterOptions struct {
-	extIfaceName string
-	tunIfaceName string
-}
-
-func defaultNetlinkOptions() *netlinkRouterOptions {
-	return &netlinkRouterOptions{
-		extIfaceName: "eth0",
-		tunIfaceName: "tun0",
-	}
-}
-
-// WithExternalInterface sets the external interface name.
-func WithExternalInterface(name string) NetlinkRouterOption {
-	return func(o *netlinkRouterOptions) {
-		o.extIfaceName = name
-	}
-}
-
-// WithTunnelInterface sets the tunnel interface name.
-func WithTunnelInterface(name string) NetlinkRouterOption {
-	return func(o *netlinkRouterOptions) {
-		o.tunIfaceName = name
-	}
-}
-
-// NewNetlinkRouter creates a new netlink-based tunnel router.
-func NewNetlinkRouter(opts ...NetlinkRouterOption) (*NetlinkRouter, error) {
-	options := defaultNetlinkOptions()
+func NewNetlinkRouter(opts ...Option) (*NetlinkRouter, error) {
+	options := defaultOptions()
 	for _, opt := range opts {
 		opt(options)
 	}
@@ -137,6 +106,14 @@ func NewNetlinkRouter(opts ...NetlinkRouterOption) (*NetlinkRouter, error) {
 		return nil, fmt.Errorf("failed to create TUN interface: %w", err)
 	}
 
+	if options.pcapPath != "" {
+		tunDev, err = tunnet.NewPcapDevice(tunDev, options.pcapPath)
+		if err != nil {
+			tunDev.Close()
+			return nil, fmt.Errorf("failed to create pcap device: %w", err)
+		}
+	}
+
 	// Get the actual tun name (may differ from requested name).
 	actualTunName, err := tunDev.Name()
 	if err != nil {
@@ -148,6 +125,25 @@ func NewNetlinkRouter(opts ...NetlinkRouterOption) (*NetlinkRouter, error) {
 	if err != nil {
 		tunDev.Close()
 		return nil, fmt.Errorf("failed to get TUN interface: %w", err)
+	}
+
+	for _, addr := range options.localAddresses {
+		ip := addr.Addr()
+		mask := net.CIDRMask(addr.Bits(), 32)
+		if ip.Is6() {
+			mask = net.CIDRMask(addr.Bits(), 128)
+		}
+
+		if err := netlink.AddrAdd(tunLink, &netlink.Addr{
+			IPNet: &net.IPNet{
+				IP:   ip.AsSlice(),
+				Mask: mask,
+			},
+		}); err != nil {
+			tunDev.Close()
+			return nil, fmt.Errorf("failed to add address to TUN interface: %w", err)
+		}
+		slog.Info("Added address to TUN interface", slog.String("addr", addr.String()))
 	}
 
 	if err := netlink.LinkSetUp(tunLink); err != nil {
@@ -363,4 +359,34 @@ func (r *NetlinkRouter) Close() error {
 		}
 	})
 	return firstErr
+}
+
+// LocalAddresses returns the list of local addresses that are assigned to the router.
+func (r *NetlinkRouter) LocalAddresses() ([]netip.Prefix, error) {
+	if r.tunLink == nil {
+		return nil, nil
+	}
+
+	addrs, err := netlink.AddrList(r.tunLink, netlink.FAMILY_V6)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get addresses for link: %w", err)
+	}
+
+	var prefixes []netip.Prefix
+	for _, addr := range addrs {
+		ip, ok := netip.AddrFromSlice(addr.IP)
+		if !ok {
+			slog.Warn("Failed to convert IP address", slog.String("ip", addr.IP.String()))
+			continue
+		}
+		if !ip.IsGlobalUnicast() { // Skip non-global unicast addresses.
+			slog.Debug("Skipping non-global unicast address", slog.String("ip", addr.IP.String()))
+			continue
+		}
+
+		bits, _ := addr.Mask.Size()
+		prefixes = append(prefixes, netip.PrefixFrom(ip, bits))
+	}
+
+	return prefixes, nil
 }

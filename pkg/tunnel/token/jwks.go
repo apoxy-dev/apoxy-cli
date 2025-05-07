@@ -1,6 +1,7 @@
 package token
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/sha256"
 	"fmt"
@@ -37,7 +38,7 @@ func NewJWKSHandler(publicKeyPEM []byte) (http.HandlerFunc, error) {
 	}
 
 	jwkSet := jwkset.NewMemoryStorage()
-	if err := jwkSet.KeyWrite(nil, jwk); err != nil {
+	if err := jwkSet.KeyWrite(context.Background(), jwk); err != nil {
 		return nil, fmt.Errorf("failed to write JWK: %w", err)
 	}
 

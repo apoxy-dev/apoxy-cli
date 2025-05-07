@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -51,7 +52,7 @@ func RunTestInVM(t *testing.T) bool {
 
 	// Download the image if not already present
 	if _, err := os.Stat(imagePath); os.IsNotExist(err) {
-		imageURL := fmt.Sprintf("https://cdimage.debian.org/images/cloud/bookworm/20250428-2096/debian-12-generic-amd64-20250428-2096.qcow2")
+		imageURL := fmt.Sprintf("https://cdimage.debian.org/images/cloud/bookworm/latest/debian-12-generic-amd64.qcow2")
 
 		t.Logf("Downloading image from %s...\n", imageURL)
 
@@ -104,9 +105,16 @@ func RunTestInVM(t *testing.T) bool {
 		return false
 	}
 
+	sshPort, err := getFreePort()
+	if err != nil {
+		t.Fatalf("failed to find free SSH port: %v", err)
+		return false
+	}
+	t.Logf("Using random SSH host port: %d", sshPort)
+
 	qemuParams := []string{
 		"-m", "1024M",
-		"-netdev", "user,id=net0,hostfwd=tcp::10022-:22",
+		"-netdev", fmt.Sprintf("user,id=net0,hostfwd=tcp::%d-:22", sshPort),
 		"-device", "e1000,netdev=net0,mac=52:54:00:12:34:56",
 		"-snapshot",
 	}
@@ -175,7 +183,7 @@ func RunTestInVM(t *testing.T) bool {
 	// Wait for SSH to become available
 	var conn *ssh.Client
 	for i := 0; i < 10; i++ {
-		conn, err = ssh.Dial("tcp", "localhost:10022", config)
+		conn, err = ssh.Dial("tcp", fmt.Sprintf("localhost:%d", sshPort), config)
 		if err == nil {
 			break
 		}
@@ -270,4 +278,13 @@ func createCloudInitISO(w io.Writer, userData, networkConfig, metaData string) e
 	}
 
 	return nil
+}
+
+func getFreePort() (int, error) {
+	l, err := net.Listen("tcp", ":0")
+	if err != nil {
+		return 0, err
+	}
+	defer l.Close()
+	return l.Addr().(*net.TCPAddr).Port, nil
 }

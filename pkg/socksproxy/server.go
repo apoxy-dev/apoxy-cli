@@ -29,6 +29,7 @@ func NewServer(addr string, upstream network.Network, fallback network.Network) 
 		socks5.WithDial((&dialer{upstream: upstream, fallback: fallback}).DialContext),
 		socks5.WithResolver(&resolver{net: upstream}),
 		socks5.WithBufferPool(bufferpool.NewPool(256 * 1024)),
+		socks5.WithLogger(&logger{}),
 		// No auth as we'll be binding exclusively to a local interface.
 		socks5.WithAuthMethods([]socks5.Authenticator{socks5.NoAuthAuthenticator{}}),
 	}
@@ -113,6 +114,8 @@ func (d *dialer) DialContext(ctx context.Context, network, address string) (net.
 		return d.fallback.DialContext(ctx, network, address)
 	}
 
+	slog.Debug("Address is private - dialing upstream", slog.String("address", addr.String()))
+
 	return d.upstream.DialContext(ctx, network, address)
 }
 
@@ -139,4 +142,10 @@ func (r *resolver) Resolve(ctx context.Context, name string) (context.Context, n
 	}
 
 	return ctx, ip, nil
+}
+
+type logger struct{}
+
+func (l *logger) Errorf(format string, arg ...any) {
+	slog.Error(fmt.Sprintf(format, arg...))
 }

@@ -21,52 +21,6 @@ var (
 	_ Router = (*NetstackRouter)(nil)
 )
 
-type NetstackRouterOption func(*netstackRouterOptions)
-
-type netstackRouterOptions struct {
-	localAddresses  []netip.Prefix
-	socksListenAddr string
-	resolveConf     *network.ResolveConfig // If not set system default resolver is used
-	pcapPath        string
-}
-
-func defaultClientOptions() *netstackRouterOptions {
-	return &netstackRouterOptions{
-		localAddresses: []netip.Prefix{
-			netip.MustParsePrefix("fd00::/64"),
-		},
-		socksListenAddr: "localhost:1080",
-	}
-}
-
-// WithLocalAddresses sets the local addresses for the netstack router.
-func WithLocalAddresses(localAddresses []netip.Prefix) NetstackRouterOption {
-	return func(o *netstackRouterOptions) {
-		o.localAddresses = localAddresses
-	}
-}
-
-// WithSocksListenAddr sets the SOCKS listen address for the netstack router.
-func WithSocksListenAddr(addr string) NetstackRouterOption {
-	return func(o *netstackRouterOptions) {
-		o.socksListenAddr = addr
-	}
-}
-
-// WithResolveConfig sets the DNS configuration for the netstack router.
-func WithResolveConfig(conf *network.ResolveConfig) NetstackRouterOption {
-	return func(o *netstackRouterOptions) {
-		o.resolveConf = conf
-	}
-}
-
-// WithPcapPath sets the optional path to a packet capture file for the netstack router.
-func WithPcapPath(path string) NetstackRouterOption {
-	return func(o *netstackRouterOptions) {
-		o.pcapPath = path
-	}
-}
-
 // NetstackRouter implements Router using a userspace network stack.
 type NetstackRouter struct {
 	tunDev          *netstack.TunDevice
@@ -79,8 +33,8 @@ type NetstackRouter struct {
 }
 
 // NewNetstackRouter creates a new netstack-based tunnel router.
-func NewNetstackRouter(opts ...NetstackRouterOption) (*NetstackRouter, error) {
-	options := defaultClientOptions()
+func NewNetstackRouter(opts ...Option) (*NetstackRouter, error) {
+	options := defaultOptions()
 	for _, opt := range opts {
 		opt(options)
 	}
@@ -153,16 +107,12 @@ func (r *NetstackRouter) Start(ctx context.Context) error {
 
 // AddPeer adds a peer route to the tunnel.
 func (r *NetstackRouter) AddPeer(peer netip.Prefix, conn connection.Connection) (netip.Addr, []netip.Prefix, error) {
-	slog.Debug("Adding route in netstack", slog.String("prefix", peer.String()))
-
 	r.mux.AddConnection(peer, conn)
 	return peer.Addr(), r.localAddresses, nil
 }
 
 // RemovePeer removes a peer route from the tunnel.
 func (r *NetstackRouter) RemovePeer(peer netip.Prefix) error {
-	slog.Debug("Removing route in netstack", slog.String("prefix", peer.String()))
-
 	if err := r.mux.RemoveConnection(peer); err != nil {
 		slog.Error("failed to remove connection", slog.Any("error", err))
 	}
@@ -201,4 +151,9 @@ func (r *NetstackRouter) Close() error {
 		}
 	})
 	return firstErr
+}
+
+// LocalAddresses returns the list of local addresses that are assigned to the router.
+func (r *NetstackRouter) LocalAddresses() ([]netip.Prefix, error) {
+	return r.tunDev.LocalAddresses()
 }

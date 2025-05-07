@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/netip"
 	"os"
+	"sync/atomic"
 	"syscall"
 
 	"github.com/dpeckett/network"
@@ -35,6 +36,7 @@ type TunDevice struct {
 	events         chan tun.Event
 	incomingPacket chan *buffer.View
 	mtu            int
+	closed         atomic.Bool
 }
 
 func NewTunDevice(localAddresses []netip.Prefix, pcapPath string) (*TunDevice, error) {
@@ -145,6 +147,10 @@ func (tun *TunDevice) MTU() (int, error) { return tun.mtu, nil }
 func (tun *TunDevice) BatchSize() int { return 1 }
 
 func (tun *TunDevice) Read(buf [][]byte, sizes []int, offset int) (int, error) {
+	if tun.closed.Load() {
+		return 0, os.ErrClosed
+	}
+
 	view, ok := <-tun.incomingPacket
 	if !ok {
 		return 0, os.ErrClosed
@@ -159,6 +165,10 @@ func (tun *TunDevice) Read(buf [][]byte, sizes []int, offset int) (int, error) {
 }
 
 func (tun *TunDevice) Write(buf [][]byte, offset int) (int, error) {
+	if tun.closed.Load() {
+		return 0, os.ErrClosed
+	}
+
 	for _, buf := range buf {
 		packet := buf[offset:]
 		if len(packet) == 0 {
@@ -191,6 +201,10 @@ func (tun *TunDevice) WriteNotify() {
 }
 
 func (tun *TunDevice) Close() error {
+	if tun.closed.Swap(true) {
+		return nil
+	}
+
 	tun.stack.RemoveNIC(tun.nicID)
 
 	if tun.events != nil {
