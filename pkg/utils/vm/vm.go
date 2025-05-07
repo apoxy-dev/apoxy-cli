@@ -2,7 +2,6 @@ package vm
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -48,11 +47,11 @@ func RunTestInVM(t *testing.T) bool {
 		t.Fatalf("failed to get cache directory: %v", err)
 		return false
 	}
-	imagePath := filepath.Join(imageDir, "debian-12-genericcloud.qcow2")
+	imagePath := filepath.Join(imageDir, "debian-12-generic.qcow2")
 
 	// Download the image if not already present
 	if _, err := os.Stat(imagePath); os.IsNotExist(err) {
-		imageURL := fmt.Sprintf("https://cdimage.debian.org/images/cloud/bookworm/latest/debian-12-genericcloud-%s.qcow2", runtime.GOARCH)
+		imageURL := fmt.Sprintf("https://cdimage.debian.org/images/cloud/bookworm/20250428-2096/debian-12-generic-amd64-20250428-2096.qcow2")
 
 		t.Logf("Downloading image from %s...\n", imageURL)
 
@@ -66,6 +65,11 @@ func RunTestInVM(t *testing.T) bool {
 			t.Fatalf("failed to download image: %v", err)
 		}
 		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("unexpected status code: %d", resp.StatusCode)
+			return false
+		}
 
 		out, err := os.Create(imagePath)
 		if err != nil {
@@ -101,18 +105,22 @@ func RunTestInVM(t *testing.T) bool {
 	}
 
 	qemuParams := []string{
-		"-cpu", "host", "-m", "1024M",
+		"-m", "1024M",
 		"-netdev", "user,id=net0,hostfwd=tcp::10022-:22",
-		"-device", "virtio-net-pci,netdev=net0,mac=52:54:00:12:34:56",
+		"-device", "e1000,netdev=net0,mac=52:54:00:12:34:56",
 		"-snapshot",
 	}
 
 	if runtime.GOOS == "linux" {
+		qemuParams = append(qemuParams, "-cpu", "host")
 		qemuParams = append(qemuParams, "-enable-kvm")
+	} else if runtime.GOOS == "darwin" {
+		qemuParams = append(qemuParams, "-machine", "type=q35,accel=tcg")
 	}
 
 	// Launch the QEMU VM using vmtest
 	opts := vmtest.QemuOptions{
+		Architecture:    vmtest.QEMU_X86_64,
 		OperatingSystem: vmtest.OS_LINUX,
 		Disks: []vmtest.QemuDisk{
 			{Path: imagePath, Format: "qcow2"},
@@ -140,7 +148,7 @@ func RunTestInVM(t *testing.T) bool {
 	// Compile the test binary
 	testBinary := filepath.Join(tempDir, "testbin")
 	cmd := exec.Command("go", "test", "-c", "-o", testBinary, testSourceFile)
-	cmd.Env = append(os.Environ(), "GOOS=linux", "GOARCH="+runtime.GOARCH)
+	cmd.Env = append(os.Environ(), "GOOS=linux", "GOARCH=amd64")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
@@ -204,7 +212,7 @@ func RunTestInVM(t *testing.T) bool {
 		}
 	})
 
-	if err := scpClient.CopyFile(context.TODO(), f, "testbin", "0755"); err != nil && !errors.Is(err, io.EOF) {
+	if err := scpClient.CopyFile(t.Context(), f, "testbin", "0755"); err != nil && !errors.Is(err, io.EOF) {
 		t.Fatalf("failed to copy binary to VM: %v", err)
 		return false
 	}
