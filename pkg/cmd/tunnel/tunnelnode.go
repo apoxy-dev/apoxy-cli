@@ -222,17 +222,26 @@ func (t *tunnelNodeReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		cOpts = append(cOpts, tunnel.WithInsecureSkipVerify(true))
 	}
 
+	if t.tunC != nil {
+		log.Info("Closing existing tunnel client")
+		if err := t.tunC.Close(); err != nil {
+			log.Error(err, "Failed to close existing tunnel client")
+		}
+		t.tunC = nil
+	}
+
 	if t.tunC, err = tunnel.NewTunnelClient(cOpts...); err != nil {
 		log.Error(err, "Failed to create tunnel client")
 		t.doneCh <- fmt.Errorf("failed to create tunnel client: %w", err)
 		return ctrl.Result{}, nil // Unrecoverable error.
 	}
 
-	if err := t.tunC.Start(ctx); err != nil {
-		log.Error(err, "Failed to start tunnel client")
-		t.doneCh <- fmt.Errorf("failed to start tunnel client: %w", err)
-		return ctrl.Result{}, nil // Unrecoverable error.
-	}
+	go func() {
+		if err := t.tunC.Start(ctx); err != nil {
+			log.Error(err, "Failed to start tunnel client")
+			t.doneCh <- fmt.Errorf("failed to start tunnel client: %w", err)
+		}
+	}()
 
 	return ctrl.Result{}, nil
 }

@@ -166,7 +166,10 @@ func (r *TunnelNodeDNSReconciler) serveDNS(ctx context.Context, next plugin.Hand
 		return dns.RcodeServerFailure, nil
 	}
 
-	w.WriteMsg(msg)
+	if err := w.WriteMsg(msg); err != nil {
+		log.Error("Failed to write response", slog.Any("error", err))
+		return dns.RcodeServerFailure, err
+	}
 
 	return dns.RcodeSuccess, nil
 }

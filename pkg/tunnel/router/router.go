@@ -22,4 +22,7 @@ type Router interface {
 
 	// RemovePeer removes a peer route from the tunnel identified by the given prefix.
 	RemovePeer(peer netip.Prefix) error
+
+	// LocalAddresses returns the list of local addresses that are assigned to the router.
+	LocalAddresses() ([]netip.Prefix, error)
 }

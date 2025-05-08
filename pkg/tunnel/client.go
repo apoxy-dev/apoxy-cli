@@ -10,7 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
-	"strconv"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -22,27 +22,40 @@ import (
 	"github.com/quic-go/quic-go/http3"
 	"github.com/yosida95/uritemplate/v3"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/netstack"
-	"github.com/apoxy-dev/apoxy-cli/pkg/socksproxy"
-	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/connection"
+	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/router"
 )
 
 type TunnelClientOption func(*tunnelClientOptions)
 
+type TunnelClientMode string
+
+const (
+	// TunnelClientModeKernel indicates that the tunnel client will use the kernel mode router.
+	// This mode requires root privileges and is more efficient for routing traffic.
+	TunnelClientModeKernel TunnelClientMode = "kernel"
+	// TunnelClientModeUser indicates that the tunnel client will use the user mode router.
+	TunnelClientModeUser TunnelClientMode = "user"
+)
+
 type tunnelClientOptions struct {
 	serverAddr         string
-	insecureSkipVerify bool
 	uuid               uuid.UUID
 	authToken          string
-	pcapPath           string
+	mode               TunnelClientMode
+	insecureSkipVerify bool
 	rootCAs            *x509.CertPool
-	socksListenAddr    string
+	pcapPath           string
+	// Kernel mode options
+	extIfaceName string
+	tunIfaceName string
+	// Userspace options
+	socksListenAddr string
 }
 
 func defaultClientOptions() *tunnelClientOptions {
 	return &tunnelClientOptions{
-		serverAddr:      "localhost:9443",
-		socksListenAddr: "localhost:1080",
+		serverAddr: "localhost:9443",
+		mode:       TunnelClientModeUser,
 	}
 }
 
@@ -51,13 +64,6 @@ func defaultClientOptions() *tunnelClientOptions {
 func WithServerAddr(addr string) TunnelClientOption {
 	return func(o *tunnelClientOptions) {
 		o.serverAddr = addr
-	}
-}
-
-// WithInsecureSkipVerify skips TLS certificate verification of the server.
-func WithInsecureSkipVerify(skip bool) TunnelClientOption {
-	return func(o *tunnelClientOptions) {
-		o.insecureSkipVerify = skip
 	}
 }
 
@@ -75,10 +81,17 @@ func WithAuthToken(token string) TunnelClientOption {
 	}
 }
 
-// WithPcapPath sets the optional path to a packet capture file for the tunnel client.
-func WithPcapPath(path string) TunnelClientOption {
+// WithMode sets the mode of the tunnel client (kernel or userspace).
+func WithMode(mode TunnelClientMode) TunnelClientOption {
 	return func(o *tunnelClientOptions) {
-		o.pcapPath = path
+		o.mode = mode
+	}
+}
+
+// WithInsecureSkipVerify skips TLS certificate verification of the server.
+func WithInsecureSkipVerify(skip bool) TunnelClientOption {
+	return func(o *tunnelClientOptions) {
+		o.insecureSkipVerify = skip
 	}
 }
 
@@ -89,7 +102,31 @@ func WithRootCAs(caCerts *x509.CertPool) TunnelClientOption {
 	}
 }
 
+// WithPcapPath sets the optional path to a packet capture file for the tunnel client.
+func WithPcapPath(path string) TunnelClientOption {
+	return func(o *tunnelClientOptions) {
+		o.pcapPath = path
+	}
+}
+
+// WithExternalInterface sets the external interface name.
+// This is only valid in kernel mode.
+func WithExternalInterface(name string) TunnelClientOption {
+	return func(o *tunnelClientOptions) {
+		o.extIfaceName = name
+	}
+}
+
+// WithTunnelInterface sets the tunnel interface name.
+// This is only valid in kernel mode.
+func WithTunnelInterface(name string) TunnelClientOption {
+	return func(o *tunnelClientOptions) {
+		o.tunIfaceName = name
+	}
+}
+
 // WithSocksListenAddr sets the listen address for the local SOCKS5 proxy server.
+// Only valid in user mode.
 func WithSocksListenAddr(addr string) TunnelClientOption {
 	return func(o *tunnelClientOptions) {
 		o.socksListenAddr = addr
@@ -103,19 +140,15 @@ type TunnelClient struct {
 	insecureSkipVerify bool
 	uuid               uuid.UUID
 	authToken          string
-	pcapPath           string
 	rootCAs            *x509.CertPool
+	router             router.Router
 
-	hConn     *http3.ClientConn
-	conn      *connectip.Conn
-	tun       *netstack.TunDevice
-	netstack  *network.NetstackNetwork
-	proxy     *socksproxy.ProxyServer
+	hConn *http3.ClientConn
+	conn  *connectip.Conn
+
 	closeOnce sync.Once
 }
 
-// NewTunnelClient creates a new SOCKS5 proxy and loopback reverse proxy,
-// that forwards and receives traffic via QUIC tunnels.
 func NewTunnelClient(opts ...TunnelClientOption) (*TunnelClient, error) {
 	options := defaultClientOptions()
 	for _, opt := range opts {
@@ -133,7 +166,6 @@ func NewTunnelClient(opts ...TunnelClientOption) (*TunnelClient, error) {
 		options:            options,
 		uuid:               options.uuid,
 		authToken:          options.authToken,
-		pcapPath:           options.pcapPath,
 		rootCAs:            options.rootCAs,
 		insecureSkipVerify: options.insecureSkipVerify,
 	}
@@ -141,9 +173,6 @@ func NewTunnelClient(opts ...TunnelClientOption) (*TunnelClient, error) {
 	return client, nil
 }
 
-// Start establishes a connection to the server and begins forwarding traffic.
-// TODO: this is non blocking and does not match the behavior of the router.Start()
-// method, we should probably change it.
 func (c *TunnelClient) Start(ctx context.Context) error {
 	tlsConfig := &tls.Config{
 		ServerName:         "proxy",
@@ -227,47 +256,64 @@ func (c *TunnelClient) Start(ctx context.Context) error {
 		slog.Any("searchDomains", resolveConf.SearchDomains),
 		slog.Any("nDots", resolveConf.NDots))
 
-	c.tun, err = netstack.NewTunDevice(filteredLocalPrefixes, c.pcapPath)
-	if err != nil {
-		return fmt.Errorf("failed to create virtual TUN device: %w", err)
+	routerOpts := []router.Option{
+		router.WithLocalAddresses(filteredLocalPrefixes),
+		router.WithResolveConfig(resolveConf),
 	}
 
-	c.netstack = c.tun.Network(resolveConf)
-
-	go connection.Splice(c.tun, c.conn)
-
-	_, socksListenPortStr, err := net.SplitHostPort(c.options.socksListenAddr)
-	if err != nil {
-		return fmt.Errorf("failed to parse SOCKS listen address: %w", err)
+	if c.options.pcapPath != "" {
+		routerOpts = append(routerOpts, router.WithPcapPath(c.options.pcapPath))
 	}
 
-	socksListenPort, err := strconv.Atoi(socksListenPortStr)
-	if err != nil {
-		return fmt.Errorf("failed to parse SOCKS listen port: %w", err)
+	if c.options.extIfaceName != "" {
+		routerOpts = append(routerOpts, router.WithExternalInterface(c.options.extIfaceName))
 	}
 
-	slog.Info("Forwarding all inbound traffic to loopback interface")
-
-	if err := c.tun.ForwardTo(ctx, network.Filtered(&network.FilteredNetworkConfig{
-		DeniedPorts: []uint16{uint16(socksListenPort)},
-		Upstream:    network.Loopback(),
-	})); err != nil {
-		return fmt.Errorf("failed to forward to loopback: %w", err)
+	if c.options.tunIfaceName != "" {
+		routerOpts = append(routerOpts, router.WithTunnelInterface(c.options.tunIfaceName))
 	}
 
-	slog.Info("Starting SOCKS5 proxy", slog.String("listenAddr", c.options.socksListenAddr))
+	if c.options.socksListenAddr != "" {
+		routerOpts = append(routerOpts, router.WithSocksListenAddr(c.options.socksListenAddr))
+	}
 
-	c.proxy = socksproxy.NewServer(c.options.socksListenAddr, c.netstack, network.Host())
-	go func() {
-		if err := c.proxy.ListenAndServe(ctx); err != nil {
-			slog.Error("SOCKS proxy error", slog.String("error", err.Error()))
+	if c.options.mode == TunnelClientModeKernel {
+		c.router, err = router.NewNetlinkRouter(routerOpts...)
+		if err != nil {
+			return fmt.Errorf("failed to create kernel router: %w", err)
 		}
-	}()
+	} else if c.options.mode == TunnelClientModeUser {
+		c.router, err = router.NewNetstackRouter(routerOpts...)
+		if err != nil {
+			return fmt.Errorf("failed to create user mode router: %w", err)
+		}
+	}
+
+	routes, err := c.conn.Routes(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get routes: %w", err)
+	}
+
+	for _, route := range routes {
+		for _, prefix := range route.Prefixes() {
+			slog.Info("Adding route", slog.String("prefix", prefix.String()))
+
+			_, _, err := c.router.AddPeer(prefix, c.conn)
+			if err != nil {
+				return fmt.Errorf("failed to add peer route %s: %w", prefix.String(), err)
+			}
+		}
+	}
+
+	slog.Info("Starting router")
+
+	if err := c.router.Start(ctx); err != nil {
+		return fmt.Errorf("failed to start router: %w", err)
+	}
 
 	return nil
 }
 
-// Stop closes the tunnel client and stops forwarding traffic.
 func (c *TunnelClient) Close() error {
 	var firstErr error
 	c.closeOnce.Do(func() {
@@ -276,15 +322,6 @@ func (c *TunnelClient) Close() error {
 				slog.Error("Failed to close connect-ip connection", slog.Any("error", err))
 				if firstErr == nil {
 					firstErr = fmt.Errorf("failed to close connect-ip connection: %w", err)
-				}
-			}
-		}
-
-		if c.tun != nil {
-			if err := c.tun.Close(); err != nil {
-				slog.Error("Failed to close TUN device", slog.Any("error", err))
-				if firstErr == nil {
-					firstErr = fmt.Errorf("failed to close TUN device: %w", err)
 				}
 			}
 		}
@@ -298,12 +335,10 @@ func (c *TunnelClient) Close() error {
 			}
 		}
 
-		if c.proxy != nil {
-			if err := c.proxy.Close(); err != nil {
-				slog.Error("Failed to close SOCKS proxy", slog.Any("error", err))
-				if firstErr == nil {
-					firstErr = fmt.Errorf("failed to close SOCKS proxy: %w", err)
-				}
+		if err := c.router.Close(); err != nil {
+			slog.Error("Failed to close router", slog.Any("error", err))
+			if firstErr == nil {
+				firstErr = fmt.Errorf("failed to close router: %w", err)
 			}
 		}
 	})
@@ -311,5 +346,9 @@ func (c *TunnelClient) Close() error {
 }
 
 func (c *TunnelClient) LocalAddresses() ([]netip.Prefix, error) {
-	return c.tun.LocalAddresses()
+	if c.router == nil || reflect.ValueOf(c.router).IsNil() {
+		return nil, nil
+	}
+
+	return c.router.LocalAddresses()
 }

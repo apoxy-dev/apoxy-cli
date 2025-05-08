@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/netip"
 	"strings"
+	"time"
 
 	"github.com/alphadose/haxmap"
 	"github.com/google/uuid"
@@ -108,9 +109,6 @@ type TunnelServer struct {
 	mux *connection.MuxedConnection
 	// Maps
 	tunnelNodes *haxmap.Map[string, *corev1alpha.TunnelNode]
-
-	tunnelCtx       context.Context
-	tunnelCtxCancel context.CancelFunc
 }
 
 // NewTunnelServer creates a new server proxy that routes traffic via
@@ -154,8 +152,6 @@ func (t *TunnelServer) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 func (t *TunnelServer) Start(ctx context.Context) error {
-	t.tunnelCtx, t.tunnelCtxCancel = context.WithCancel(ctx)
-
 	bindTo, err := netip.ParseAddrPort(t.options.proxyAddr)
 	if err != nil {
 		return fmt.Errorf("failed to parse bind address: %w", err)
@@ -185,7 +181,7 @@ func (t *TunnelServer) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to create QUIC listener: %w", err)
 	}
 
-	g, ctx := errgroup.WithContext(t.tunnelCtx)
+	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
 		<-ctx.Done()
@@ -222,17 +218,15 @@ func upsertAgentStatus(s *corev1alpha.TunnelNodeStatus, agent *corev1alpha.Agent
 }
 
 func (t *TunnelServer) Stop() error {
-	if err := t.Shutdown(context.Background()); err != nil {
-		slog.Error("Failed to shutdown server", slog.Any("error", err))
-	}
-
-	// Stop any background tasks if they are running.
-	if t.tunnelCtxCancel != nil {
-		t.tunnelCtxCancel()
-	}
-
 	if err := t.router.Close(); err != nil {
 		slog.Error("Failed to close router", slog.Any("error", err))
+	}
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := t.Shutdown(shutdownCtx); err != nil {
+		slog.Error("Failed to shutdown server", slog.Any("error", err))
 	}
 
 	return t.Server.Close()
