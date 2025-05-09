@@ -33,6 +33,7 @@ import (
 	"k8s.io/klog/v2"
 	netutils "k8s.io/utils/net"
 	"sigs.k8s.io/apiserver-runtime/pkg/builder"
+	"sigs.k8s.io/apiserver-runtime/pkg/builder/resource"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
@@ -178,6 +179,7 @@ type options struct {
 	jwtRefreshThreshold   time.Duration
 	jwksHost              string
 	jwksPort              int
+	resources             []resource.Object
 }
 
 // WithJWTKeys sets the JWT key pair.
@@ -286,6 +288,35 @@ func WithGCInterval(interval time.Duration) Option {
 	}
 }
 
+// WithResource registers a resource obj with APIServer.
+// If not provided, default resource set will be used, otherwise
+// only the provided resource will be registered.
+func WithResource(obj resource.Object) Option {
+	return func(o *options) {
+		o.resources = append(o.resources, obj)
+	}
+}
+
+func defaultResources() []resource.Object {
+	return []resource.Object{
+		&corev1alpha.TunnelNode{},
+		&corev1alpha.Backend{},
+		&corev1alpha.Domain{},
+		&ctrlv1alpha1.Proxy{},
+		&policyv1alpha1.RateLimit{},
+		// extensionsv1alpha2 is storage version so needs to be registered first.
+		&extensionsv1alpha2.EdgeFunction{},
+		&extensionsv1alpha2.EdgeFunctionRevision{},
+		// extensionsv1alpha1 will be converted to extensionsv1alpha2 when it is stored.
+		&extensionsv1alpha1.EdgeFunction{},
+		&extensionsv1alpha1.EdgeFunctionRevision{},
+		&gatewayv1.GatewayClass{},
+		&gatewayv1.Gateway{},
+		&gatewayv1.HTTPRoute{},
+		&gatewayv1.GRPCRoute{},
+	}
+}
+
 func encodeSQLiteConnArgs(args map[string]string) string {
 	var buf strings.Builder
 	for k, v := range args {
@@ -361,6 +392,9 @@ func (m *Manager) Start(
 	}
 	for _, o := range opts {
 		o(dOpts)
+	}
+	if dOpts.resources == nil {
+		dOpts.resources = defaultResources()
 	}
 
 	if err = start(ctx, dOpts); err != nil {
@@ -584,23 +618,12 @@ func start(
 			return
 		}
 
-		if err := builder.APIServer.
+		srvBuilder := builder.APIServer
+		for _, r := range opts.resources {
+			srvBuilder = srvBuilder.WithResourceAndStorage(r, kineStore)
+		}
+		if err := srvBuilder.
 			WithOpenAPIDefinitions("apoxy", "0.1.0", apoxyopenapi.GetOpenAPIDefinitions).
-			WithResourceAndStorage(&corev1alpha.TunnelNode{}, kineStore).
-			WithResourceAndStorage(&corev1alpha.Backend{}, kineStore).
-			WithResourceAndStorage(&corev1alpha.Domain{}, kineStore).
-			WithResourceAndStorage(&ctrlv1alpha1.Proxy{}, kineStore).
-			WithResourceAndStorage(&policyv1alpha1.RateLimit{}, kineStore).
-			// extensionsv1alpha2 is storage version so needs to be registered first.
-			WithResourceAndStorage(&extensionsv1alpha2.EdgeFunction{}, kineStore).
-			WithResourceAndStorage(&extensionsv1alpha2.EdgeFunctionRevision{}, kineStore).
-			// extensionsv1alpha1 will be converted to extensionsv1alpha2 when it is stored.
-			WithResourceAndStorage(&extensionsv1alpha1.EdgeFunction{}, kineStore).
-			WithResourceAndStorage(&extensionsv1alpha1.EdgeFunctionRevision{}, kineStore).
-			WithResourceAndStorage(&gatewayv1.GatewayClass{}, kineStore).
-			WithResourceAndStorage(&gatewayv1.Gateway{}, kineStore).
-			WithResourceAndStorage(&gatewayv1.HTTPRoute{}, kineStore).
-			WithResourceAndStorage(&gatewayv1.GRPCRoute{}, kineStore).
 			DisableAuthorization().
 			WithOptionsFns(func(o *builder.ServerOptions) *builder.ServerOptions {
 				o.StdErr = io.Discard
