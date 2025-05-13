@@ -18,55 +18,70 @@ const (
 	tunOffset = device.MessageTransportHeaderSize
 )
 
-func Splice(tun tun.Device, conn Connection) error {
+func Splice(tunDev tun.Device, conn Connection) error {
 	var g errgroup.Group
+
+	batchSize := tunDev.BatchSize()
 
 	g.Go(func() error {
 		defer conn.Close()
 
-		var pkt [netstack.IPv6MinMTU]byte
-		sizes := make([]int, 1)
+		sizes := make([]int, batchSize)
+		pkts := make([][]byte, batchSize)
+		for i := range pkts {
+			pkts[i] = make([]byte, netstack.IPv6MinMTU)
+		}
 
 		for {
-			_, err := tun.Read([][]byte{pkt[:]}, sizes, 0)
+			n, err := tunDev.Read(pkts, sizes, 0)
 			if err != nil {
+				if errors.Is(err, tun.ErrTooManySegments) {
+					slog.Warn("Dropped packets from multi-segment TUN read", slog.Any("error", err))
+					continue
+				}
 				if strings.Contains(err.Error(), "closed") {
 					slog.Debug("TUN device closed")
 					return nil
 				}
-
 				return fmt.Errorf("failed to read from TUN: %w", err)
 			}
 
-			slog.Debug("Read packet from TUN", slog.Int("len", sizes[0]))
+			for i := 0; i < n; i++ {
+				slog.Debug("Read packet from TUN", slog.Int("len", sizes[i]))
 
-			icmp, err := conn.WritePacket(pkt[:sizes[0]])
-			if err != nil {
-				slog.Error("Failed to write to connection", slog.Any("error", err))
-				continue
-			}
-			if len(icmp) > 0 {
-				slog.Debug("Sending ICMP packet")
-
-				if _, err := tun.Write([][]byte{icmp}, 0); err != nil {
-					slog.Error("Failed to write ICMP packet", slog.Any("error", err))
+				icmp, err := conn.WritePacket(pkts[i][:sizes[i]])
+				if err != nil {
+					slog.Error("Failed to write to connection", slog.Any("error", err))
+					continue
+				}
+				if len(icmp) > 0 {
+					slog.Debug("Sending ICMP packet")
+					if _, err := tunDev.Write([][]byte{icmp}, 0); err != nil {
+						slog.Error("Failed to write ICMP packet", slog.Any("error", err))
+					}
 				}
 			}
 		}
 	})
 
 	g.Go(func() error {
-		var pkt [netstack.IPv6MinMTU + tunOffset]byte
+		pkts := make([][]byte, batchSize)
+		for i := range pkts {
+			pkts[i] = make([]byte, netstack.IPv6MinMTU+tunOffset)
+		}
+
+		// TODO: batched write to TUN device, unfortunately ReadPacket() is blocking
+		// and not batched which makes this tricky.
 
 		for {
-			n, err := conn.ReadPacket(pkt[tunOffset:])
+			n, err := conn.ReadPacket(pkts[0][tunOffset:])
 			if err != nil {
 				return fmt.Errorf("failed to read from connection: %w", err)
 			}
 
 			slog.Debug("Read from connection", slog.Int("bytes", n))
 
-			if _, err := tun.Write([][]byte{pkt[:n+tunOffset]}, tunOffset); err != nil {
+			if _, err := tunDev.Write([][]byte{pkts[0][:n+tunOffset]}, tunOffset); err != nil {
 				slog.Error("Failed to write to TUN", slog.Any("error", err))
 				continue
 			}
