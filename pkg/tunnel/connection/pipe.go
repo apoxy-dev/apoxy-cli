@@ -17,17 +17,21 @@ type Pipe struct {
 	writeRing mpmc.RingBuffer[[]byte]
 	ctx       context.Context
 	cancel    context.CancelFunc
-}
-
-var bufPool = sync.Pool{
-	New: func() interface{} {
-		b := make([]byte, 2048) // Adjust size if needed
-		return &b
-	},
+	bufPool   *sync.Pool
 }
 
 // NewPipe creates a pair of connected Pipe instances for bidirectional communication.
-func NewPipe(ctx context.Context) (*Pipe, *Pipe) {
+// Note: I have seen packet loss on ARM64 platforms, I believe this is due to the
+// weaker memory model of ARM64, we should really dig into this, but for now
+// dropping 0.001% of packets is not a big deal, we can just retry.
+func NewPipe(ctx context.Context, mtu int) (*Pipe, *Pipe) {
+	bufPool := sync.Pool{
+		New: func() interface{} {
+			b := make([]byte, mtu)
+			return &b
+		},
+	}
+
 	ringAtoB := ringbuf.New[[]byte](1024)
 	ringBtoA := ringbuf.New[[]byte](1024)
 
@@ -38,12 +42,14 @@ func NewPipe(ctx context.Context) (*Pipe, *Pipe) {
 		writeRing: ringAtoB,
 		ctx:       ctx,
 		cancel:    cancel,
+		bufPool:   &bufPool,
 	}
 	pipeB := &Pipe{
 		readRing:  ringAtoB,
 		writeRing: ringBtoA,
 		ctx:       ctx,
 		cancel:    cancel,
+		bufPool:   &bufPool,
 	}
 
 	return pipeA, pipeB
@@ -66,7 +72,6 @@ func (p *Pipe) ReadPacket(buf []byte) (int, error) {
 					// Has the context been cancelled?
 					select {
 					case <-p.ctx.Done():
-						bufPool.Put(&item)
 						return 0, errors.New("pipe closed")
 					default:
 						// Continue to try to dequeue
@@ -78,7 +83,7 @@ func (p *Pipe) ReadPacket(buf []byte) (int, error) {
 			break
 		}
 		n := copy(buf, item)
-		bufPool.Put(&item)
+		p.bufPool.Put(&item)
 		return n, nil
 	}
 }
@@ -89,11 +94,8 @@ func (p *Pipe) WritePacket(b []byte) ([]byte, error) {
 	case <-p.ctx.Done():
 		return nil, errors.New("pipe closed")
 	default:
-		bufPtr := bufPool.Get().(*[]byte)
+		bufPtr := p.bufPool.Get().(*[]byte)
 		buf := *bufPtr
-		if cap(buf) < len(b) {
-			buf = make([]byte, len(b))
-		}
 		buf = buf[:len(b)]
 		copy(buf, b)
 
@@ -106,7 +108,6 @@ func (p *Pipe) WritePacket(b []byte) ([]byte, error) {
 					// Has the context been cancelled?
 					select {
 					case <-p.ctx.Done():
-						bufPool.Put(&buf)
 						return nil, errors.New("pipe closed")
 					default:
 						// Continue to try to enqueue
