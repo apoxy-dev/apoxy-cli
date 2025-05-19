@@ -3,6 +3,7 @@
 package fasttun
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"sync"
@@ -172,16 +173,37 @@ func (q *LinuxPacketQueue) Read(pkts [][]byte, sizes []int) (int, error) {
 }
 
 func (q *LinuxPacketQueue) Write(pkts [][]byte) (int, error) {
-	for i, pkt := range pkts {
-		_, err := q.tunFile.Write(pkt)
+	// New packets batch considered for GRO.
+	batch := NewPacketBatch(pkts)
+
+	// Initialize GRO tables.
+	tcpTable := newTCPGROTable()
+	udpTable := newUDPGROTable()
+
+	var (
+		toWrite []int
+		written int
+		errs    error
+	)
+
+	if err := handleGRO(batch, tcpTable, udpTable, true, &toWrite); err != nil {
+		return 0, err
+	}
+
+	for _, idx := range toWrite {
+		pkt := batch.Get(idx)
+		_, err := q.tunFile.Write(pkt.Full())
+		if errors.Is(err, unix.EBADFD) {
+			return written, os.ErrClosed
+		}
 		if err != nil {
-			if i == 0 {
-				return 0, err
-			}
-			return i, nil
+			errs = errors.Join(errs, err)
+		} else {
+			written++
 		}
 	}
-	return len(pkts), nil
+
+	return written, errs
 }
 
 func pollWithRetry(pollFds []unix.PollFd, timeout int) (int, error) {
