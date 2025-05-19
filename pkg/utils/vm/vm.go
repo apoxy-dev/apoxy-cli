@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+	"text/template"
 	"time"
 
 	_ "embed"
@@ -24,8 +25,8 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-//go:embed cloud-config.yaml
-var userData string
+//go:embed cloud-config.yaml.tmpl
+var userDataTemplate string
 
 //go:embed metadata.yaml
 var metaData string
@@ -33,10 +34,33 @@ var metaData string
 //go:embed network-config.yaml
 var networkConfig string
 
+type Option func(*options)
+
+type options struct {
+	packages []string
+}
+
+func defaultOptions() *options {
+	return &options{}
+}
+
+// WithPackages sets the packages to install in the VM.
+func WithPackages(pkgs ...string) Option {
+	return func(o *options) {
+		o.packages = append(o.packages, pkgs...)
+	}
+}
+
 // RunTestInVM runs the test as root inside a linux VM using QEMU.
-func RunTestInVM(t *testing.T) bool {
+func RunTestInVM(t *testing.T, opts ...Option) bool {
 	t.Helper()
 
+	options := defaultOptions()
+	for _, o := range opts {
+		o(options)
+	}
+
+	// Check if we are running in a VM
 	if cpuid.CPU.VM() {
 		// We are the child running in the VM, nothing we need to do.
 		return true
@@ -98,7 +122,23 @@ func RunTestInVM(t *testing.T) bool {
 
 	t.Logf("Creating cloud-init ISO at %s...\n", cloudInitISOPath)
 
-	err = createCloudInitISO(cloudInitISOFile, userData, networkConfig, metaData)
+	tmpl, err := template.New("cloud-config").Parse(userDataTemplate)
+	if err != nil {
+		t.Fatalf("failed to parse cloud-config template: %v", err)
+		return false
+	}
+
+	tmplData := map[string]any{
+		"Packages": options.packages,
+	}
+
+	var userData bytes.Buffer
+	if err := tmpl.Execute(&userData, tmplData); err != nil {
+		t.Fatalf("failed to execute cloud-config template: %v", err)
+		return false
+	}
+
+	err = createCloudInitISO(cloudInitISOFile, userData.String(), networkConfig, metaData)
 	_ = cloudInitISOFile.Close()
 	if err != nil {
 		t.Fatalf("failed to create cloud-init ISO: %v", err)
@@ -127,7 +167,7 @@ func RunTestInVM(t *testing.T) bool {
 	}
 
 	// Launch the QEMU VM using vmtest
-	opts := vmtest.QemuOptions{
+	qemuOpts := vmtest.QemuOptions{
 		Architecture:    vmtest.QEMU_X86_64,
 		OperatingSystem: vmtest.OS_LINUX,
 		Disks: []vmtest.QemuDisk{
@@ -139,7 +179,7 @@ func RunTestInVM(t *testing.T) bool {
 		CdRom:   cloudInitISOPath,
 	}
 
-	qemu, err := vmtest.NewQemu(&opts)
+	qemu, err := vmtest.NewQemu(&qemuOpts)
 	if err != nil {
 		t.Fatalf("failed to create QEMU instance: %v", err)
 	}
@@ -151,11 +191,13 @@ func RunTestInVM(t *testing.T) bool {
 		return false
 	}
 
-	t.Logf("Compiling test binary from %s...\n", testSourceFile)
+	testSourceDir := filepath.Dir(testSourceFile)
+
+	t.Logf("Compiling test binary from %s...\n", testSourceDir)
 
 	// Compile the test binary
 	testBinary := filepath.Join(tempDir, "testbin")
-	cmd := exec.Command("go", "test", "-c", "-o", testBinary, testSourceFile)
+	cmd := exec.Command("go", "test", "-c", "-o", testBinary, testSourceDir)
 	cmd.Env = append(os.Environ(), "GOOS=linux", "GOARCH=amd64")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

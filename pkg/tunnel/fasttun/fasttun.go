@@ -16,10 +16,6 @@ type Device interface {
 	// MTU returns the device's Maximum Transmission Unit.
 	MTU() (int, error)
 
-	// BatchSize returns the recommended number of packets to process in one batch.
-	// This is useful for optimizing I/O performance.
-	BatchSize() int
-
 	// NewPacketQueue creates a new packet queue for the device.
 	// Each queue is associated with a file descriptor and can be used
 	// concurrently with others.
@@ -30,6 +26,10 @@ type Device interface {
 // from a TUN device. It supports batch I/O for efficient packet processing.
 type PacketQueue interface {
 	io.Closer
+
+	// BatchSize returns the recommended number of packets to process in one batch.
+	// This is useful for optimizing I/O performance.
+	BatchSize() int
 
 	// Read reads packets into the provided buffer slices `pkts` and stores
 	// the size of each packet in `sizes`.
