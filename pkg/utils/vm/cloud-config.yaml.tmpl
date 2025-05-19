@@ -6,3 +6,10 @@ users:
     shell: /bin/bash
     sudo: ALL=(ALL) NOPASSWD:ALL
 ssh_pwauth: true
+{{- if .Packages }}
+package_update: true
+packages:
+{{- range .Packages }}
+  - {{ . }}
+{{- end }}
+{{- end }}

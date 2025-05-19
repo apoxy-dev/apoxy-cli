@@ -43,7 +43,11 @@ func (d *LinuxDevice) Close() error {
 	}
 	d.packetQueues = nil
 
-	return fmt.Errorf("failed to close packet queues: %w", closeErr)
+	if closeErr != nil {
+		return fmt.Errorf("failed to close packet queues: %w", closeErr)
+	}
+
+	return nil
 }
 
 func (d *LinuxDevice) Name() string {
@@ -52,10 +56,6 @@ func (d *LinuxDevice) Name() string {
 
 func (d *LinuxDevice) MTU() (int, error) {
 	return d.mtu, nil
-}
-
-func (d *LinuxDevice) BatchSize() int {
-	return 64
 }
 
 // NewPacketQueue creates a new packet queue for the device.
@@ -119,6 +119,10 @@ type LinuxPacketQueue struct {
 
 func (q *LinuxPacketQueue) Close() error {
 	return q.tunFile.Close()
+}
+
+func (q *LinuxPacketQueue) BatchSize() int {
+	return 64
 }
 
 func (q *LinuxPacketQueue) Read(pkts [][]byte, sizes []int) (int, error) {
