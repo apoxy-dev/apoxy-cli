@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/HdrHistogram/hdrhistogram-go"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 )
@@ -21,20 +22,30 @@ type LinuxDevice struct {
 	packetQueuesMu    sync.Mutex
 	packetQueues      []*LinuxPacketQueue
 	configureLinkOnce sync.Once
+	groHistogram      *hdrhistogram.Histogram
 }
 
 // NewDevice creates a new Linux TUN device with the given name and MTU.
 // Initialization of the device is deferred until the first packet queue is created.
 func NewDevice(name string, mtu int) *LinuxDevice {
 	return &LinuxDevice{
-		name: name,
-		mtu:  mtu,
+		name:         name,
+		mtu:          mtu,
+		groHistogram: hdrhistogram.New(1, 1000000, 3), // 1 microsecond to 1 second with 3 sigfig precision
 	}
 }
 
 func (d *LinuxDevice) Close() error {
 	d.packetQueuesMu.Lock()
 	defer d.packetQueuesMu.Unlock()
+
+	// Print histogram data
+	fmt.Printf("GRO processing time histogram (microseconds):\n")
+	fmt.Printf("Min: %d, Max: %d, Mean: %.2f, StdDev: %.2f\n",
+		d.groHistogram.Min(), d.groHistogram.Max(), d.groHistogram.Mean(), d.groHistogram.StdDev())
+	fmt.Printf("50%%: %d, 90%%: %d, 99%%: %d, 99.9%%: %d\n",
+		d.groHistogram.ValueAtQuantile(50), d.groHistogram.ValueAtQuantile(90),
+		d.groHistogram.ValueAtQuantile(99), d.groHistogram.ValueAtQuantile(99.9))
 
 	var closeErr error
 	for _, q := range d.packetQueues {
@@ -84,7 +95,10 @@ func (d *LinuxDevice) NewPacketQueue() (PacketQueue, error) {
 	tunFile := os.NewFile(uintptr(fd), "/dev/net/tun")
 
 	q := &LinuxPacketQueue{
-		tunFile: tunFile,
+		tunFile:      tunFile,
+		groHistogram: d.groHistogram,
+		tcpGROTable:  newTCPGROTable(),
+		udpGROTable:  newUDPGROTable(),
 	}
 
 	// Store a reference to the packet queue.
@@ -96,14 +110,17 @@ func (d *LinuxDevice) NewPacketQueue() (PacketQueue, error) {
 		link, err := netlink.LinkByName(d.name)
 		if err != nil {
 			err = fmt.Errorf("failed to get link by name: %w", err)
+			return
 		}
 
 		if err := netlink.LinkSetMTU(link, d.mtu); err != nil {
 			err = fmt.Errorf("failed to set MTU: %w", err)
+			return
 		}
 
 		if err := netlink.LinkSetUp(link); err != nil {
 			err = fmt.Errorf("failed to set link up: %w", err)
+			return
 		}
 	})
 	if err != nil {
@@ -116,6 +133,12 @@ func (d *LinuxDevice) NewPacketQueue() (PacketQueue, error) {
 
 type LinuxPacketQueue struct {
 	tunFile *os.File
+
+	groHistogram *hdrhistogram.Histogram
+
+	writeOpMu   sync.Mutex
+	tcpGROTable *tcpGROTable
+	udpGROTable *udpGROTable
 }
 
 func (q *LinuxPacketQueue) Close() error {
@@ -180,9 +203,12 @@ func (q *LinuxPacketQueue) Write(pkts [][]byte) (int, error) {
 	// New packets batch considered for GRO.
 	batch := NewPacketBatch(pkts)
 
-	// Initialize GRO tables.
-	tcpTable := newTCPGROTable()
-	udpTable := newUDPGROTable()
+	q.writeOpMu.Lock()
+	defer func() {
+		q.tcpGROTable.reset()
+		q.udpGROTable.reset()
+		q.writeOpMu.Unlock()
+	}()
 
 	var (
 		toWrite []int
@@ -190,9 +216,14 @@ func (q *LinuxPacketQueue) Write(pkts [][]byte) (int, error) {
 		errs    error
 	)
 
-	if err := handleGRO(batch, tcpTable, udpTable, true, &toWrite); err != nil {
+	// Record time of handleGRO
+	startTime := time.Now()
+	if err := handleGRO(batch, q.tcpGROTable, q.udpGROTable, true, &toWrite); err != nil {
 		return 0, err
 	}
+	elapsed := time.Since(startTime)
+	// Record in histogram in microseconds
+	_ = q.groHistogram.RecordValue(elapsed.Microseconds())
 
 	for _, idx := range toWrite {
 		pkt := batch.Get(idx)
