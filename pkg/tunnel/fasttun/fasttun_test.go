@@ -12,5 +12,5 @@ import (
 // it will use the linux version of this test.
 func TestLinuxDeviceThroughput(t *testing.T) {
 	// Run the test in a linux VM.
-	vm.RunTestInVM(t)
+	vm.RunTestInVM(t, vm.WithPackages("iperf3"))
 }
