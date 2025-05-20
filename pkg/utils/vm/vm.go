@@ -61,7 +61,8 @@ func RunTestInVM(t *testing.T, opts ...Option) bool {
 	}
 
 	// Check if we are running in a VM
-	if cpuid.CPU.VM() {
+	// FIXME: cpuid.CPU.VM() is not working with MacOS HVF, so using env variable instead.
+	if cpuid.CPU.VM() || os.Getenv("VMGUEST") != "" {
 		// We are the child running in the VM, nothing we need to do.
 		return true
 	}
@@ -72,11 +73,11 @@ func RunTestInVM(t *testing.T, opts ...Option) bool {
 		t.Fatalf("failed to get cache directory: %v", err)
 		return false
 	}
-	imagePath := filepath.Join(imageDir, "debian-12-generic.qcow2")
+	imagePath := filepath.Join(imageDir, fmt.Sprintf("ubuntu-24.04-minimal-cloudimg-%s.img", runtime.GOARCH))
 
 	// Download the image if not already present
 	if _, err := os.Stat(imagePath); os.IsNotExist(err) {
-		imageURL := fmt.Sprintf("https://cdimage.debian.org/images/cloud/bookworm/latest/debian-12-generic-amd64.qcow2")
+		imageURL := fmt.Sprintf("https://cloud-images.ubuntu.com/minimal/releases/noble/release-20250430/ubuntu-24.04-minimal-cloudimg-%s.img", runtime.GOARCH)
 
 		t.Logf("Downloading image from %s...\n", imageURL)
 
@@ -154,6 +155,7 @@ func RunTestInVM(t *testing.T, opts ...Option) bool {
 
 	qemuParams := []string{
 		"-m", "1024M",
+		"-smp", fmt.Sprintf("%d", runtime.NumCPU()),
 		"-netdev", fmt.Sprintf("user,id=net0,hostfwd=tcp::%d-:22", sshPort),
 		"-device", "e1000,netdev=net0,mac=52:54:00:12:34:56",
 		"-snapshot",
@@ -163,12 +165,19 @@ func RunTestInVM(t *testing.T, opts ...Option) bool {
 		qemuParams = append(qemuParams, "-cpu", "host")
 		qemuParams = append(qemuParams, "-enable-kvm")
 	} else if runtime.GOOS == "darwin" {
-		qemuParams = append(qemuParams, "-machine", "type=q35,accel=tcg")
+		qemuParams = append(qemuParams, "-cpu", "cortex-a72")
+		qemuParams = append(qemuParams, "-machine", "virt,accel=hvf,highmem=off")
+		qemuParams = append(qemuParams, "-bios", "/opt/homebrew/share/qemu/edk2-aarch64-code.fd")
+	}
+
+	vmArch := vmtest.QEMU_X86_64
+	if runtime.GOARCH == "arm64" {
+		vmArch = vmtest.QEMU_AARCH64
 	}
 
 	// Launch the QEMU VM using vmtest
 	qemuOpts := vmtest.QemuOptions{
-		Architecture:    vmtest.QEMU_X86_64,
+		Architecture:    vmArch,
 		OperatingSystem: vmtest.OS_LINUX,
 		Disks: []vmtest.QemuDisk{
 			{Path: imagePath, Format: "qcow2"},
@@ -198,7 +207,7 @@ func RunTestInVM(t *testing.T, opts ...Option) bool {
 	// Compile the test binary
 	testBinary := filepath.Join(tempDir, "testbin")
 	cmd := exec.Command("go", "test", "-c", "-o", testBinary, testSourceDir)
-	cmd.Env = append(os.Environ(), "GOOS=linux", "GOARCH=amd64")
+	cmd.Env = append(os.Environ(), "GOOS=linux", "GOARCH="+runtime.GOARCH)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
@@ -267,24 +276,36 @@ func RunTestInVM(t *testing.T, opts ...Option) bool {
 		return false
 	}
 
-	// Run the test binary in the VM
+	// Wait for cloud-init to finish first.
 	sess, err := conn.NewSession()
 	if err != nil {
 		t.Fatalf("failed to create SSH session: %v", err)
 		return false
 	}
 	defer sess.Close()
+	if err := sess.Run("cloud-init status --wait"); err != nil {
+		t.Fatalf("failed to wait for cloud-init completion: %v", err)
+		return false
+	}
 
-	testCmd := "sudo -E ./testbin"
+	// Run the test binary in the VM
+	sess, err = conn.NewSession()
+	if err != nil {
+		t.Fatalf("failed to create SSH session: %v", err)
+		return false
+	}
+
+	sess.Setenv("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
+	sess.Setenv("VMGUEST", "y") // FIXME: For some reason, this doesn't work on MacOS, maybe SSH client?
+
+	testCmd := "VMGUEST=y PATH=$PATH:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin sudo -E ./testbin"
 	if testing.Verbose() {
 		testCmd += " -test.v"
 	}
 	testCmd += " -test.run " + t.Name()
 
 	output, err := sess.CombinedOutput(testCmd)
-
 	t.Log(string(output))
-
 	if err != nil {
 		t.Fatalf("failed to run test binary in VM: %v", err)
 		return false
