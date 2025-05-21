@@ -311,6 +311,52 @@ func RunTestInVM(t *testing.T, opts ...Option) bool {
 		return false
 	}
 
+	// Check if CPU profile exists in the VM and download it
+	profilePath := "cpu_profile.pprof"
+	t.Logf("Checking for CPU profile at %s in VM...", profilePath)
+
+	// Create a new session to check if the file exists
+	checkSession, err := conn.NewSession()
+	if err != nil {
+		t.Logf("failed to create SSH session to check for profile: %v", err)
+		return false
+	}
+	defer checkSession.Close()
+
+	// Check if the file exists
+	if err := checkSession.Run("test -f " + profilePath); err == nil {
+		t.Logf("Found CPU profile, downloading...")
+
+		// Download the profile from VM
+		tempDir := os.TempDir()
+		profileDest := filepath.Join(tempDir, filepath.Base(profilePath))
+
+		// Create a new SCP client for downloading
+		downloadClient, err := scp.NewClientBySSH(conn)
+		if err != nil {
+			t.Logf("failed to create SCP client for download: %v", err)
+			return false
+		}
+		defer downloadClient.Close()
+
+		// Open destination file
+		destFile, err := os.Create(profileDest)
+		if err != nil {
+			t.Logf("failed to create local profile file: %v", err)
+			return false
+		}
+		defer destFile.Close()
+
+		// Copy file from VM
+		if err := downloadClient.CopyFromRemote(t.Context(), destFile, profilePath); err != nil {
+			t.Logf("failed to copy profile from VM: %v", err)
+		} else {
+			t.Logf("Successfully downloaded CPU profile to %s", profileDest)
+		}
+	} else {
+		t.Logf("No CPU profile found in VM")
+	}
+
 	return false
 }
 

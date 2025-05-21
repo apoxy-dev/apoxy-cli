@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"runtime/pprof"
 	"strconv"
 	"testing"
 	"time"
@@ -38,6 +39,15 @@ func TestLinuxDeviceThroughput(t *testing.T) {
 	if _, err := exec.LookPath("iperf3"); err != nil {
 		t.Skipf("skipping test: %v", err)
 	}
+
+	// Start CPU profiling
+	cpuProfFile, err := os.Create("cpu_profile.pprof")
+	require.NoError(t, err)
+	defer cpuProfFile.Close()
+
+	err = pprof.StartCPUProfile(cpuProfFile)
+	require.NoError(t, err)
+	defer pprof.StopCPUProfile()
 
 	iperf3Major, iperf3Minor, err := iperf3Version()
 	require.NoError(t, err)
@@ -169,7 +179,7 @@ func configureTun(name string, addr netip.Prefix, hostns, ns netns.NsHandle) err
 
 	// Move the link to the target namespace
 	if err := netlink.LinkSetNsFd(link, int(ns)); err != nil {
-		return fmt.Errorf("failed to set TUN device namespace: %w", err)
+		return fmt.Errorf("failed to set TUN device namespace %s: %w", name, err)
 	}
 
 	// Jump to the target namespace

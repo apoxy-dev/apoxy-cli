@@ -24,7 +24,7 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/transport/udp"
 )
 
-const IPv6MinMTU = 1280 // IPv6 minimum MTU, required for some PPPoE links.
+const IPv6MinMTU = 1420 // IPv6 minimum MTU, required for some PPPoE links.
 
 var _ tun.Device = (*TunDevice)(nil)
 

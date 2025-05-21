@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"unsafe"
 
@@ -20,27 +21,38 @@ import (
 
 // Packet represents a network packet with virtio-net header and IP data.
 type Packet struct {
-	// The full packet buffer including virtio-net header and IP packet.
+	// Header buffer stores the virtio-net header
+	headerBuf [virtioNetHdrLen]byte
+	// Data buffer stores the IP packet
+	dataBuf []byte
+	// The full packet buffer is created on demand
 	buffer []byte
 }
 
 // NewPacket creates a Packet from a raw buffer.
 func NewPacket(buffer []byte) *Packet {
-	return &Packet{buffer: buffer}
+	return &Packet{
+		headerBuf: [virtioNetHdrLen]byte{},
+		dataBuf:   buffer,
+	}
 }
 
 // Header returns the virtio-net header portion of the packet.
 func (p *Packet) Header() []byte {
-	return p.buffer[:virtioNetHdrLen]
+	return p.headerBuf[:]
 }
 
 // Data returns the IP packet portion, without the virtio-net header.
 func (p *Packet) Data() []byte {
-	return p.buffer[virtioNetHdrLen:]
+	return p.dataBuf
 }
 
 // Full returns the entire buffer (header + data).
 func (p *Packet) Full() []byte {
+	if p.buffer == nil {
+		// Concatenate header and data buffers on demand
+		p.buffer = append(p.headerBuf[:], p.dataBuf...)
+	}
 	return p.buffer
 }
 
@@ -978,7 +990,7 @@ func handleGRO(batch *PacketBatch, tcpTable *tcpGROTable, udpTable *udpGROTable,
 // gsoSplit splits packets from in into outBuffs, writing the size of each
 // element into sizes. It returns the number of buffers populated, and/or an
 // error.
-func gsoSplit(in []byte, hdr virtioNetHdr, outBuffs [][]byte, sizes []int, outOffset int, isV6 bool) (int, error) {
+func gsoSplit(in []byte, hdr virtioNetHdr, outBuffs [][]byte, sizes []int, isV6 bool) (int, error) {
 	iphLen := int(hdr.csumStart)
 	srcAddrOffset := ipv6SrcAddrOffset
 	addrLen := 16
@@ -1010,7 +1022,8 @@ func gsoSplit(in []byte, hdr virtioNetHdr, outBuffs [][]byte, sizes []int, outOf
 		segmentDataLen := nextSegmentEnd - nextSegmentDataAt
 		totalLen := int(hdr.hdrLen) + segmentDataLen
 		sizes[i] = totalLen
-		out := outBuffs[i][outOffset:]
+		packet := NewPacket(outBuffs[i])
+		out := packet.Data()
 
 		copy(out, in[:iphLen])
 		if !isV6 {
@@ -1070,4 +1083,84 @@ func gsoNoneChecksum(in []byte, cSumStart, cSumOffset uint16) error {
 	in[cSumAt], in[cSumAt+1] = 0, 0
 	binary.BigEndian.PutUint16(in[cSumAt:], ^checksum(in[cSumStart:], uint64(initial)))
 	return nil
+}
+
+// handleVirtioRead splits in into bufs, leaving offset bytes at the front of
+// each buffer. It mutates sizes to reflect the size of each element of bufs,
+// and returns the number of packets read.
+func handleVirtioRead(in []byte, bufs [][]byte, sizes []int) (int, error) {
+	var hdr virtioNetHdr
+	err := hdr.decode(in)
+	if err != nil {
+		return 0, err
+	}
+	in = in[virtioNetHdrLen:]
+	if hdr.gsoType == unix.VIRTIO_NET_HDR_GSO_NONE {
+		if hdr.flags&unix.VIRTIO_NET_HDR_F_NEEDS_CSUM != 0 {
+			// This means CHECKSUM_PARTIAL in skb context. We are responsible
+			// for computing the checksum starting at hdr.csumStart and placing
+			// at hdr.csumOffset.
+			err = gsoNoneChecksum(in, hdr.csumStart, hdr.csumOffset)
+			if err != nil {
+				return 0, err
+			}
+		}
+		packet := NewPacket(bufs[0])
+		if len(in) > len(packet.Data()) {
+			return 0, fmt.Errorf("read len %d overflows bufs element len %d", len(in), len(packet.Data()))
+		}
+		n := copy(packet.Data(), in)
+		sizes[0] = n
+		return 1, nil
+	}
+	if hdr.gsoType != unix.VIRTIO_NET_HDR_GSO_TCPV4 && hdr.gsoType != unix.VIRTIO_NET_HDR_GSO_TCPV6 && hdr.gsoType != unix.VIRTIO_NET_HDR_GSO_UDP_L4 {
+		return 0, fmt.Errorf("unsupported virtio GSO type: %d", hdr.gsoType)
+	}
+
+	ipVersion := in[0] >> 4
+	switch ipVersion {
+	case 4:
+		if hdr.gsoType != unix.VIRTIO_NET_HDR_GSO_TCPV4 && hdr.gsoType != unix.VIRTIO_NET_HDR_GSO_UDP_L4 {
+			return 0, fmt.Errorf("ip header version: %d, GSO type: %d", ipVersion, hdr.gsoType)
+		}
+	case 6:
+		if hdr.gsoType != unix.VIRTIO_NET_HDR_GSO_TCPV6 && hdr.gsoType != unix.VIRTIO_NET_HDR_GSO_UDP_L4 {
+			return 0, fmt.Errorf("ip header version: %d, GSO type: %d", ipVersion, hdr.gsoType)
+		}
+	default:
+		return 0, fmt.Errorf("invalid ip header version: %d", ipVersion)
+	}
+
+	// Don't trust hdr.hdrLen from the kernel as it can be equal to the length
+	// of the entire first packet when the kernel is handling it as part of a
+	// FORWARD path. Instead, parse the transport header length and add it onto
+	// csumStart, which is synonymous for IP header length.
+	if hdr.gsoType == unix.VIRTIO_NET_HDR_GSO_UDP_L4 {
+		hdr.hdrLen = hdr.csumStart + 8
+	} else {
+		if len(in) <= int(hdr.csumStart+12) {
+			return 0, errors.New("packet is too short")
+		}
+
+		tcpHLen := uint16(in[hdr.csumStart+12] >> 4 * 4)
+		if tcpHLen < 20 || tcpHLen > 60 {
+			// A TCP header must be between 20 and 60 bytes in length.
+			return 0, fmt.Errorf("tcp header len is invalid: %d", tcpHLen)
+		}
+		hdr.hdrLen = hdr.csumStart + tcpHLen
+	}
+
+	if len(in) < int(hdr.hdrLen) {
+		return 0, fmt.Errorf("length of packet (%d) < virtioNetHdr.hdrLen (%d)", len(in), hdr.hdrLen)
+	}
+
+	if hdr.hdrLen < hdr.csumStart {
+		return 0, fmt.Errorf("virtioNetHdr.hdrLen (%d) < virtioNetHdr.csumStart (%d)", hdr.hdrLen, hdr.csumStart)
+	}
+	cSumAt := int(hdr.csumStart + hdr.csumOffset)
+	if cSumAt+1 >= len(in) {
+		return 0, fmt.Errorf("end of checksum offset (%d) exceeds packet length (%d)", cSumAt+1, len(in))
+	}
+
+	return gsoSplit(in, hdr, bufs, sizes, ipVersion == 6)
 }

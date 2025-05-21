@@ -14,7 +14,12 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-var _ Device = (*LinuxDevice)(nil)
+var (
+	_ Device = (*LinuxDevice)(nil)
+
+	tunTCPOffloads = unix.TUN_F_CSUM | unix.TUN_F_TSO4 | unix.TUN_F_TSO6
+	tunUDPOffloads = unix.TUN_F_USO4 | unix.TUN_F_USO6
+)
 
 type LinuxDevice struct {
 	name              string
@@ -82,9 +87,20 @@ func (d *LinuxDevice) NewPacketQueue() (PacketQueue, error) {
 		return nil, err
 	}
 
-	ifr.SetUint16(unix.IFF_TUN | unix.IFF_NO_PI | unix.IFF_MULTI_QUEUE)
+	ifr.SetUint16(unix.IFF_TUN | unix.IFF_NO_PI | unix.IFF_MULTI_QUEUE | unix.IFF_VNET_HDR)
 	if err := unix.IoctlIfreq(fd, unix.TUNSETIFF, ifr); err != nil {
+		unix.Close(fd)
 		return nil, err
+	}
+
+	if err := unix.IoctlSetInt(int(fd), unix.TUNSETOFFLOAD, tunTCPOffloads); err != nil {
+		unix.Close(fd)
+		return nil, fmt.Errorf("failed to set offload: %w", err)
+	}
+
+	if err := unix.IoctlSetPointerInt(fd, unix.TUNSETVNETHDRSZ, virtioNetHdrLen); err != nil {
+		unix.Close(fd)
+		return nil, fmt.Errorf("failed to set virtio net header size: %w", err)
 	}
 
 	if err := unix.SetNonblock(fd, true); err != nil {
@@ -95,6 +111,7 @@ func (d *LinuxDevice) NewPacketQueue() (PacketQueue, error) {
 	tunFile := os.NewFile(uintptr(fd), "/dev/net/tun")
 
 	q := &LinuxPacketQueue{
+		d:            d,
 		tunFile:      tunFile,
 		groHistogram: d.groHistogram,
 		tcpGROTable:  newTCPGROTable(),
@@ -132,11 +149,13 @@ func (d *LinuxDevice) NewPacketQueue() (PacketQueue, error) {
 }
 
 type LinuxPacketQueue struct {
+	d       *LinuxDevice
 	tunFile *os.File
+
+	readBuf [virtioNetHdrLen + 65535]byte
 
 	groHistogram *hdrhistogram.Histogram
 
-	writeOpMu   sync.Mutex
 	tcpGROTable *tcpGROTable
 	udpGROTable *udpGROTable
 }
@@ -146,7 +165,7 @@ func (q *LinuxPacketQueue) Close() error {
 }
 
 func (q *LinuxPacketQueue) BatchSize() int {
-	return 64
+	return 128
 }
 
 func (q *LinuxPacketQueue) Read(pkts [][]byte, sizes []int) (int, error) {
@@ -160,54 +179,34 @@ func (q *LinuxPacketQueue) Read(pkts [][]byte, sizes []int) (int, error) {
 		},
 	}
 
-	n := 0
-	for i := 0; i < len(pkts); i++ {
-		if i == 0 {
-			// Wait for initial packet or timeout
-			nReady, err := pollWithRetry(pollFds, int(timeout.Milliseconds()))
-			if err != nil {
-				return 0, fmt.Errorf("poll error: %w", err)
-			}
-			if nReady == 0 {
-				return 0, nil // timeout, no packets available
-			}
-		} else {
-			// Check if more data is immediately ready
-			pollFds[0].Events = unix.POLLIN
-			pollFds[0].Revents = 0
-			nReady, err := pollWithRetry(pollFds, 0)
-			if err != nil {
-				return n, fmt.Errorf("poll error during batching: %w", err)
-			}
-			if nReady == 0 {
-				break // no more packets ready
-			}
-		}
-
-		buf := pkts[i]
-		nRead, err := q.tunFile.Read(buf)
-		if err != nil {
-			if n == 0 {
-				return 0, err
-			}
-			return n, nil // return packets read so far
-		}
-		sizes[i] = nRead
-		n++
+	// Wait for initial packet or timeout
+	nReady, err := pollWithRetry(pollFds, int(timeout.Milliseconds()))
+	if err != nil {
+		return 0, fmt.Errorf("poll error: %w", err)
+	}
+	if nReady == 0 {
+		return 0, nil // timeout, no packets available
 	}
 
-	return n, nil
+	readInto := q.readBuf[:]
+	nRead, err := q.tunFile.Read(readInto)
+	if err != nil {
+		return 0, nil
+	}
+
+	//fmt.Printf("Read packet with size %d\n", nRead)
+	//fmt.Printf("Packet content: %x\n", readInto[:nRead])
+
+	return handleVirtioRead(readInto[:nRead], pkts, sizes)
 }
 
 func (q *LinuxPacketQueue) Write(pkts [][]byte) (int, error) {
 	// New packets batch considered for GRO.
 	batch := NewPacketBatch(pkts)
 
-	q.writeOpMu.Lock()
 	defer func() {
 		q.tcpGROTable.reset()
 		q.udpGROTable.reset()
-		q.writeOpMu.Unlock()
 	}()
 
 	var (
@@ -227,6 +226,8 @@ func (q *LinuxPacketQueue) Write(pkts [][]byte) (int, error) {
 
 	for _, idx := range toWrite {
 		pkt := batch.Get(idx)
+		//fmt.Printf("Writing packet with size %d\n", len(pkt.Full()))
+		//fmt.Printf("Packet content: %x\n", pkt.Full())
 		_, err := q.tunFile.Write(pkt.Full())
 		if errors.Is(err, unix.EBADFD) {
 			return written, os.ErrClosed
