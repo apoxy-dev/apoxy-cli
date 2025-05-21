@@ -22,21 +22,25 @@ var (
 )
 
 type LinuxDevice struct {
-	name              string
-	mtu               int
-	packetQueuesMu    sync.Mutex
-	packetQueues      []*LinuxPacketQueue
-	configureLinkOnce sync.Once
-	groHistogram      *hdrhistogram.Histogram
+	name               string
+	mtu                int
+	packetQueuesMu     sync.Mutex
+	packetQueues       []*LinuxPacketQueue
+	configureLinkOnce  sync.Once
+	groHistogram       *hdrhistogram.Histogram
+	readSizeHistogram  *hdrhistogram.Histogram
+	writeSizeHistogram *hdrhistogram.Histogram
 }
 
 // NewDevice creates a new Linux TUN device with the given name and MTU.
 // Initialization of the device is deferred until the first packet queue is created.
 func NewDevice(name string, mtu int) *LinuxDevice {
 	return &LinuxDevice{
-		name:         name,
-		mtu:          mtu,
-		groHistogram: hdrhistogram.New(1, 1000000, 3), // 1 microsecond to 1 second with 3 sigfig precision
+		name:               name,
+		mtu:                mtu,
+		groHistogram:       hdrhistogram.New(1, 1000000, 3), // 1 microsecond to 1 second with 3 sigfig precision
+		readSizeHistogram:  hdrhistogram.New(1, 65535, 3),   // 1 byte to 64KB with 3 sigfig precision
+		writeSizeHistogram: hdrhistogram.New(1, 65535, 3),   // 1 byte to 64KB with 3 sigfig precision
 	}
 }
 
@@ -51,6 +55,21 @@ func (d *LinuxDevice) Close() error {
 	fmt.Printf("50%%: %d, 90%%: %d, 99%%: %d, 99.9%%: %d\n",
 		d.groHistogram.ValueAtQuantile(50), d.groHistogram.ValueAtQuantile(90),
 		d.groHistogram.ValueAtQuantile(99), d.groHistogram.ValueAtQuantile(99.9))
+
+	// Print packet size histograms
+	fmt.Printf("\nRead packet size histogram (bytes):\n")
+	fmt.Printf("Min: %d, Max: %d, Mean: %.2f, StdDev: %.2f\n",
+		d.readSizeHistogram.Min(), d.readSizeHistogram.Max(), d.readSizeHistogram.Mean(), d.readSizeHistogram.StdDev())
+	fmt.Printf("50%%: %d, 90%%: %d, 99%%: %d, 99.9%%: %d\n",
+		d.readSizeHistogram.ValueAtQuantile(50), d.readSizeHistogram.ValueAtQuantile(90),
+		d.readSizeHistogram.ValueAtQuantile(99), d.readSizeHistogram.ValueAtQuantile(99.9))
+
+	fmt.Printf("\nWrite packet size histogram (bytes):\n")
+	fmt.Printf("Min: %d, Max: %d, Mean: %.2f, StdDev: %.2f\n",
+		d.writeSizeHistogram.Min(), d.writeSizeHistogram.Max(), d.writeSizeHistogram.Mean(), d.writeSizeHistogram.StdDev())
+	fmt.Printf("50%%: %d, 90%%: %d, 99%%: %d, 99.9%%: %d\n",
+		d.writeSizeHistogram.ValueAtQuantile(50), d.writeSizeHistogram.ValueAtQuantile(90),
+		d.writeSizeHistogram.ValueAtQuantile(99), d.writeSizeHistogram.ValueAtQuantile(99.9))
 
 	var closeErr error
 	for _, q := range d.packetQueues {
@@ -111,11 +130,13 @@ func (d *LinuxDevice) NewPacketQueue() (PacketQueue, error) {
 	tunFile := os.NewFile(uintptr(fd), "/dev/net/tun")
 
 	q := &LinuxPacketQueue{
-		d:            d,
-		tunFile:      tunFile,
-		groHistogram: d.groHistogram,
-		tcpGROTable:  newTCPGROTable(),
-		udpGROTable:  newUDPGROTable(),
+		d:                  d,
+		tunFile:            tunFile,
+		groHistogram:       d.groHistogram,
+		readSizeHistogram:  d.readSizeHistogram,
+		writeSizeHistogram: d.writeSizeHistogram,
+		tcpGROTable:        newTCPGROTable(),
+		udpGROTable:        newUDPGROTable(),
 	}
 
 	// Store a reference to the packet queue.
@@ -154,7 +175,9 @@ type LinuxPacketQueue struct {
 
 	readBuf [virtioNetHdrLen + 65535]byte
 
-	groHistogram *hdrhistogram.Histogram
+	groHistogram       *hdrhistogram.Histogram
+	readSizeHistogram  *hdrhistogram.Histogram
+	writeSizeHistogram *hdrhistogram.Histogram
 
 	tcpGROTable *tcpGROTable
 	udpGROTable *udpGROTable
@@ -194,6 +217,9 @@ func (q *LinuxPacketQueue) Read(pkts [][]byte, sizes []int) (int, error) {
 		return 0, nil
 	}
 
+	// Record the packet size
+	_ = q.readSizeHistogram.RecordValue(int64(nRead))
+
 	//fmt.Printf("Read packet with size %d\n", nRead)
 	//fmt.Printf("Packet content: %x\n", readInto[:nRead])
 
@@ -226,9 +252,14 @@ func (q *LinuxPacketQueue) Write(pkts [][]byte) (int, error) {
 
 	for _, idx := range toWrite {
 		pkt := batch.Get(idx)
+		fullPacket := pkt.Full()
+
+		// Record the packet size
+		_ = q.writeSizeHistogram.RecordValue(int64(len(fullPacket)))
+
 		//fmt.Printf("Writing packet with size %d\n", len(pkt.Full()))
 		//fmt.Printf("Packet content: %x\n", pkt.Full())
-		_, err := q.tunFile.Write(pkt.Full())
+		_, err := q.tunFile.Write(fullPacket)
 		if errors.Is(err, unix.EBADFD) {
 			return written, os.ErrClosed
 		}
