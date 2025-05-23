@@ -67,16 +67,18 @@ func (d *LinuxDevice) NewPacketQueue() (PacketQueue, error) {
 
 	ifr, err := unix.NewIfreq(d.name)
 	if err != nil {
+		_ = unix.Close(fd)
 		return nil, err
 	}
 
 	ifr.SetUint16(unix.IFF_TUN | unix.IFF_NO_PI | unix.IFF_MULTI_QUEUE)
 	if err := unix.IoctlIfreq(fd, unix.TUNSETIFF, ifr); err != nil {
+		_ = unix.Close(fd)
 		return nil, err
 	}
 
 	if err := unix.SetNonblock(fd, true); err != nil {
-		unix.Close(fd)
+		_ = unix.Close(fd)
 		return nil, err
 	}
 
@@ -95,14 +97,17 @@ func (d *LinuxDevice) NewPacketQueue() (PacketQueue, error) {
 		link, err := netlink.LinkByName(d.name)
 		if err != nil {
 			err = fmt.Errorf("failed to get link by name: %w", err)
+			return
 		}
 
 		if err := netlink.LinkSetMTU(link, d.mtu); err != nil {
 			err = fmt.Errorf("failed to set MTU: %w", err)
+			return
 		}
 
 		if err := netlink.LinkSetUp(link); err != nil {
 			err = fmt.Errorf("failed to set link up: %w", err)
+			return
 		}
 	})
 	if err != nil {
