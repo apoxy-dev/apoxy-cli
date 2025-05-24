@@ -118,7 +118,7 @@ func TestLinuxDeviceThroughput(t *testing.T) {
 			runtime.LockOSThread()
 			defer runtime.UnlockOSThread()
 
-			return fasttun.Splice(ctx, tun1Queues[i], tun2Queues[i], tun1Queues[i].BatchSize(), netstack.IPv6MinMTU)
+			return fasttun.Splice(ctx, tun1Queues[i], tun2Queues[i], netstack.IPv6MinMTU)
 		})
 	}
 
