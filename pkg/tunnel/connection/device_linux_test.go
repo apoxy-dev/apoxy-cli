@@ -13,13 +13,14 @@ import (
 	"net/http"
 	"net/netip"
 	"os"
-	"runtime"
+	"os/exec"
+	"runtime/debug"
+	"runtime/pprof"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/apoxy-dev/apoxy-cli/pkg/cryptoutils"
-	"github.com/apoxy-dev/apoxy-cli/pkg/netstack"
 	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/connection"
 	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/fasttun"
 	tunnet "github.com/apoxy-dev/apoxy-cli/pkg/tunnel/net"
@@ -32,41 +33,43 @@ import (
 )
 
 func TestConnectIPDeviceThroughput(t *testing.T) {
+	debug.SetGCPercent(1000)
+
+	// Set sysctl settings for optimal UDP throughput
+	sysctlSettings := map[string]string{
+		"net.core.rmem_max":           "134217728",
+		"net.core.wmem_max":           "134217728",
+		"net.core.rmem_default":       "8388608",
+		"net.core.wmem_default":       "8388608",
+		"net.core.netdev_max_backlog": "5000",
+		"net.ipv4.udp_mem":            "102400 873800 16777216",
+		"net.ipv4.udp_rmem_min":       "8192",
+		"net.ipv4.udp_wmem_min":       "8192",
+	}
+
+	for key, value := range sysctlSettings {
+		cmd := exec.Command("sysctl", "-w", fmt.Sprintf("%s=%s", key, value))
+		if err := cmd.Run(); err != nil {
+			t.Logf("Warning: failed to set %s=%s: %v", key, value, err)
+		}
+	}
+
 	prefix := netip.MustParsePrefix("fd00::/64")
 	template := uritemplate.MustNew("https://proxy/connect/")
 
 	caCert, serverCert, err := cryptoutils.GenerateSelfSignedTLSCert("proxy")
 	require.NoError(t, err)
 
-	/*	f, err := os.Create("cpu.prof")
-		require.NoError(t, err)
-		t.Cleanup(func() { _ = f.Close() })
-		pprof.StartCPUProfile(f)
-		t.Cleanup(pprof.StopCPUProfile)*/
+	f, err := os.Create("cpu.prof")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = f.Close() })
+	pprof.StartCPUProfile(f)
+	t.Cleanup(pprof.StopCPUProfile)
 
 	g, ctx := errgroup.WithContext(t.Context())
 
 	// Server
 	g.Go(func() error {
-		udpConn, err := net.ListenUDP("udp", &net.UDPAddr{
-			IP:   net.IPv4(127, 0, 0, 1),
-			Port: 8443,
-		})
-		if err != nil {
-			return fmt.Errorf("failed to listen on UDP: %w", err)
-		}
-		defer udpConn.Close()
-
-		ln, err := quic.ListenEarly(
-			udpConn,
-			http3.ConfigureTLSConfig(&tls.Config{Certificates: []tls.Certificate{serverCert}}),
-			&quic.Config{EnableDatagrams: true},
-		)
-		if err != nil {
-			return fmt.Errorf("failed to listen on QUIC: %w", err)
-		}
-		defer ln.Close()
-
 		p := connectip.Proxy{}
 		mux := http.NewServeMux()
 
@@ -130,6 +133,9 @@ func TestConnectIPDeviceThroughput(t *testing.T) {
 		})
 
 		s := http3.Server{
+			Addr:            "127.0.0.1:8443",
+			TLSConfig:       &tls.Config{Certificates: []tls.Certificate{serverCert}},
+			QUICConfig:      &quic.Config{EnableDatagrams: true},
 			Handler:         mux,
 			EnableDatagrams: true,
 		}
@@ -140,7 +146,7 @@ func TestConnectIPDeviceThroughput(t *testing.T) {
 			return s.Shutdown(t.Context())
 		})
 
-		return s.ServeListener(ln)
+		return s.ListenAndServe()
 	})
 
 	// Client
@@ -159,7 +165,7 @@ func TestConnectIPDeviceThroughput(t *testing.T) {
 			tlsConfig,
 			&quic.Config{
 				EnableDatagrams:   true,
-				InitialPacketSize: 1350,
+				InitialPacketSize: 1420,
 				KeepAlivePeriod:   5 * time.Second,
 				MaxIdleTimeout:    5 * time.Minute,
 			},
@@ -187,7 +193,7 @@ func TestConnectIPDeviceThroughput(t *testing.T) {
 
 		var sentBytes atomic.Int64
 
-		numQueues := runtime.NumCPU()
+		numQueues := 1
 		for i := 0; i < numQueues; i++ {
 			pq, err := dev.NewPacketQueue()
 			if err != nil {
@@ -218,7 +224,7 @@ func receivePackets(ctx context.Context, pq fasttun.PacketQueue, numQueues int) 
 
 	buf := make([][]byte, 1)
 	sizes := make([]int, 1)
-	buf[0] = make([]byte, netstack.IPv6MinMTU)
+	buf[0] = make([]byte, 1400)
 
 	for {
 		select {
@@ -246,7 +252,7 @@ func receivePackets(ctx context.Context, pq fasttun.PacketQueue, numQueues int) 
 func sendPackets(ctx context.Context, pq fasttun.PacketQueue, sentBytes *atomic.Int64) error {
 	defer pq.Close()
 
-	payload := make([]byte, 1232)
+	payload := make([]byte, 1350)
 	for i := range payload {
 		payload[i] = 'X'
 	}
@@ -265,7 +271,7 @@ func sendPackets(ctx context.Context, pq fasttun.PacketQueue, sentBytes *atomic.
 	defer deadline.Stop()
 
 	pkts := make([][]byte, 1)
-	pkts[0] = make([]byte, netstack.IPv6MinMTU)
+	pkts[0] = make([]byte, 1400)
 
 	for {
 		select {
@@ -276,7 +282,7 @@ func sendPackets(ctx context.Context, pq fasttun.PacketQueue, sentBytes *atomic.
 		default:
 		}
 
-		pkts[0] = pkts[0][:netstack.IPv6MinMTU]
+		pkts[0] = pkts[0][:1400]
 		n := copy(pkts[0], packet)
 		pkts[0] = pkts[0][:n]
 
