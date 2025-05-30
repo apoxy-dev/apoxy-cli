@@ -10,15 +10,16 @@ import (
 )
 
 // Splice copies packets bidirectionally between two PacketQueues.
-func Splice(ctx context.Context, qA, qB PacketQueue, batchSize, mtu int) error {
+func Splice(ctx context.Context, qA, qB PacketQueue, mtu int) error {
 	g, ctx := errgroup.WithContext(ctx)
 
 	copyPackets := func(src, dst PacketQueue) error {
-		pkts := make([][]byte, batchSize)
+		pkts := make([][]byte, src.BatchSize())
 		for i := range pkts {
 			pkts[i] = make([]byte, mtu)
 		}
-		sizes := make([]int, batchSize)
+		sizes := make([]int, src.BatchSize())
+		toWrite := make([][]byte, src.BatchSize())
 
 		for {
 			select {
@@ -35,18 +36,17 @@ func Splice(ctx context.Context, qA, qB PacketQueue, batchSize, mtu int) error {
 				continue
 			}
 
-			toWrite := make([][]byte, n)
+			toWrite = toWrite[:len(pkts)]
 			for i := 0; i < n; i++ {
 				toWrite[i] = pkts[i][:sizes[i]]
 			}
 
-			written := 0
-			for written < n {
-				m, err := dst.Write(toWrite[written:])
+			for len(toWrite) > 0 {
+				written, err := dst.Write(toWrite)
 				if err != nil {
 					return fmt.Errorf("write error: %w", err)
 				}
-				written += m
+				toWrite = toWrite[written:]
 			}
 		}
 	}
