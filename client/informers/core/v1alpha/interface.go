@@ -18,7 +18,7 @@ limitations under the License.
 package v1alpha
 
 import (
-	internalinterfaces "github.com/apoxy-dev/apoxy-cli/client/informers/internalinterfaces"
+	internalinterfaces "github.com/apoxy-dev/apoxy/client/informers/internalinterfaces"
 )
 
 // Interface provides access to all the informers in this group version.

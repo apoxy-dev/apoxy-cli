@@ -17,9 +17,9 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2"
 
-	configv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/config/v1alpha1"
-	"github.com/apoxy-dev/apoxy-cli/pkg/log"
-	"github.com/apoxy-dev/apoxy-cli/rest"
+	configv1alpha1 "github.com/apoxy-dev/apoxy/api/config/v1alpha1"
+	"github.com/apoxy-dev/apoxy/pkg/log"
+	"github.com/apoxy-dev/apoxy/rest"
 )
 
 var (

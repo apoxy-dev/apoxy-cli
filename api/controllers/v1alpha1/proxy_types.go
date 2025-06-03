@@ -3,7 +3,7 @@ package v1alpha1
 import (
 	"time"
 
-	corev1 "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
+	corev1 "github.com/apoxy-dev/apoxy/api/core/v1alpha"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"

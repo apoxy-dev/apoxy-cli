@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/connection"
-	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/router"
+	"github.com/apoxy-dev/apoxy/pkg/tunnel/connection"
+	"github.com/apoxy-dev/apoxy/pkg/tunnel/router"
 )
 
 func TestNetstackRouter(t *testing.T) {

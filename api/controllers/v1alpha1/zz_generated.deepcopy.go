@@ -21,7 +21,7 @@ limitations under the License.
 package v1alpha1
 
 import (
-	v1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
+	v1alpha "github.com/apoxy-dev/apoxy/api/core/v1alpha"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )

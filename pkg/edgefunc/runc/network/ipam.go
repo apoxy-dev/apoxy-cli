@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/log"
+	"github.com/apoxy-dev/apoxy/pkg/log"
 	"github.com/dgraph-io/badger/v4"
 	goipam "github.com/metal-stack/go-ipam"
 )

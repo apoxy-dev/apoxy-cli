@@ -7,7 +7,7 @@ import (
 
 	extism "github.com/extism/go-sdk"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/wasm/abi"
+	"github.com/apoxy-dev/apoxy/pkg/backplane/wasm/abi"
 )
 
 func (e *exec) NewReqBodyCallback() extism.HostFunction {

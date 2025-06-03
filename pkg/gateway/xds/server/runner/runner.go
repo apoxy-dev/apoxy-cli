@@ -31,11 +31,11 @@ import (
 	serverv3 "github.com/envoyproxy/go-control-plane/pkg/server/v3"
 	"google.golang.org/grpc"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/message"
-	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/xds/bootstrap"
-	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/xds/cache"
-	xdstypes "github.com/apoxy-dev/apoxy-cli/pkg/gateway/xds/types"
-	"github.com/apoxy-dev/apoxy-cli/pkg/log"
+	"github.com/apoxy-dev/apoxy/pkg/gateway/message"
+	"github.com/apoxy-dev/apoxy/pkg/gateway/xds/bootstrap"
+	"github.com/apoxy-dev/apoxy/pkg/gateway/xds/cache"
+	xdstypes "github.com/apoxy-dev/apoxy/pkg/gateway/xds/types"
+	"github.com/apoxy-dev/apoxy/pkg/log"
 	"github.com/envoyproxy/gateway/api/v1alpha1"
 )
 

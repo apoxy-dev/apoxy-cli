@@ -18,7 +18,7 @@ limitations under the License.
 package fake
 
 import (
-	v1alpha "github.com/apoxy-dev/apoxy-cli/client/versioned/typed/core/v1alpha"
+	v1alpha "github.com/apoxy-dev/apoxy/client/versioned/typed/core/v1alpha"
 	rest "k8s.io/client-go/rest"
 	testing "k8s.io/client-go/testing"
 )

@@ -27,7 +27,7 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 	"k8s.io/utils/ptr"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/ir"
+	"github.com/apoxy-dev/apoxy/pkg/gateway/ir"
 )
 
 const (

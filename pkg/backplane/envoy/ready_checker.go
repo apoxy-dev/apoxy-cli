@@ -10,7 +10,7 @@ import (
 	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/log"
+	"github.com/apoxy-dev/apoxy/pkg/log"
 )
 
 type Listener struct {

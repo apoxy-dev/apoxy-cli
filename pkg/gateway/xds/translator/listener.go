@@ -29,9 +29,9 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 	"k8s.io/utils/ptr"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/ir"
-	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/utils/protocov"
-	xdsfilters "github.com/apoxy-dev/apoxy-cli/pkg/gateway/xds/filters"
+	"github.com/apoxy-dev/apoxy/pkg/gateway/ir"
+	"github.com/apoxy-dev/apoxy/pkg/gateway/utils/protocov"
+	xdsfilters "github.com/apoxy-dev/apoxy/pkg/gateway/xds/filters"
 )
 
 const (

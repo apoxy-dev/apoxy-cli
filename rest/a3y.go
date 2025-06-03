@@ -9,7 +9,7 @@ import (
 	"github.com/google/uuid"
 	"k8s.io/client-go/rest"
 
-	"github.com/apoxy-dev/apoxy-cli/build"
+	"github.com/apoxy-dev/apoxy/build"
 )
 
 type A3YClient struct {

@@ -12,7 +12,7 @@ import (
 	"github.com/MicahParks/keyfunc/v3"
 	"github.com/golang-jwt/jwt/v5"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/cryptoutils"
+	"github.com/apoxy-dev/apoxy/pkg/cryptoutils"
 )
 
 type JWTValidator interface {

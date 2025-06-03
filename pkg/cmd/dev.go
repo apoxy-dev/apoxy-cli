@@ -26,15 +26,15 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/restmapper"
 
-	"github.com/apoxy-dev/apoxy-cli/config"
-	"github.com/apoxy-dev/apoxy-cli/pkg/apiserver"
-	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/portforward"
-	chdrivers "github.com/apoxy-dev/apoxy-cli/pkg/clickhouse/drivers"
-	"github.com/apoxy-dev/apoxy-cli/pkg/clickhouse/migrations"
-	"github.com/apoxy-dev/apoxy-cli/pkg/drivers"
-	"github.com/apoxy-dev/apoxy-cli/pkg/log"
+	"github.com/apoxy-dev/apoxy/config"
+	"github.com/apoxy-dev/apoxy/pkg/apiserver"
+	"github.com/apoxy-dev/apoxy/pkg/backplane/portforward"
+	chdrivers "github.com/apoxy-dev/apoxy/pkg/clickhouse/drivers"
+	"github.com/apoxy-dev/apoxy/pkg/clickhouse/migrations"
+	"github.com/apoxy-dev/apoxy/pkg/drivers"
+	"github.com/apoxy-dev/apoxy/pkg/log"
 
-	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
+	corev1alpha "github.com/apoxy-dev/apoxy/api/core/v1alpha"
 )
 
 var (

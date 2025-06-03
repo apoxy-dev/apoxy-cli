@@ -1,4 +1,4 @@
-module github.com/apoxy-dev/apoxy-cli
+module github.com/apoxy-dev/apoxy
 
 go 1.23.1
 

@@ -20,12 +20,12 @@ package informers
 import (
 	"fmt"
 
-	v1alpha1 "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
-	v1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
-	extensionsv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1"
-	v1alpha2 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2"
-	v1 "github.com/apoxy-dev/apoxy-cli/api/gateway/v1"
-	policyv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/policy/v1alpha1"
+	v1alpha1 "github.com/apoxy-dev/apoxy/api/controllers/v1alpha1"
+	v1alpha "github.com/apoxy-dev/apoxy/api/core/v1alpha"
+	extensionsv1alpha1 "github.com/apoxy-dev/apoxy/api/extensions/v1alpha1"
+	v1alpha2 "github.com/apoxy-dev/apoxy/api/extensions/v1alpha2"
+	v1 "github.com/apoxy-dev/apoxy/api/gateway/v1"
+	policyv1alpha1 "github.com/apoxy-dev/apoxy/api/policy/v1alpha1"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
 )

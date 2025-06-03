@@ -6,9 +6,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/edgefunc"
-	"github.com/apoxy-dev/apoxy-cli/pkg/edgefunc/runc/network"
-	"github.com/apoxy-dev/apoxy-cli/pkg/log"
+	"github.com/apoxy-dev/apoxy/pkg/edgefunc"
+	"github.com/apoxy-dev/apoxy/pkg/edgefunc/runc/network"
+	"github.com/apoxy-dev/apoxy/pkg/log"
 )
 
 type Option func(*options)

@@ -14,8 +14,8 @@ import (
 	hcmv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
 	"google.golang.org/protobuf/types/known/anypb"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/ir"
-	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/xds/types"
+	"github.com/apoxy-dev/apoxy/pkg/gateway/ir"
+	"github.com/apoxy-dev/apoxy/pkg/gateway/xds/types"
 )
 
 const (

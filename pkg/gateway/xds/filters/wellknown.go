@@ -13,7 +13,7 @@ import (
 	"github.com/envoyproxy/go-control-plane/pkg/wellknown"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/utils/protocov"
+	"github.com/apoxy-dev/apoxy/pkg/gateway/utils/protocov"
 )
 
 var (

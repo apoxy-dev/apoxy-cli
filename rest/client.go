@@ -9,8 +9,8 @@ import (
 	"github.com/google/uuid"
 	"k8s.io/client-go/rest"
 
-	"github.com/apoxy-dev/apoxy-cli/build"
-	"github.com/apoxy-dev/apoxy-cli/client/versioned"
+	"github.com/apoxy-dev/apoxy/build"
+	"github.com/apoxy-dev/apoxy/client/versioned"
 )
 
 // APIClient represents the HTTP client with API key, project ID, and base URL configuration.

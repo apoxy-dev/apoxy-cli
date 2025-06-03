@@ -29,14 +29,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/yaml"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/envoy"
-	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/healthchecker"
-	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/logs"
-	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/otel"
-	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/xds/bootstrap"
-	alog "github.com/apoxy-dev/apoxy-cli/pkg/log"
+	"github.com/apoxy-dev/apoxy/pkg/backplane/envoy"
+	"github.com/apoxy-dev/apoxy/pkg/backplane/healthchecker"
+	"github.com/apoxy-dev/apoxy/pkg/backplane/logs"
+	"github.com/apoxy-dev/apoxy/pkg/backplane/otel"
+	"github.com/apoxy-dev/apoxy/pkg/gateway/xds/bootstrap"
+	alog "github.com/apoxy-dev/apoxy/pkg/log"
 
-	ctrlv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
+	ctrlv1alpha1 "github.com/apoxy-dev/apoxy/api/controllers/v1alpha1"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 

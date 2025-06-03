@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/utils/protocov"
+	"github.com/apoxy-dev/apoxy/pkg/gateway/utils/protocov"
 
 	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	routev3 "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
@@ -19,7 +19,7 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/ir"
+	"github.com/apoxy-dev/apoxy/pkg/gateway/ir"
 )
 
 const (

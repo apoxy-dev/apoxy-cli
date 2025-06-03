@@ -8,7 +8,7 @@ import (
 	"github.com/hashicorp/go-discover/provider/k8s"
 	"github.com/mitchellh/mapstructure"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/log"
+	"github.com/apoxy-dev/apoxy/pkg/log"
 )
 
 type k8sProvider struct {

@@ -9,10 +9,10 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/ir"
-	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/message"
-	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/xds/translator"
-	"github.com/apoxy-dev/apoxy-cli/pkg/log"
+	"github.com/apoxy-dev/apoxy/pkg/gateway/ir"
+	"github.com/apoxy-dev/apoxy/pkg/gateway/message"
+	"github.com/apoxy-dev/apoxy/pkg/gateway/xds/translator"
+	"github.com/apoxy-dev/apoxy/pkg/log"
 )
 
 const (

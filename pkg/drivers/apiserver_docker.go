@@ -8,8 +8,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/log"
-	dockerutils "github.com/apoxy-dev/apoxy-cli/pkg/utils/docker"
+	"github.com/apoxy-dev/apoxy/pkg/log"
+	dockerutils "github.com/apoxy-dev/apoxy/pkg/utils/docker"
 )
 
 const (

@@ -17,7 +17,7 @@ done
 # Shift arguments to remove processed options
 shift $((OPTIND-1))
 
-PACKAGE="github.com/apoxy-dev/apoxy-cli"
+PACKAGE="github.com/apoxy-dev/apoxy"
 VERSION="v$(git describe --tags --always --abbrev=0 --match='v[0-9]*.[0-9]*.[0-9]*' 2> /dev/null | sed 's/^.//')"
 COMMIT_HASH="$(git rev-parse --short HEAD)"
 BUILD_TIMESTAMP=$(date '+%Y-%m-%dT%H:%M:%S')

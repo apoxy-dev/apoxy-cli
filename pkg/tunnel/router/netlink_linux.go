@@ -21,9 +21,9 @@ import (
 	utiliptables "k8s.io/kubernetes/pkg/util/iptables"
 	utilexec "k8s.io/utils/exec"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/netstack"
-	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/connection"
-	tunnet "github.com/apoxy-dev/apoxy-cli/pkg/tunnel/net"
+	"github.com/apoxy-dev/apoxy/pkg/netstack"
+	"github.com/apoxy-dev/apoxy/pkg/tunnel/connection"
+	tunnet "github.com/apoxy-dev/apoxy/pkg/tunnel/net"
 )
 
 var (

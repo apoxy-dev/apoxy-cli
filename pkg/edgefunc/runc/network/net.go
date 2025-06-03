@@ -18,8 +18,8 @@ import (
 	"github.com/vishvananda/netlink"
 	"github.com/vishvananda/netns"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/edgefunc/runc/network/iptables"
-	"github.com/apoxy-dev/apoxy-cli/pkg/log"
+	"github.com/apoxy-dev/apoxy/pkg/edgefunc/runc/network/iptables"
+	"github.com/apoxy-dev/apoxy/pkg/log"
 )
 
 const (

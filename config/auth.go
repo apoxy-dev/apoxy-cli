@@ -14,9 +14,9 @@ import (
 	"github.com/pkg/browser"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	configv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/config/v1alpha1"
-	"github.com/apoxy-dev/apoxy-cli/pkg/log"
-	"github.com/apoxy-dev/apoxy-cli/web"
+	configv1alpha1 "github.com/apoxy-dev/apoxy/api/config/v1alpha1"
+	"github.com/apoxy-dev/apoxy/pkg/log"
+	"github.com/apoxy-dev/apoxy/web"
 )
 
 type authContext struct {

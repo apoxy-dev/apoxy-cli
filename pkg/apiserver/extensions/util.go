@@ -8,7 +8,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/dump"
 	"k8s.io/apimachinery/pkg/util/rand"
 
-	extensionsv1alpha2 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2"
+	extensionsv1alpha2 "github.com/apoxy-dev/apoxy/api/extensions/v1alpha2"
 )
 
 // DeepHashObject hashes an object following the pointer values of

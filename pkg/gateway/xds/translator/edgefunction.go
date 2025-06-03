@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/xds/types"
-	"github.com/apoxy-dev/apoxy-cli/pkg/log"
+	"github.com/apoxy-dev/apoxy/pkg/gateway/xds/types"
+	"github.com/apoxy-dev/apoxy/pkg/log"
 	golangv3alpha "github.com/envoyproxy/go-control-plane/contrib/envoy/extensions/filters/http/golang/v3alpha"
 	routev3 "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
 	hcmv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
@@ -16,8 +16,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/yaml"
 
-	extensionsv1alpha2 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2"
-	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/ir"
+	extensionsv1alpha2 "github.com/apoxy-dev/apoxy/api/extensions/v1alpha2"
+	"github.com/apoxy-dev/apoxy/pkg/gateway/ir"
 )
 
 const (

@@ -12,8 +12,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/yaml"
 
-	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
-	"github.com/apoxy-dev/apoxy-cli/config"
+	corev1alpha "github.com/apoxy-dev/apoxy/api/core/v1alpha"
+	"github.com/apoxy-dev/apoxy/config"
 )
 
 const (

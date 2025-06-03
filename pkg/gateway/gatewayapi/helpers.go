@@ -17,10 +17,10 @@ import (
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 	"sigs.k8s.io/gateway-api/apis/v1alpha2"
 
-	agwapiv1a1 "github.com/apoxy-dev/apoxy-cli/api/gateway/v1"
-	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/ir"
-	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/utils"
-	"github.com/apoxy-dev/apoxy-cli/pkg/log"
+	agwapiv1a1 "github.com/apoxy-dev/apoxy/api/gateway/v1"
+	"github.com/apoxy-dev/apoxy/pkg/gateway/ir"
+	"github.com/apoxy-dev/apoxy/pkg/gateway/utils"
+	"github.com/apoxy-dev/apoxy/pkg/log"
 )
 
 const (

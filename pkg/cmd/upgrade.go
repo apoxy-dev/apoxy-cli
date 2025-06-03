@@ -8,7 +8,7 @@ import (
 	"github.com/getsavvyinc/upgrade-cli"
 	"github.com/spf13/cobra"
 
-	"github.com/apoxy-dev/apoxy-cli/build"
+	"github.com/apoxy-dev/apoxy/build"
 )
 
 const (

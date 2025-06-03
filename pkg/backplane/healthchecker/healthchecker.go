@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/log"
+	"github.com/apoxy-dev/apoxy/pkg/log"
 )
 
 // HealthChecker is an interface for health checkers

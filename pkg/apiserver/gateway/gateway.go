@@ -24,14 +24,14 @@ import (
 
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/gatewayapi"
-	gatewayapirunner "github.com/apoxy-dev/apoxy-cli/pkg/gateway/gatewayapi/runner"
-	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/message"
+	"github.com/apoxy-dev/apoxy/pkg/gateway/gatewayapi"
+	gatewayapirunner "github.com/apoxy-dev/apoxy/pkg/gateway/gatewayapi/runner"
+	"github.com/apoxy-dev/apoxy/pkg/gateway/message"
 
-	ctrlv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
-	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
-	extensionsv1alpha2 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2"
-	gatewayv1 "github.com/apoxy-dev/apoxy-cli/api/gateway/v1"
+	ctrlv1alpha1 "github.com/apoxy-dev/apoxy/api/controllers/v1alpha1"
+	corev1alpha "github.com/apoxy-dev/apoxy/api/core/v1alpha"
+	extensionsv1alpha2 "github.com/apoxy-dev/apoxy/api/extensions/v1alpha2"
+	gatewayv1 "github.com/apoxy-dev/apoxy/api/gateway/v1"
 )
 
 func Install(scheme *runtime.Scheme) {

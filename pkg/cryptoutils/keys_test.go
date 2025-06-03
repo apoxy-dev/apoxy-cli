@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/cryptoutils"
+	"github.com/apoxy-dev/apoxy/pkg/cryptoutils"
 )
 
 func TestGenerateEllipticKeyPair(t *testing.T) {

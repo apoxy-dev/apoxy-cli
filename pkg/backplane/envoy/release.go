@@ -14,7 +14,7 @@ import (
 
 	"github.com/google/go-github/v61/github"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/log"
+	"github.com/apoxy-dev/apoxy/pkg/log"
 )
 
 type ReleaseDownloader interface {

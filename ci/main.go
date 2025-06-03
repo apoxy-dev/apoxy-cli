@@ -142,7 +142,7 @@ func (m *ApoxyCli) BuildCLI(
 	goarch := archOf(p)
 	os := osOf(p)
 
-	pkg := "github.com/apoxy-dev/apoxy-cli"
+	pkg := "github.com/apoxy-dev/apoxy"
 	ldFlags := []string{
 		fmt.Sprintf("-X '%s/build.BuildVersion=%s'", pkg, tag),
 		fmt.Sprintf("-X '%s/build.BuildDate=%s'", pkg, time.Now().Format("2006-01-02T15:04:05Z")),
@@ -240,35 +240,35 @@ func (m *ApoxyCli) PublishGithubRelease(
 			tag,
 			"--generate-notes",
 			"--title", tag,
-			"--repo", "github.com/apoxy-dev/apoxy-cli",
+			"--repo", "github.com/apoxy-dev/apoxy",
 		}).
 		WithExec([]string{
 			"gh", "release", "upload",
 			tag,
 			"/apoxy-linux-amd64",
 			"--clobber",
-			"--repo", "github.com/apoxy-dev/apoxy-cli",
+			"--repo", "github.com/apoxy-dev/apoxy",
 		}).
 		WithExec([]string{
 			"gh", "release", "upload",
 			tag,
 			"/apoxy-linux-arm64",
 			"--clobber",
-			"--repo", "github.com/apoxy-dev/apoxy-cli",
+			"--repo", "github.com/apoxy-dev/apoxy",
 		}).
 		WithExec([]string{
 			"gh", "release", "upload",
 			tag,
 			"/apoxy-darwin-amd64",
 			"--clobber",
-			"--repo", "github.com/apoxy-dev/apoxy-cli",
+			"--repo", "github.com/apoxy-dev/apoxy",
 		}).
 		WithExec([]string{
 			"gh", "release", "upload",
 			tag,
 			"/apoxy-darwin-arm64",
 			"--clobber",
-			"--repo", "github.com/apoxy-dev/apoxy-cli",
+			"--repo", "github.com/apoxy-dev/apoxy",
 		})
 }
 

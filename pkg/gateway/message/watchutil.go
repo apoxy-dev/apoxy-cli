@@ -6,7 +6,7 @@
 package message
 
 import (
-	"github.com/apoxy-dev/apoxy-cli/pkg/log"
+	"github.com/apoxy-dev/apoxy/pkg/log"
 	"github.com/telepresenceio/watchable"
 )
 

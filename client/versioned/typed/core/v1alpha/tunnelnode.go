@@ -21,8 +21,8 @@ import (
 	"context"
 	"time"
 
-	v1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
-	scheme "github.com/apoxy-dev/apoxy-cli/client/versioned/scheme"
+	v1alpha "github.com/apoxy-dev/apoxy/api/core/v1alpha"
+	scheme "github.com/apoxy-dev/apoxy/client/versioned/scheme"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"

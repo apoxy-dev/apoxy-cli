@@ -14,8 +14,8 @@ import (
 	clog "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	extensionsv1alpha2 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2"
-	"github.com/apoxy-dev/apoxy-cli/pkg/apiserver/ingest"
+	extensionsv1alpha2 "github.com/apoxy-dev/apoxy/api/extensions/v1alpha2"
+	"github.com/apoxy-dev/apoxy/pkg/apiserver/ingest"
 )
 
 const (

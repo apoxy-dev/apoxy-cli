@@ -11,8 +11,8 @@ import (
 	"github.com/buraksezer/olric"
 	"github.com/coder/websocket"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/kvstore"
-	"github.com/apoxy-dev/apoxy-cli/pkg/log"
+	"github.com/apoxy-dev/apoxy/pkg/backplane/kvstore"
+	"github.com/apoxy-dev/apoxy/pkg/log"
 )
 
 type router struct {

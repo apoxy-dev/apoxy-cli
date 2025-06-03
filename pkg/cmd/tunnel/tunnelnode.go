@@ -23,12 +23,12 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
-	"github.com/apoxy-dev/apoxy-cli/client/versioned"
-	"github.com/apoxy-dev/apoxy-cli/config"
-	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel"
+	"github.com/apoxy-dev/apoxy/client/versioned"
+	"github.com/apoxy-dev/apoxy/config"
+	"github.com/apoxy-dev/apoxy/pkg/tunnel"
 
-	configv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/config/v1alpha1"
-	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
+	configv1alpha1 "github.com/apoxy-dev/apoxy/api/config/v1alpha1"
+	corev1alpha "github.com/apoxy-dev/apoxy/api/core/v1alpha"
 )
 
 const (

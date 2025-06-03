@@ -18,8 +18,8 @@ limitations under the License.
 package policy
 
 import (
-	internalinterfaces "github.com/apoxy-dev/apoxy-cli/client/informers/internalinterfaces"
-	v1alpha1 "github.com/apoxy-dev/apoxy-cli/client/informers/policy/v1alpha1"
+	internalinterfaces "github.com/apoxy-dev/apoxy/client/informers/internalinterfaces"
+	v1alpha1 "github.com/apoxy-dev/apoxy/client/informers/policy/v1alpha1"
 )
 
 // Interface provides access to each of this group's versions.

@@ -9,7 +9,7 @@ import (
 	"k8s.io/apiserver/pkg/registry/rest"
 	"sigs.k8s.io/apiserver-runtime/pkg/builder/resource"
 
-	v1alpha2 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2"
+	v1alpha2 "github.com/apoxy-dev/apoxy/api/extensions/v1alpha2"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 

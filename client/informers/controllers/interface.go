@@ -18,8 +18,8 @@ limitations under the License.
 package controllers
 
 import (
-	v1alpha1 "github.com/apoxy-dev/apoxy-cli/client/informers/controllers/v1alpha1"
-	internalinterfaces "github.com/apoxy-dev/apoxy-cli/client/informers/internalinterfaces"
+	v1alpha1 "github.com/apoxy-dev/apoxy/client/informers/controllers/v1alpha1"
+	internalinterfaces "github.com/apoxy-dev/apoxy/client/informers/internalinterfaces"
 )
 
 // Interface provides access to each of this group's versions.

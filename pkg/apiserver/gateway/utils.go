@@ -4,7 +4,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/gatewayapi"
+	"github.com/apoxy-dev/apoxy/pkg/gateway/gatewayapi"
 )
 
 // terminatesTLS returns true if the provided gateway contains a listener configured

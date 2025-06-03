@@ -10,8 +10,8 @@ import (
 
 	bootstrapv3 "github.com/envoyproxy/go-control-plane/envoy/config/bootstrap/v3"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/utils/proto"
-	_ "github.com/apoxy-dev/apoxy-cli/pkg/gateway/xds/extensions" // DON'T REMOVE: import of all extensions
+	"github.com/apoxy-dev/apoxy/pkg/gateway/utils/proto"
+	_ "github.com/apoxy-dev/apoxy/pkg/gateway/xds/extensions" // DON'T REMOVE: import of all extensions
 	egv1a1 "github.com/envoyproxy/gateway/api/v1alpha1"
 )
 

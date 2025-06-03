@@ -11,9 +11,9 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/cobra/doc"
 
-	"github.com/apoxy-dev/apoxy-cli/config"
-	"github.com/apoxy-dev/apoxy-cli/pkg/cmd/alpha"
-	"github.com/apoxy-dev/apoxy-cli/pkg/cmd/tunnel"
+	"github.com/apoxy-dev/apoxy/config"
+	"github.com/apoxy-dev/apoxy/pkg/cmd/alpha"
+	"github.com/apoxy-dev/apoxy/pkg/cmd/tunnel"
 )
 
 // rootCmd represents the base command when called without any subcommands

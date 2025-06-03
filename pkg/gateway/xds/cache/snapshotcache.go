@@ -28,8 +28,8 @@ import (
 	serverv3 "github.com/envoyproxy/go-control-plane/pkg/server/v3"
 	"k8s.io/apimachinery/pkg/util/wait"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/xds/types"
-	"github.com/apoxy-dev/apoxy-cli/pkg/log"
+	"github.com/apoxy-dev/apoxy/pkg/gateway/xds/types"
+	"github.com/apoxy-dev/apoxy/pkg/log"
 )
 
 var Hash = cachev3.IDHash{}

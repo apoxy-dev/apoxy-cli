@@ -10,8 +10,8 @@ import (
 
 	"github.com/goccy/go-json"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/logs/logtail"
-	"github.com/apoxy-dev/apoxy-cli/pkg/log"
+	"github.com/apoxy-dev/apoxy/pkg/backplane/logs/logtail"
+	"github.com/apoxy-dev/apoxy/pkg/log"
 )
 
 var (

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os/exec"
 
-	"github.com/apoxy-dev/apoxy-cli/build"
-	dockerutils "github.com/apoxy-dev/apoxy-cli/pkg/utils/docker"
+	"github.com/apoxy-dev/apoxy/build"
+	dockerutils "github.com/apoxy-dev/apoxy/pkg/utils/docker"
 )
 
 // dockerDriverBase is a wrapper for the Docker driver containing

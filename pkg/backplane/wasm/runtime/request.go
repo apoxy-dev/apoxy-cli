@@ -11,8 +11,8 @@ import (
 	svcext_procv3 "github.com/envoyproxy/go-control-plane/envoy/service/ext_proc/v3"
 	"google.golang.org/protobuf/types/known/structpb"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/wasm/abi"
-	"github.com/apoxy-dev/apoxy-cli/pkg/log"
+	"github.com/apoxy-dev/apoxy/pkg/backplane/wasm/abi"
+	"github.com/apoxy-dev/apoxy/pkg/log"
 )
 
 var (

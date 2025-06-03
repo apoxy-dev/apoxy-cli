@@ -19,13 +19,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/apiserver"
-	"github.com/apoxy-dev/apoxy-cli/pkg/log"
-	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel"
-	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/router"
-	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/token"
+	"github.com/apoxy-dev/apoxy/pkg/apiserver"
+	"github.com/apoxy-dev/apoxy/pkg/log"
+	"github.com/apoxy-dev/apoxy/pkg/tunnel"
+	"github.com/apoxy-dev/apoxy/pkg/tunnel/router"
+	"github.com/apoxy-dev/apoxy/pkg/tunnel/token"
 
-	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
+	corev1alpha "github.com/apoxy-dev/apoxy/api/core/v1alpha"
 )
 
 var scheme = runtime.NewScheme()

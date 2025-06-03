@@ -18,9 +18,9 @@ limitations under the License.
 package extensions
 
 import (
-	v1alpha1 "github.com/apoxy-dev/apoxy-cli/client/informers/extensions/v1alpha1"
-	v1alpha2 "github.com/apoxy-dev/apoxy-cli/client/informers/extensions/v1alpha2"
-	internalinterfaces "github.com/apoxy-dev/apoxy-cli/client/informers/internalinterfaces"
+	v1alpha1 "github.com/apoxy-dev/apoxy/client/informers/extensions/v1alpha1"
+	v1alpha2 "github.com/apoxy-dev/apoxy/client/informers/extensions/v1alpha2"
+	internalinterfaces "github.com/apoxy-dev/apoxy/client/informers/internalinterfaces"
 )
 
 // Interface provides access to each of this group's versions.

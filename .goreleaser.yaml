@@ -23,9 +23,9 @@ builds:
   - env:
       - CGO_ENABLED=0
     ldflags:
-      - -X github.com/apoxy-dev/apoxy-cli/build.BuildVersion={{.Version}}
-      - -X github.com/apoxy-dev/apoxy-cli/build.BuildDate={{.Date}}
-      - -X github.com/apoxy-dev/apoxy-cli/build.CommitHash={{.ShortCommit}}
+      - -X github.com/apoxy-dev/apoxy/build.BuildVersion={{.Version}}
+      - -X github.com/apoxy-dev/apoxy/build.BuildDate={{.Date}}
+      - -X github.com/apoxy-dev/apoxy/build.CommitHash={{.ShortCommit}}
     goos:
       - linux
       - darwin

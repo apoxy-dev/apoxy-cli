@@ -4,4 +4,4 @@
 // +k8s:deepcopy-gen=package,register
 
 // Package v1 is the v1 version of the API.
-package v1 // import "github.com/apoxy-dev/apoxy-cli/api/gateway/v1"
+package v1 // import "github.com/apoxy-dev/apoxy/api/gateway/v1"

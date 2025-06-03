@@ -31,116 +31,116 @@ import (
 
 func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenAPIDefinition {
 	return map[string]common.OpenAPIDefinition{
-		"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.APIKey":                       schema_apoxy_cli_api_controllers_v1alpha1_APIKey(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.OpenTelemetrySink":            schema_apoxy_cli_api_controllers_v1alpha1_OpenTelemetrySink(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.Proxy":                        schema_apoxy_cli_api_controllers_v1alpha1_Proxy(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyAccessLogs":              schema_apoxy_cli_api_controllers_v1alpha1_ProxyAccessLogs(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyContentLogs":             schema_apoxy_cli_api_controllers_v1alpha1_ProxyContentLogs(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyList":                    schema_apoxy_cli_api_controllers_v1alpha1_ProxyList(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyListener":                schema_apoxy_cli_api_controllers_v1alpha1_ProxyListener(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyMonitoring":              schema_apoxy_cli_api_controllers_v1alpha1_ProxyMonitoring(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyReplicaStatus":           schema_apoxy_cli_api_controllers_v1alpha1_ProxyReplicaStatus(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxySpec":                    schema_apoxy_cli_api_controllers_v1alpha1_ProxySpec(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyStatus":                  schema_apoxy_cli_api_controllers_v1alpha1_ProxyStatus(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyTracing":                 schema_apoxy_cli_api_controllers_v1alpha1_ProxyTracing(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyTracingTagValue":         schema_apoxy_cli_api_controllers_v1alpha1_ProxyTracingTagValue(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ThirdPartySinks":              schema_apoxy_cli_api_controllers_v1alpha1_ThirdPartySinks(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.AccessLog":                            schema_apoxy_cli_api_core_v1alpha_AccessLog(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.Address":                              schema_apoxy_cli_api_core_v1alpha_Address(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.AddressList":                          schema_apoxy_cli_api_core_v1alpha_AddressList(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.AddressSpec":                          schema_apoxy_cli_api_core_v1alpha_AddressSpec(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.AddressStatus":                        schema_apoxy_cli_api_core_v1alpha_AddressStatus(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.AgentStatus":                          schema_apoxy_cli_api_core_v1alpha_AgentStatus(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.Backend":                              schema_apoxy_cli_api_core_v1alpha_Backend(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.BackendEndpoint":                      schema_apoxy_cli_api_core_v1alpha_BackendEndpoint(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.BackendList":                          schema_apoxy_cli_api_core_v1alpha_BackendList(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.BackendSpec":                          schema_apoxy_cli_api_core_v1alpha_BackendSpec(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.BackendStatus":                        schema_apoxy_cli_api_core_v1alpha_BackendStatus(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.Domain":                               schema_apoxy_cli_api_core_v1alpha_Domain(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainForwardingSpec":                 schema_apoxy_cli_api_core_v1alpha_DomainForwardingSpec(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainList":                           schema_apoxy_cli_api_core_v1alpha_DomainList(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainSpec":                           schema_apoxy_cli_api_core_v1alpha_DomainSpec(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainStatus":                         schema_apoxy_cli_api_core_v1alpha_DomainStatus(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainTLSSpec":                        schema_apoxy_cli_api_core_v1alpha_DomainTLSSpec(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainTargetDNS":                      schema_apoxy_cli_api_core_v1alpha_DomainTargetDNS(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainTargetSpec":                     schema_apoxy_cli_api_core_v1alpha_DomainTargetSpec(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainZone":                           schema_apoxy_cli_api_core_v1alpha_DomainZone(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainZoneList":                       schema_apoxy_cli_api_core_v1alpha_DomainZoneList(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainZoneSpec":                       schema_apoxy_cli_api_core_v1alpha_DomainZoneSpec(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainZoneStatus":                     schema_apoxy_cli_api_core_v1alpha_DomainZoneStatus(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DynamicProxyDnsCacheConfig":           schema_apoxy_cli_api_core_v1alpha_DynamicProxyDnsCacheConfig(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DynamicProxySpec":                     schema_apoxy_cli_api_core_v1alpha_DynamicProxySpec(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.FileAccessLog":                        schema_apoxy_cli_api_core_v1alpha_FileAccessLog(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.ForwardingRule":                       schema_apoxy_cli_api_core_v1alpha_ForwardingRule(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.LocalObjectReference":                 schema_apoxy_cli_api_core_v1alpha_LocalObjectReference(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.PortRange":                            schema_apoxy_cli_api_core_v1alpha_PortRange(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.Proxy":                                schema_apoxy_cli_api_core_v1alpha_Proxy(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.ProxyList":                            schema_apoxy_cli_api_core_v1alpha_ProxyList(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.ProxySpec":                            schema_apoxy_cli_api_core_v1alpha_ProxySpec(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.ProxyStatus":                          schema_apoxy_cli_api_core_v1alpha_ProxyStatus(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNode":                           schema_apoxy_cli_api_core_v1alpha_TunnelNode(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNodeCredentials":                schema_apoxy_cli_api_core_v1alpha_TunnelNodeCredentials(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNodeList":                       schema_apoxy_cli_api_core_v1alpha_TunnelNodeList(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNodeSpec":                       schema_apoxy_cli_api_core_v1alpha_TunnelNodeSpec(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNodeStatus":                     schema_apoxy_cli_api_core_v1alpha_TunnelNodeStatus(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunction":                  schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunction(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionCodeSource":        schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionCodeSource(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionList":              schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionList(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRevision":          schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionRevision(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRevisionList":      schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionRevisionList(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRevisionStatus":    schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionRevisionStatus(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRuntime":           schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionRuntime(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionSpec":              schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionSpec(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionStatus":            schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionStatus(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionTargetReference":   schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionTargetReference(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EnvVar":                        schema_apoxy_cli_api_extensions_v1alpha1_EnvVar(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.GoPluginSource":                schema_apoxy_cli_api_extensions_v1alpha1_GoPluginSource(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.JavaScriptAssetsSource":        schema_apoxy_cli_api_extensions_v1alpha1_JavaScriptAssetsSource(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.JavaScriptGitSource":           schema_apoxy_cli_api_extensions_v1alpha1_JavaScriptGitSource(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.JavaScriptNpmSource":           schema_apoxy_cli_api_extensions_v1alpha1_JavaScriptNpmSource(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.JavaScriptSource":              schema_apoxy_cli_api_extensions_v1alpha1_JavaScriptSource(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.OCICredentials":                schema_apoxy_cli_api_extensions_v1alpha1_OCICredentials(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.OCICredentialsObjectReference": schema_apoxy_cli_api_extensions_v1alpha1_OCICredentialsObjectReference(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.OCIImageRef":                   schema_apoxy_cli_api_extensions_v1alpha1_OCIImageRef(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.RuntimeCapabilities":           schema_apoxy_cli_api_extensions_v1alpha1_RuntimeCapabilities(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.SourceFile":                    schema_apoxy_cli_api_extensions_v1alpha1_SourceFile(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.WasmSource":                    schema_apoxy_cli_api_extensions_v1alpha1_WasmSource(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunction":                  schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunction(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunctionCodeSource":        schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunctionCodeSource(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunctionList":              schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunctionList(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunctionRevision":          schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunctionRevision(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunctionRevisionList":      schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunctionRevisionList(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunctionRevisionSpec":      schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunctionRevisionSpec(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunctionRevisionStatus":    schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunctionRevisionStatus(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunctionRuntime":           schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunctionRuntime(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunctionSpec":              schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunctionSpec(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunctionStatus":            schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunctionStatus(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EnvVar":                        schema_apoxy_cli_api_extensions_v1alpha2_EnvVar(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.GoPluginSource":                schema_apoxy_cli_api_extensions_v1alpha2_GoPluginSource(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.JavaScriptAssetsSource":        schema_apoxy_cli_api_extensions_v1alpha2_JavaScriptAssetsSource(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.JavaScriptGitSource":           schema_apoxy_cli_api_extensions_v1alpha2_JavaScriptGitSource(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.JavaScriptNpmSource":           schema_apoxy_cli_api_extensions_v1alpha2_JavaScriptNpmSource(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.JavaScriptSource":              schema_apoxy_cli_api_extensions_v1alpha2_JavaScriptSource(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.OCICredentials":                schema_apoxy_cli_api_extensions_v1alpha2_OCICredentials(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.OCICredentialsObjectReference": schema_apoxy_cli_api_extensions_v1alpha2_OCICredentialsObjectReference(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.OCIImageRef":                   schema_apoxy_cli_api_extensions_v1alpha2_OCIImageRef(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.RuntimeCapabilities":           schema_apoxy_cli_api_extensions_v1alpha2_RuntimeCapabilities(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.SourceFile":                    schema_apoxy_cli_api_extensions_v1alpha2_SourceFile(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.WasmSource":                    schema_apoxy_cli_api_extensions_v1alpha2_WasmSource(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/gateway/v1.GRPCRoute":                              schema_apoxy_cli_api_gateway_v1_GRPCRoute(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/gateway/v1.GRPCRouteList":                          schema_apoxy_cli_api_gateway_v1_GRPCRouteList(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/gateway/v1.Gateway":                                schema_apoxy_cli_api_gateway_v1_Gateway(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/gateway/v1.GatewayClass":                           schema_apoxy_cli_api_gateway_v1_GatewayClass(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/gateway/v1.GatewayClassList":                       schema_apoxy_cli_api_gateway_v1_GatewayClassList(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/gateway/v1.GatewayList":                            schema_apoxy_cli_api_gateway_v1_GatewayList(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/gateway/v1.HTTPRoute":                              schema_apoxy_cli_api_gateway_v1_HTTPRoute(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/gateway/v1.HTTPRouteList":                          schema_apoxy_cli_api_gateway_v1_HTTPRouteList(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/policy/v1alpha1.RateLimit":                         schema_apoxy_cli_api_policy_v1alpha1_RateLimit(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/policy/v1alpha1.RateLimitDescriptor":               schema_apoxy_cli_api_policy_v1alpha1_RateLimitDescriptor(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/policy/v1alpha1.RateLimitList":                     schema_apoxy_cli_api_policy_v1alpha1_RateLimitList(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/policy/v1alpha1.RateLimitPolicy":                   schema_apoxy_cli_api_policy_v1alpha1_RateLimitPolicy(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/policy/v1alpha1.RateLimitSpec":                     schema_apoxy_cli_api_policy_v1alpha1_RateLimitSpec(ref),
-		"github.com/apoxy-dev/apoxy-cli/api/policy/v1alpha1.RateLimitStatus":                   schema_apoxy_cli_api_policy_v1alpha1_RateLimitStatus(ref),
+		"github.com/apoxy-dev/apoxy/api/controllers/v1alpha1.APIKey":                       schema_apoxy_cli_api_controllers_v1alpha1_APIKey(ref),
+		"github.com/apoxy-dev/apoxy/api/controllers/v1alpha1.OpenTelemetrySink":            schema_apoxy_cli_api_controllers_v1alpha1_OpenTelemetrySink(ref),
+		"github.com/apoxy-dev/apoxy/api/controllers/v1alpha1.Proxy":                        schema_apoxy_cli_api_controllers_v1alpha1_Proxy(ref),
+		"github.com/apoxy-dev/apoxy/api/controllers/v1alpha1.ProxyAccessLogs":              schema_apoxy_cli_api_controllers_v1alpha1_ProxyAccessLogs(ref),
+		"github.com/apoxy-dev/apoxy/api/controllers/v1alpha1.ProxyContentLogs":             schema_apoxy_cli_api_controllers_v1alpha1_ProxyContentLogs(ref),
+		"github.com/apoxy-dev/apoxy/api/controllers/v1alpha1.ProxyList":                    schema_apoxy_cli_api_controllers_v1alpha1_ProxyList(ref),
+		"github.com/apoxy-dev/apoxy/api/controllers/v1alpha1.ProxyListener":                schema_apoxy_cli_api_controllers_v1alpha1_ProxyListener(ref),
+		"github.com/apoxy-dev/apoxy/api/controllers/v1alpha1.ProxyMonitoring":              schema_apoxy_cli_api_controllers_v1alpha1_ProxyMonitoring(ref),
+		"github.com/apoxy-dev/apoxy/api/controllers/v1alpha1.ProxyReplicaStatus":           schema_apoxy_cli_api_controllers_v1alpha1_ProxyReplicaStatus(ref),
+		"github.com/apoxy-dev/apoxy/api/controllers/v1alpha1.ProxySpec":                    schema_apoxy_cli_api_controllers_v1alpha1_ProxySpec(ref),
+		"github.com/apoxy-dev/apoxy/api/controllers/v1alpha1.ProxyStatus":                  schema_apoxy_cli_api_controllers_v1alpha1_ProxyStatus(ref),
+		"github.com/apoxy-dev/apoxy/api/controllers/v1alpha1.ProxyTracing":                 schema_apoxy_cli_api_controllers_v1alpha1_ProxyTracing(ref),
+		"github.com/apoxy-dev/apoxy/api/controllers/v1alpha1.ProxyTracingTagValue":         schema_apoxy_cli_api_controllers_v1alpha1_ProxyTracingTagValue(ref),
+		"github.com/apoxy-dev/apoxy/api/controllers/v1alpha1.ThirdPartySinks":              schema_apoxy_cli_api_controllers_v1alpha1_ThirdPartySinks(ref),
+		"github.com/apoxy-dev/apoxy/api/core/v1alpha.AccessLog":                            schema_apoxy_cli_api_core_v1alpha_AccessLog(ref),
+		"github.com/apoxy-dev/apoxy/api/core/v1alpha.Address":                              schema_apoxy_cli_api_core_v1alpha_Address(ref),
+		"github.com/apoxy-dev/apoxy/api/core/v1alpha.AddressList":                          schema_apoxy_cli_api_core_v1alpha_AddressList(ref),
+		"github.com/apoxy-dev/apoxy/api/core/v1alpha.AddressSpec":                          schema_apoxy_cli_api_core_v1alpha_AddressSpec(ref),
+		"github.com/apoxy-dev/apoxy/api/core/v1alpha.AddressStatus":                        schema_apoxy_cli_api_core_v1alpha_AddressStatus(ref),
+		"github.com/apoxy-dev/apoxy/api/core/v1alpha.AgentStatus":                          schema_apoxy_cli_api_core_v1alpha_AgentStatus(ref),
+		"github.com/apoxy-dev/apoxy/api/core/v1alpha.Backend":                              schema_apoxy_cli_api_core_v1alpha_Backend(ref),
+		"github.com/apoxy-dev/apoxy/api/core/v1alpha.BackendEndpoint":                      schema_apoxy_cli_api_core_v1alpha_BackendEndpoint(ref),
+		"github.com/apoxy-dev/apoxy/api/core/v1alpha.BackendList":                          schema_apoxy_cli_api_core_v1alpha_BackendList(ref),
+		"github.com/apoxy-dev/apoxy/api/core/v1alpha.BackendSpec":                          schema_apoxy_cli_api_core_v1alpha_BackendSpec(ref),
+		"github.com/apoxy-dev/apoxy/api/core/v1alpha.BackendStatus":                        schema_apoxy_cli_api_core_v1alpha_BackendStatus(ref),
+		"github.com/apoxy-dev/apoxy/api/core/v1alpha.Domain":                               schema_apoxy_cli_api_core_v1alpha_Domain(ref),
+		"github.com/apoxy-dev/apoxy/api/core/v1alpha.DomainForwardingSpec":                 schema_apoxy_cli_api_core_v1alpha_DomainForwardingSpec(ref),
+		"github.com/apoxy-dev/apoxy/api/core/v1alpha.DomainList":                           schema_apoxy_cli_api_core_v1alpha_DomainList(ref),
+		"github.com/apoxy-dev/apoxy/api/core/v1alpha.DomainSpec":                           schema_apoxy_cli_api_core_v1alpha_DomainSpec(ref),
+		"github.com/apoxy-dev/apoxy/api/core/v1alpha.DomainStatus":                         schema_apoxy_cli_api_core_v1alpha_DomainStatus(ref),
+		"github.com/apoxy-dev/apoxy/api/core/v1alpha.DomainTLSSpec":                        schema_apoxy_cli_api_core_v1alpha_DomainTLSSpec(ref),
+		"github.com/apoxy-dev/apoxy/api/core/v1alpha.DomainTargetDNS":                      schema_apoxy_cli_api_core_v1alpha_DomainTargetDNS(ref),
+		"github.com/apoxy-dev/apoxy/api/core/v1alpha.DomainTargetSpec":                     schema_apoxy_cli_api_core_v1alpha_DomainTargetSpec(ref),
+		"github.com/apoxy-dev/apoxy/api/core/v1alpha.DomainZone":                           schema_apoxy_cli_api_core_v1alpha_DomainZone(ref),
+		"github.com/apoxy-dev/apoxy/api/core/v1alpha.DomainZoneList":                       schema_apoxy_cli_api_core_v1alpha_DomainZoneList(ref),
+		"github.com/apoxy-dev/apoxy/api/core/v1alpha.DomainZoneSpec":                       schema_apoxy_cli_api_core_v1alpha_DomainZoneSpec(ref),
+		"github.com/apoxy-dev/apoxy/api/core/v1alpha.DomainZoneStatus":                     schema_apoxy_cli_api_core_v1alpha_DomainZoneStatus(ref),
+		"github.com/apoxy-dev/apoxy/api/core/v1alpha.DynamicProxyDnsCacheConfig":           schema_apoxy_cli_api_core_v1alpha_DynamicProxyDnsCacheConfig(ref),
+		"github.com/apoxy-dev/apoxy/api/core/v1alpha.DynamicProxySpec":                     schema_apoxy_cli_api_core_v1alpha_DynamicProxySpec(ref),
+		"github.com/apoxy-dev/apoxy/api/core/v1alpha.FileAccessLog":                        schema_apoxy_cli_api_core_v1alpha_FileAccessLog(ref),
+		"github.com/apoxy-dev/apoxy/api/core/v1alpha.ForwardingRule":                       schema_apoxy_cli_api_core_v1alpha_ForwardingRule(ref),
+		"github.com/apoxy-dev/apoxy/api/core/v1alpha.LocalObjectReference":                 schema_apoxy_cli_api_core_v1alpha_LocalObjectReference(ref),
+		"github.com/apoxy-dev/apoxy/api/core/v1alpha.PortRange":                            schema_apoxy_cli_api_core_v1alpha_PortRange(ref),
+		"github.com/apoxy-dev/apoxy/api/core/v1alpha.Proxy":                                schema_apoxy_cli_api_core_v1alpha_Proxy(ref),
+		"github.com/apoxy-dev/apoxy/api/core/v1alpha.ProxyList":                            schema_apoxy_cli_api_core_v1alpha_ProxyList(ref),
+		"github.com/apoxy-dev/apoxy/api/core/v1alpha.ProxySpec":                            schema_apoxy_cli_api_core_v1alpha_ProxySpec(ref),
+		"github.com/apoxy-dev/apoxy/api/core/v1alpha.ProxyStatus":                          schema_apoxy_cli_api_core_v1alpha_ProxyStatus(ref),
+		"github.com/apoxy-dev/apoxy/api/core/v1alpha.TunnelNode":                           schema_apoxy_cli_api_core_v1alpha_TunnelNode(ref),
+		"github.com/apoxy-dev/apoxy/api/core/v1alpha.TunnelNodeCredentials":                schema_apoxy_cli_api_core_v1alpha_TunnelNodeCredentials(ref),
+		"github.com/apoxy-dev/apoxy/api/core/v1alpha.TunnelNodeList":                       schema_apoxy_cli_api_core_v1alpha_TunnelNodeList(ref),
+		"github.com/apoxy-dev/apoxy/api/core/v1alpha.TunnelNodeSpec":                       schema_apoxy_cli_api_core_v1alpha_TunnelNodeSpec(ref),
+		"github.com/apoxy-dev/apoxy/api/core/v1alpha.TunnelNodeStatus":                     schema_apoxy_cli_api_core_v1alpha_TunnelNodeStatus(ref),
+		"github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.EdgeFunction":                  schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunction(ref),
+		"github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.EdgeFunctionCodeSource":        schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionCodeSource(ref),
+		"github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.EdgeFunctionList":              schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionList(ref),
+		"github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.EdgeFunctionRevision":          schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionRevision(ref),
+		"github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.EdgeFunctionRevisionList":      schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionRevisionList(ref),
+		"github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.EdgeFunctionRevisionStatus":    schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionRevisionStatus(ref),
+		"github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.EdgeFunctionRuntime":           schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionRuntime(ref),
+		"github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.EdgeFunctionSpec":              schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionSpec(ref),
+		"github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.EdgeFunctionStatus":            schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionStatus(ref),
+		"github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.EdgeFunctionTargetReference":   schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionTargetReference(ref),
+		"github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.EnvVar":                        schema_apoxy_cli_api_extensions_v1alpha1_EnvVar(ref),
+		"github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.GoPluginSource":                schema_apoxy_cli_api_extensions_v1alpha1_GoPluginSource(ref),
+		"github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.JavaScriptAssetsSource":        schema_apoxy_cli_api_extensions_v1alpha1_JavaScriptAssetsSource(ref),
+		"github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.JavaScriptGitSource":           schema_apoxy_cli_api_extensions_v1alpha1_JavaScriptGitSource(ref),
+		"github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.JavaScriptNpmSource":           schema_apoxy_cli_api_extensions_v1alpha1_JavaScriptNpmSource(ref),
+		"github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.JavaScriptSource":              schema_apoxy_cli_api_extensions_v1alpha1_JavaScriptSource(ref),
+		"github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.OCICredentials":                schema_apoxy_cli_api_extensions_v1alpha1_OCICredentials(ref),
+		"github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.OCICredentialsObjectReference": schema_apoxy_cli_api_extensions_v1alpha1_OCICredentialsObjectReference(ref),
+		"github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.OCIImageRef":                   schema_apoxy_cli_api_extensions_v1alpha1_OCIImageRef(ref),
+		"github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.RuntimeCapabilities":           schema_apoxy_cli_api_extensions_v1alpha1_RuntimeCapabilities(ref),
+		"github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.SourceFile":                    schema_apoxy_cli_api_extensions_v1alpha1_SourceFile(ref),
+		"github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.WasmSource":                    schema_apoxy_cli_api_extensions_v1alpha1_WasmSource(ref),
+		"github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.EdgeFunction":                  schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunction(ref),
+		"github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.EdgeFunctionCodeSource":        schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunctionCodeSource(ref),
+		"github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.EdgeFunctionList":              schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunctionList(ref),
+		"github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.EdgeFunctionRevision":          schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunctionRevision(ref),
+		"github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.EdgeFunctionRevisionList":      schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunctionRevisionList(ref),
+		"github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.EdgeFunctionRevisionSpec":      schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunctionRevisionSpec(ref),
+		"github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.EdgeFunctionRevisionStatus":    schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunctionRevisionStatus(ref),
+		"github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.EdgeFunctionRuntime":           schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunctionRuntime(ref),
+		"github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.EdgeFunctionSpec":              schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunctionSpec(ref),
+		"github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.EdgeFunctionStatus":            schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunctionStatus(ref),
+		"github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.EnvVar":                        schema_apoxy_cli_api_extensions_v1alpha2_EnvVar(ref),
+		"github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.GoPluginSource":                schema_apoxy_cli_api_extensions_v1alpha2_GoPluginSource(ref),
+		"github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.JavaScriptAssetsSource":        schema_apoxy_cli_api_extensions_v1alpha2_JavaScriptAssetsSource(ref),
+		"github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.JavaScriptGitSource":           schema_apoxy_cli_api_extensions_v1alpha2_JavaScriptGitSource(ref),
+		"github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.JavaScriptNpmSource":           schema_apoxy_cli_api_extensions_v1alpha2_JavaScriptNpmSource(ref),
+		"github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.JavaScriptSource":              schema_apoxy_cli_api_extensions_v1alpha2_JavaScriptSource(ref),
+		"github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.OCICredentials":                schema_apoxy_cli_api_extensions_v1alpha2_OCICredentials(ref),
+		"github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.OCICredentialsObjectReference": schema_apoxy_cli_api_extensions_v1alpha2_OCICredentialsObjectReference(ref),
+		"github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.OCIImageRef":                   schema_apoxy_cli_api_extensions_v1alpha2_OCIImageRef(ref),
+		"github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.RuntimeCapabilities":           schema_apoxy_cli_api_extensions_v1alpha2_RuntimeCapabilities(ref),
+		"github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.SourceFile":                    schema_apoxy_cli_api_extensions_v1alpha2_SourceFile(ref),
+		"github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.WasmSource":                    schema_apoxy_cli_api_extensions_v1alpha2_WasmSource(ref),
+		"github.com/apoxy-dev/apoxy/api/gateway/v1.GRPCRoute":                              schema_apoxy_cli_api_gateway_v1_GRPCRoute(ref),
+		"github.com/apoxy-dev/apoxy/api/gateway/v1.GRPCRouteList":                          schema_apoxy_cli_api_gateway_v1_GRPCRouteList(ref),
+		"github.com/apoxy-dev/apoxy/api/gateway/v1.Gateway":                                schema_apoxy_cli_api_gateway_v1_Gateway(ref),
+		"github.com/apoxy-dev/apoxy/api/gateway/v1.GatewayClass":                           schema_apoxy_cli_api_gateway_v1_GatewayClass(ref),
+		"github.com/apoxy-dev/apoxy/api/gateway/v1.GatewayClassList":                       schema_apoxy_cli_api_gateway_v1_GatewayClassList(ref),
+		"github.com/apoxy-dev/apoxy/api/gateway/v1.GatewayList":                            schema_apoxy_cli_api_gateway_v1_GatewayList(ref),
+		"github.com/apoxy-dev/apoxy/api/gateway/v1.HTTPRoute":                              schema_apoxy_cli_api_gateway_v1_HTTPRoute(ref),
+		"github.com/apoxy-dev/apoxy/api/gateway/v1.HTTPRouteList":                          schema_apoxy_cli_api_gateway_v1_HTTPRouteList(ref),
+		"github.com/apoxy-dev/apoxy/api/policy/v1alpha1.RateLimit":                         schema_apoxy_cli_api_policy_v1alpha1_RateLimit(ref),
+		"github.com/apoxy-dev/apoxy/api/policy/v1alpha1.RateLimitDescriptor":               schema_apoxy_cli_api_policy_v1alpha1_RateLimitDescriptor(ref),
+		"github.com/apoxy-dev/apoxy/api/policy/v1alpha1.RateLimitList":                     schema_apoxy_cli_api_policy_v1alpha1_RateLimitList(ref),
+		"github.com/apoxy-dev/apoxy/api/policy/v1alpha1.RateLimitPolicy":                   schema_apoxy_cli_api_policy_v1alpha1_RateLimitPolicy(ref),
+		"github.com/apoxy-dev/apoxy/api/policy/v1alpha1.RateLimitSpec":                     schema_apoxy_cli_api_policy_v1alpha1_RateLimitSpec(ref),
+		"github.com/apoxy-dev/apoxy/api/policy/v1alpha1.RateLimitStatus":                   schema_apoxy_cli_api_policy_v1alpha1_RateLimitStatus(ref),
 		"k8s.io/api/core/v1.AWSElasticBlockStoreVolumeSource":                                  schema_k8sio_api_core_v1_AWSElasticBlockStoreVolumeSource(ref),
 		"k8s.io/api/core/v1.Affinity":                                                          schema_k8sio_api_core_v1_Affinity(ref),
 		"k8s.io/api/core/v1.AppArmorProfile":                                                   schema_k8sio_api_core_v1_AppArmorProfile(ref),
@@ -592,20 +592,20 @@ func schema_apoxy_cli_api_controllers_v1alpha1_Proxy(ref common.ReferenceCallbac
 					"spec": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxySpec"),
+							Ref:     ref("github.com/apoxy-dev/apoxy/api/controllers/v1alpha1.ProxySpec"),
 						},
 					},
 					"status": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyStatus"),
+							Ref:     ref("github.com/apoxy-dev/apoxy/api/controllers/v1alpha1.ProxyStatus"),
 						},
 					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxySpec", "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+			"github.com/apoxy-dev/apoxy/api/controllers/v1alpha1.ProxySpec", "github.com/apoxy-dev/apoxy/api/controllers/v1alpha1.ProxyStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
 	}
 }
 
@@ -700,7 +700,7 @@ func schema_apoxy_cli_api_controllers_v1alpha1_ProxyList(ref common.ReferenceCal
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.Proxy"),
+										Ref:     ref("github.com/apoxy-dev/apoxy/api/controllers/v1alpha1.Proxy"),
 									},
 								},
 							},
@@ -711,7 +711,7 @@ func schema_apoxy_cli_api_controllers_v1alpha1_ProxyList(ref common.ReferenceCal
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.Proxy", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+			"github.com/apoxy-dev/apoxy/api/controllers/v1alpha1.Proxy", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
 	}
 }
 
@@ -755,38 +755,38 @@ func schema_apoxy_cli_api_controllers_v1alpha1_ProxyMonitoring(ref common.Refere
 					"accessLogs": {
 						SchemaProps: spec.SchemaProps{
 							Description: "AccessLogs configures how access logs are handled. Note that access logs cannot be disabled.",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyAccessLogs"),
+							Ref:         ref("github.com/apoxy-dev/apoxy/api/controllers/v1alpha1.ProxyAccessLogs"),
 						},
 					},
 					"contentLogs": {
 						SchemaProps: spec.SchemaProps{
 							Description: "ContentLogs configures how request and response body content are handled. Also refered to as Taps in Envoy. Disabled by default.",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyContentLogs"),
+							Ref:         ref("github.com/apoxy-dev/apoxy/api/controllers/v1alpha1.ProxyContentLogs"),
 						},
 					},
 					"tracing": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Tracing configures how tracing is handled. Disabled by default.",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyTracing"),
+							Ref:         ref("github.com/apoxy-dev/apoxy/api/controllers/v1alpha1.ProxyTracing"),
 						},
 					},
 					"otelCollectorConfig": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Custom OpenTelemetry collector configuration. Only supported for unmanaged proxies. This must be a ConfigMap or a Secret in the same namespace as Backplane.",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.LocalObjectReference"),
+							Ref:         ref("github.com/apoxy-dev/apoxy/api/core/v1alpha.LocalObjectReference"),
 						},
 					},
 					"thirdPartySinks": {
 						SchemaProps: spec.SchemaProps{
 							Description: "For enabling third party integrations. This is only supported for cloud proxies.",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ThirdPartySinks"),
+							Ref:         ref("github.com/apoxy-dev/apoxy/api/controllers/v1alpha1.ThirdPartySinks"),
 						},
 					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyAccessLogs", "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyContentLogs", "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyTracing", "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ThirdPartySinks", "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.LocalObjectReference"},
+			"github.com/apoxy-dev/apoxy/api/controllers/v1alpha1.ProxyAccessLogs", "github.com/apoxy-dev/apoxy/api/controllers/v1alpha1.ProxyContentLogs", "github.com/apoxy-dev/apoxy/api/controllers/v1alpha1.ProxyTracing", "github.com/apoxy-dev/apoxy/api/controllers/v1alpha1.ThirdPartySinks", "github.com/apoxy-dev/apoxy/api/core/v1alpha.LocalObjectReference"},
 	}
 }
 
@@ -865,7 +865,7 @@ func schema_apoxy_cli_api_controllers_v1alpha1_ProxySpec(ref common.ReferenceCal
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyListener"),
+										Ref:     ref("github.com/apoxy-dev/apoxy/api/controllers/v1alpha1.ProxyListener"),
 									},
 								},
 							},
@@ -880,7 +880,7 @@ func schema_apoxy_cli_api_controllers_v1alpha1_ProxySpec(ref common.ReferenceCal
 					"monitoring": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Monitoring is the monitoring configuration for the proxy.",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyMonitoring"),
+							Ref:         ref("github.com/apoxy-dev/apoxy/api/controllers/v1alpha1.ProxyMonitoring"),
 						},
 					},
 				},
@@ -888,7 +888,7 @@ func schema_apoxy_cli_api_controllers_v1alpha1_ProxySpec(ref common.ReferenceCal
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyListener", "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyMonitoring", "k8s.io/apimachinery/pkg/apis/meta/v1.Duration"},
+			"github.com/apoxy-dev/apoxy/api/controllers/v1alpha1.ProxyListener", "github.com/apoxy-dev/apoxy/api/controllers/v1alpha1.ProxyMonitoring", "k8s.io/apimachinery/pkg/apis/meta/v1.Duration"},
 	}
 }
 
@@ -935,7 +935,7 @@ func schema_apoxy_cli_api_controllers_v1alpha1_ProxyStatus(ref common.ReferenceC
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
-										Ref: ref("github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyReplicaStatus"),
+										Ref: ref("github.com/apoxy-dev/apoxy/api/controllers/v1alpha1.ProxyReplicaStatus"),
 									},
 								},
 							},
@@ -945,7 +945,7 @@ func schema_apoxy_cli_api_controllers_v1alpha1_ProxyStatus(ref common.ReferenceC
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyReplicaStatus"},
+			"github.com/apoxy-dev/apoxy/api/controllers/v1alpha1.ProxyReplicaStatus"},
 	}
 }
 
@@ -972,7 +972,7 @@ func schema_apoxy_cli_api_controllers_v1alpha1_ProxyTracing(ref common.Reference
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyTracingTagValue"),
+										Ref:     ref("github.com/apoxy-dev/apoxy/api/controllers/v1alpha1.ProxyTracingTagValue"),
 									},
 								},
 							},
@@ -983,7 +983,7 @@ func schema_apoxy_cli_api_controllers_v1alpha1_ProxyTracing(ref common.Reference
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.ProxyTracingTagValue"},
+			"github.com/apoxy-dev/apoxy/api/controllers/v1alpha1.ProxyTracingTagValue"},
 	}
 }
 
@@ -1026,25 +1026,25 @@ func schema_apoxy_cli_api_controllers_v1alpha1_ThirdPartySinks(ref common.Refere
 					"axiomLogs": {
 						SchemaProps: spec.SchemaProps{
 							Description: "AxiomLogs is the API key for Axiom logs.",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.APIKey"),
+							Ref:         ref("github.com/apoxy-dev/apoxy/api/controllers/v1alpha1.APIKey"),
 						},
 					},
 					"axiomTraces": {
 						SchemaProps: spec.SchemaProps{
 							Description: "AxiomTraces is the API key for Axiom traces.",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.APIKey"),
+							Ref:         ref("github.com/apoxy-dev/apoxy/api/controllers/v1alpha1.APIKey"),
 						},
 					},
 					"datadogLogs": {
 						SchemaProps: spec.SchemaProps{
 							Description: "DatadogLogs is the API key for Datadog logs.",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.APIKey"),
+							Ref:         ref("github.com/apoxy-dev/apoxy/api/controllers/v1alpha1.APIKey"),
 						},
 					},
 					"datadogTraces": {
 						SchemaProps: spec.SchemaProps{
 							Description: "DatadogTraces is the API key for Datadog traces.",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.APIKey"),
+							Ref:         ref("github.com/apoxy-dev/apoxy/api/controllers/v1alpha1.APIKey"),
 						},
 					},
 					"openTelemetrySinks": {
@@ -1055,7 +1055,7 @@ func schema_apoxy_cli_api_controllers_v1alpha1_ThirdPartySinks(ref common.Refere
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.OpenTelemetrySink"),
+										Ref:     ref("github.com/apoxy-dev/apoxy/api/controllers/v1alpha1.OpenTelemetrySink"),
 									},
 								},
 							},
@@ -1065,7 +1065,7 @@ func schema_apoxy_cli_api_controllers_v1alpha1_ThirdPartySinks(ref common.Refere
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.APIKey", "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1.OpenTelemetrySink"},
+			"github.com/apoxy-dev/apoxy/api/controllers/v1alpha1.APIKey", "github.com/apoxy-dev/apoxy/api/controllers/v1alpha1.OpenTelemetrySink"},
 	}
 }
 
@@ -1079,14 +1079,14 @@ func schema_apoxy_cli_api_core_v1alpha_AccessLog(ref common.ReferenceCallback) c
 					"fileAccessLog": {
 						SchemaProps: spec.SchemaProps{
 							Description: "FileAccessLog specifies the file access log configuration.",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.FileAccessLog"),
+							Ref:         ref("github.com/apoxy-dev/apoxy/api/core/v1alpha.FileAccessLog"),
 						},
 					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.FileAccessLog"},
+			"github.com/apoxy-dev/apoxy/api/core/v1alpha.FileAccessLog"},
 	}
 }
 
@@ -1120,20 +1120,20 @@ func schema_apoxy_cli_api_core_v1alpha_Address(ref common.ReferenceCallback) com
 					"spec": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.AddressSpec"),
+							Ref:     ref("github.com/apoxy-dev/apoxy/api/core/v1alpha.AddressSpec"),
 						},
 					},
 					"status": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.AddressStatus"),
+							Ref:     ref("github.com/apoxy-dev/apoxy/api/core/v1alpha.AddressStatus"),
 						},
 					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.AddressSpec", "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.AddressStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+			"github.com/apoxy-dev/apoxy/api/core/v1alpha.AddressSpec", "github.com/apoxy-dev/apoxy/api/core/v1alpha.AddressStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
 	}
 }
 
@@ -1171,7 +1171,7 @@ func schema_apoxy_cli_api_core_v1alpha_AddressList(ref common.ReferenceCallback)
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.Address"),
+										Ref:     ref("github.com/apoxy-dev/apoxy/api/core/v1alpha.Address"),
 									},
 								},
 							},
@@ -1182,7 +1182,7 @@ func schema_apoxy_cli_api_core_v1alpha_AddressList(ref common.ReferenceCallback)
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.Address", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+			"github.com/apoxy-dev/apoxy/api/core/v1alpha.Address", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
 	}
 }
 
@@ -1323,20 +1323,20 @@ func schema_apoxy_cli_api_core_v1alpha_Backend(ref common.ReferenceCallback) com
 					"spec": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.BackendSpec"),
+							Ref:     ref("github.com/apoxy-dev/apoxy/api/core/v1alpha.BackendSpec"),
 						},
 					},
 					"status": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.BackendStatus"),
+							Ref:     ref("github.com/apoxy-dev/apoxy/api/core/v1alpha.BackendStatus"),
 						},
 					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.BackendSpec", "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.BackendStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+			"github.com/apoxy-dev/apoxy/api/core/v1alpha.BackendSpec", "github.com/apoxy-dev/apoxy/api/core/v1alpha.BackendStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
 	}
 }
 
@@ -1400,7 +1400,7 @@ func schema_apoxy_cli_api_core_v1alpha_BackendList(ref common.ReferenceCallback)
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.Backend"),
+										Ref:     ref("github.com/apoxy-dev/apoxy/api/core/v1alpha.Backend"),
 									},
 								},
 							},
@@ -1411,7 +1411,7 @@ func schema_apoxy_cli_api_core_v1alpha_BackendList(ref common.ReferenceCallback)
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.Backend", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+			"github.com/apoxy-dev/apoxy/api/core/v1alpha.Backend", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
 	}
 }
 
@@ -1429,7 +1429,7 @@ func schema_apoxy_cli_api_core_v1alpha_BackendSpec(ref common.ReferenceCallback)
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.BackendEndpoint"),
+										Ref:     ref("github.com/apoxy-dev/apoxy/api/core/v1alpha.BackendEndpoint"),
 									},
 								},
 							},
@@ -1438,7 +1438,7 @@ func schema_apoxy_cli_api_core_v1alpha_BackendSpec(ref common.ReferenceCallback)
 					"dynamicProxy": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Specifies whether the backend should be dynamically proxied. If specified, Envoy's HTTP Dynamic Forward Proxy will be used to proxy requests to the backend. See: https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/http/http_proxy#arch-overview-http-dynamic-forward-proxy",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DynamicProxySpec"),
+							Ref:         ref("github.com/apoxy-dev/apoxy/api/core/v1alpha.DynamicProxySpec"),
 						},
 					},
 					"protocol": {
@@ -1454,7 +1454,7 @@ func schema_apoxy_cli_api_core_v1alpha_BackendSpec(ref common.ReferenceCallback)
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.BackendEndpoint", "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DynamicProxySpec"},
+			"github.com/apoxy-dev/apoxy/api/core/v1alpha.BackendEndpoint", "github.com/apoxy-dev/apoxy/api/core/v1alpha.DynamicProxySpec"},
 	}
 }
 
@@ -1523,20 +1523,20 @@ func schema_apoxy_cli_api_core_v1alpha_Domain(ref common.ReferenceCallback) comm
 					"spec": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainSpec"),
+							Ref:     ref("github.com/apoxy-dev/apoxy/api/core/v1alpha.DomainSpec"),
 						},
 					},
 					"status": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainStatus"),
+							Ref:     ref("github.com/apoxy-dev/apoxy/api/core/v1alpha.DomainStatus"),
 						},
 					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainSpec", "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+			"github.com/apoxy-dev/apoxy/api/core/v1alpha.DomainSpec", "github.com/apoxy-dev/apoxy/api/core/v1alpha.DomainStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
 	}
 }
 
@@ -1554,7 +1554,7 @@ func schema_apoxy_cli_api_core_v1alpha_DomainForwardingSpec(ref common.Reference
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.ForwardingRule"),
+										Ref:     ref("github.com/apoxy-dev/apoxy/api/core/v1alpha.ForwardingRule"),
 									},
 								},
 							},
@@ -1564,7 +1564,7 @@ func schema_apoxy_cli_api_core_v1alpha_DomainForwardingSpec(ref common.Reference
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.ForwardingRule"},
+			"github.com/apoxy-dev/apoxy/api/core/v1alpha.ForwardingRule"},
 	}
 }
 
@@ -1602,7 +1602,7 @@ func schema_apoxy_cli_api_core_v1alpha_DomainList(ref common.ReferenceCallback) 
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.Domain"),
+										Ref:     ref("github.com/apoxy-dev/apoxy/api/core/v1alpha.Domain"),
 									},
 								},
 							},
@@ -1613,7 +1613,7 @@ func schema_apoxy_cli_api_core_v1alpha_DomainList(ref common.ReferenceCallback) 
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.Domain", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+			"github.com/apoxy-dev/apoxy/api/core/v1alpha.Domain", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
 	}
 }
 
@@ -1664,19 +1664,19 @@ func schema_apoxy_cli_api_core_v1alpha_DomainSpec(ref common.ReferenceCallback) 
 						SchemaProps: spec.SchemaProps{
 							Description: "Target of the domain.",
 							Default:     map[string]interface{}{},
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainTargetSpec"),
+							Ref:         ref("github.com/apoxy-dev/apoxy/api/core/v1alpha.DomainTargetSpec"),
 						},
 					},
 					"tls": {
 						SchemaProps: spec.SchemaProps{
 							Description: "TLS configuration for the domain.",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainTLSSpec"),
+							Ref:         ref("github.com/apoxy-dev/apoxy/api/core/v1alpha.DomainTLSSpec"),
 						},
 					},
 					"forwarding": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Used to specify routing non-HTTP/S forwarding rules. For example, forwarding tcp:10000-20000 to a specified port of a target (e.g. an EdgeFunction or a TunnelEndpoint). This is a Pro feature only.",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainForwardingSpec"),
+							Ref:         ref("github.com/apoxy-dev/apoxy/api/core/v1alpha.DomainForwardingSpec"),
 						},
 					},
 					"filters": {
@@ -1686,7 +1686,7 @@ func schema_apoxy_cli_api_core_v1alpha_DomainSpec(ref common.ReferenceCallback) 
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
-										Ref: ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.LocalObjectReference"),
+										Ref: ref("github.com/apoxy-dev/apoxy/api/core/v1alpha.LocalObjectReference"),
 									},
 								},
 							},
@@ -1697,7 +1697,7 @@ func schema_apoxy_cli_api_core_v1alpha_DomainSpec(ref common.ReferenceCallback) 
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainForwardingSpec", "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainTLSSpec", "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainTargetSpec", "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.LocalObjectReference"},
+			"github.com/apoxy-dev/apoxy/api/core/v1alpha.DomainForwardingSpec", "github.com/apoxy-dev/apoxy/api/core/v1alpha.DomainTLSSpec", "github.com/apoxy-dev/apoxy/api/core/v1alpha.DomainTargetSpec", "github.com/apoxy-dev/apoxy/api/core/v1alpha.LocalObjectReference"},
 	}
 }
 
@@ -1962,20 +1962,20 @@ func schema_apoxy_cli_api_core_v1alpha_DomainTargetSpec(ref common.ReferenceCall
 					"dns": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Represents targets specified via DNS.",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainTargetDNS"),
+							Ref:         ref("github.com/apoxy-dev/apoxy/api/core/v1alpha.DomainTargetDNS"),
 						},
 					},
 					"ref": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Represent a target specified via a reference to another object within Apoxy (e.g. Proxy, EdgeFunction (type=backend), TunnelEndpoint).",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.LocalObjectReference"),
+							Ref:         ref("github.com/apoxy-dev/apoxy/api/core/v1alpha.LocalObjectReference"),
 						},
 					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainTargetDNS", "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.LocalObjectReference"},
+			"github.com/apoxy-dev/apoxy/api/core/v1alpha.DomainTargetDNS", "github.com/apoxy-dev/apoxy/api/core/v1alpha.LocalObjectReference"},
 	}
 }
 
@@ -2008,20 +2008,20 @@ func schema_apoxy_cli_api_core_v1alpha_DomainZone(ref common.ReferenceCallback) 
 					"spec": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainZoneSpec"),
+							Ref:     ref("github.com/apoxy-dev/apoxy/api/core/v1alpha.DomainZoneSpec"),
 						},
 					},
 					"status": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainZoneStatus"),
+							Ref:     ref("github.com/apoxy-dev/apoxy/api/core/v1alpha.DomainZoneStatus"),
 						},
 					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainZoneSpec", "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DomainZoneStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+			"github.com/apoxy-dev/apoxy/api/core/v1alpha.DomainZoneSpec", "github.com/apoxy-dev/apoxy/api/core/v1alpha.DomainZoneStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
 	}
 }
 
@@ -2059,7 +2059,7 @@ func schema_apoxy_cli_api_core_v1alpha_DomainZoneList(ref common.ReferenceCallba
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.Domain"),
+										Ref:     ref("github.com/apoxy-dev/apoxy/api/core/v1alpha.Domain"),
 									},
 								},
 							},
@@ -2070,7 +2070,7 @@ func schema_apoxy_cli_api_core_v1alpha_DomainZoneList(ref common.ReferenceCallba
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.Domain", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+			"github.com/apoxy-dev/apoxy/api/core/v1alpha.Domain", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
 	}
 }
 
@@ -2179,14 +2179,14 @@ func schema_apoxy_cli_api_core_v1alpha_DynamicProxySpec(ref common.ReferenceCall
 				Properties: map[string]spec.Schema{
 					"dnsCacheConfig": {
 						SchemaProps: spec.SchemaProps{
-							Ref: ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DynamicProxyDnsCacheConfig"),
+							Ref: ref("github.com/apoxy-dev/apoxy/api/core/v1alpha.DynamicProxyDnsCacheConfig"),
 						},
 					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.DynamicProxyDnsCacheConfig"},
+			"github.com/apoxy-dev/apoxy/api/core/v1alpha.DynamicProxyDnsCacheConfig"},
 	}
 }
 
@@ -2232,7 +2232,7 @@ func schema_apoxy_cli_api_core_v1alpha_ForwardingRule(ref common.ReferenceCallba
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.PortRange"),
+										Ref:     ref("github.com/apoxy-dev/apoxy/api/core/v1alpha.PortRange"),
 									},
 								},
 							},
@@ -2250,7 +2250,7 @@ func schema_apoxy_cli_api_core_v1alpha_ForwardingRule(ref common.ReferenceCallba
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.PortRange"},
+			"github.com/apoxy-dev/apoxy/api/core/v1alpha.PortRange"},
 	}
 }
 
@@ -2351,20 +2351,20 @@ func schema_apoxy_cli_api_core_v1alpha_Proxy(ref common.ReferenceCallback) commo
 					"spec": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.ProxySpec"),
+							Ref:     ref("github.com/apoxy-dev/apoxy/api/core/v1alpha.ProxySpec"),
 						},
 					},
 					"status": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.ProxyStatus"),
+							Ref:     ref("github.com/apoxy-dev/apoxy/api/core/v1alpha.ProxyStatus"),
 						},
 					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.ProxySpec", "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.ProxyStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+			"github.com/apoxy-dev/apoxy/api/core/v1alpha.ProxySpec", "github.com/apoxy-dev/apoxy/api/core/v1alpha.ProxyStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
 	}
 }
 
@@ -2402,7 +2402,7 @@ func schema_apoxy_cli_api_core_v1alpha_ProxyList(ref common.ReferenceCallback) c
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.Proxy"),
+										Ref:     ref("github.com/apoxy-dev/apoxy/api/core/v1alpha.Proxy"),
 									},
 								},
 							},
@@ -2413,7 +2413,7 @@ func schema_apoxy_cli_api_core_v1alpha_ProxyList(ref common.ReferenceCallback) c
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.Proxy", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+			"github.com/apoxy-dev/apoxy/api/core/v1alpha.Proxy", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
 	}
 }
 
@@ -2468,7 +2468,7 @@ func schema_apoxy_cli_api_core_v1alpha_ProxySpec(ref common.ReferenceCallback) c
 					"accessLog": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Access log collector configuration. This is used to configure the access log collector that will be used to collect access logs from the proxy so proxy config should have the configuration to produce access logs using the matching format/sink.",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.AccessLog"),
+							Ref:         ref("github.com/apoxy-dev/apoxy/api/core/v1alpha.AccessLog"),
 						},
 					},
 					"dynamicForwardProxy": {
@@ -2482,7 +2482,7 @@ func schema_apoxy_cli_api_core_v1alpha_ProxySpec(ref common.ReferenceCallback) c
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.AccessLog", "k8s.io/api/core/v1.ObjectReference"},
+			"github.com/apoxy-dev/apoxy/api/core/v1alpha.AccessLog", "k8s.io/api/core/v1.ObjectReference"},
 	}
 }
 
@@ -2565,20 +2565,20 @@ func schema_apoxy_cli_api_core_v1alpha_TunnelNode(ref common.ReferenceCallback) 
 					"spec": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNodeSpec"),
+							Ref:     ref("github.com/apoxy-dev/apoxy/api/core/v1alpha.TunnelNodeSpec"),
 						},
 					},
 					"status": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNodeStatus"),
+							Ref:     ref("github.com/apoxy-dev/apoxy/api/core/v1alpha.TunnelNodeStatus"),
 						},
 					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNodeSpec", "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNodeStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+			"github.com/apoxy-dev/apoxy/api/core/v1alpha.TunnelNodeSpec", "github.com/apoxy-dev/apoxy/api/core/v1alpha.TunnelNodeStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
 	}
 }
 
@@ -2635,7 +2635,7 @@ func schema_apoxy_cli_api_core_v1alpha_TunnelNodeList(ref common.ReferenceCallba
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNode"),
+										Ref:     ref("github.com/apoxy-dev/apoxy/api/core/v1alpha.TunnelNode"),
 									},
 								},
 							},
@@ -2646,7 +2646,7 @@ func schema_apoxy_cli_api_core_v1alpha_TunnelNodeList(ref common.ReferenceCallba
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNode", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+			"github.com/apoxy-dev/apoxy/api/core/v1alpha.TunnelNode", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
 	}
 }
 
@@ -2684,7 +2684,7 @@ func schema_apoxy_cli_api_core_v1alpha_TunnelNodeStatus(ref common.ReferenceCall
 					"credentials": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Credentials for the tunnel node proxy.",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNodeCredentials"),
+							Ref:         ref("github.com/apoxy-dev/apoxy/api/core/v1alpha.TunnelNodeCredentials"),
 						},
 					},
 					"agents": {
@@ -2695,7 +2695,7 @@ func schema_apoxy_cli_api_core_v1alpha_TunnelNodeStatus(ref common.ReferenceCall
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.AgentStatus"),
+										Ref:     ref("github.com/apoxy-dev/apoxy/api/core/v1alpha.AgentStatus"),
 									},
 								},
 							},
@@ -2705,7 +2705,7 @@ func schema_apoxy_cli_api_core_v1alpha_TunnelNodeStatus(ref common.ReferenceCall
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.AgentStatus", "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha.TunnelNodeCredentials"},
+			"github.com/apoxy-dev/apoxy/api/core/v1alpha.AgentStatus", "github.com/apoxy-dev/apoxy/api/core/v1alpha.TunnelNodeCredentials"},
 	}
 }
 
@@ -2738,20 +2738,20 @@ func schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunction(ref common.ReferenceC
 					"spec": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionSpec"),
+							Ref:     ref("github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.EdgeFunctionSpec"),
 						},
 					},
 					"status": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionStatus"),
+							Ref:     ref("github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.EdgeFunctionStatus"),
 						},
 					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionSpec", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+			"github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.EdgeFunctionSpec", "github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.EdgeFunctionStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
 	}
 }
 
@@ -2771,26 +2771,26 @@ func schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionCodeSource(ref common.
 					"jsSource": {
 						SchemaProps: spec.SchemaProps{
 							Description: "JsSource specifies sources for the JavaScript function runtime. If set/modified, a function will undergo a build step to compile the JavaScript source into a WebAssembly binary before it is deployed.",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.JavaScriptSource"),
+							Ref:         ref("github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.JavaScriptSource"),
 						},
 					},
 					"wasmSource": {
 						SchemaProps: spec.SchemaProps{
 							Description: "WasmSource specifies sources for the WebAssembly function runtime.",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.WasmSource"),
+							Ref:         ref("github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.WasmSource"),
 						},
 					},
 					"goPluginSource": {
 						SchemaProps: spec.SchemaProps{
 							Description: "GoSource specifies sources for the Go filter plugin. This option is only available for non-cloud (kubernets, unmanaged, etc) Proxy providers.",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.GoPluginSource"),
+							Ref:         ref("github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.GoPluginSource"),
 						},
 					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.GoPluginSource", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.JavaScriptSource", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.WasmSource", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+			"github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.GoPluginSource", "github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.JavaScriptSource", "github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.WasmSource", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
 	}
 }
 
@@ -2827,7 +2827,7 @@ func schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionList(ref common.Refere
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunction"),
+										Ref:     ref("github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.EdgeFunction"),
 									},
 								},
 							},
@@ -2838,7 +2838,7 @@ func schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionList(ref common.Refere
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunction", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+			"github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.EdgeFunction", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
 	}
 }
 
@@ -2872,20 +2872,20 @@ func schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionRevision(ref common.Re
 					"spec": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionSpec"),
+							Ref:     ref("github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.EdgeFunctionSpec"),
 						},
 					},
 					"status": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRevisionStatus"),
+							Ref:     ref("github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.EdgeFunctionRevisionStatus"),
 						},
 					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRevisionStatus", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionSpec", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+			"github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.EdgeFunctionRevisionStatus", "github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.EdgeFunctionSpec", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
 	}
 }
 
@@ -2922,7 +2922,7 @@ func schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionRevisionList(ref commo
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRevision"),
+										Ref:     ref("github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.EdgeFunctionRevision"),
 									},
 								},
 							},
@@ -2933,7 +2933,7 @@ func schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionRevisionList(ref commo
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRevision", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+			"github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.EdgeFunctionRevision", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
 	}
 }
 
@@ -2990,7 +2990,7 @@ func schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionRuntime(ref common.Ref
 					"capabilities": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Capabilities is the list of capabilities granted to the function.",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.RuntimeCapabilities"),
+							Ref:         ref("github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.RuntimeCapabilities"),
 						},
 					},
 					"port": {
@@ -3004,7 +3004,7 @@ func schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionRuntime(ref common.Ref
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.RuntimeCapabilities", "k8s.io/apimachinery/pkg/apis/meta/v1.Duration"},
+			"github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.RuntimeCapabilities", "k8s.io/apimachinery/pkg/apis/meta/v1.Duration"},
 	}
 }
 
@@ -3026,7 +3026,7 @@ func schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionSpec(ref common.Refere
 						SchemaProps: spec.SchemaProps{
 							Description: "Code is the source of the function code/binary.",
 							Default:     map[string]interface{}{},
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionCodeSource"),
+							Ref:         ref("github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.EdgeFunctionCodeSource"),
 						},
 					},
 					"env": {
@@ -3037,7 +3037,7 @@ func schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionSpec(ref common.Refere
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EnvVar"),
+										Ref:     ref("github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.EnvVar"),
 									},
 								},
 							},
@@ -3046,7 +3046,7 @@ func schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionSpec(ref common.Refere
 					"runtime": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Configuration for the function runtime.",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRuntime"),
+							Ref:         ref("github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.EdgeFunctionRuntime"),
 						},
 					},
 				},
@@ -3054,7 +3054,7 @@ func schema_apoxy_cli_api_extensions_v1alpha1_EdgeFunctionSpec(ref common.Refere
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionCodeSource", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EdgeFunctionRuntime", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.EnvVar"},
+			"github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.EdgeFunctionCodeSource", "github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.EdgeFunctionRuntime", "github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.EnvVar"},
 	}
 }
 
@@ -3175,7 +3175,7 @@ func schema_apoxy_cli_api_extensions_v1alpha1_GoPluginSource(ref common.Referenc
 					"oci": {
 						SchemaProps: spec.SchemaProps{
 							Description: "OCI is the OCI image reference to the Go plugin.",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.OCIImageRef"),
+							Ref:         ref("github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.OCIImageRef"),
 						},
 					},
 					"pluginConfig": {
@@ -3189,7 +3189,7 @@ func schema_apoxy_cli_api_extensions_v1alpha1_GoPluginSource(ref common.Referenc
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.OCIImageRef"},
+			"github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.OCIImageRef"},
 	}
 }
 
@@ -3206,7 +3206,7 @@ func schema_apoxy_cli_api_extensions_v1alpha1_JavaScriptAssetsSource(ref common.
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.SourceFile"),
+										Ref:     ref("github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.SourceFile"),
 									},
 								},
 							},
@@ -3217,7 +3217,7 @@ func schema_apoxy_cli_api_extensions_v1alpha1_JavaScriptAssetsSource(ref common.
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.SourceFile"},
+			"github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.SourceFile"},
 	}
 }
 
@@ -3302,19 +3302,19 @@ func schema_apoxy_cli_api_extensions_v1alpha1_JavaScriptSource(ref common.Refere
 					"assets": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Asset accepts a list of source files to be included in the function. Only one of Assets, Git, or Npm may be specified.",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.JavaScriptAssetsSource"),
+							Ref:         ref("github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.JavaScriptAssetsSource"),
 						},
 					},
 					"git": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Git is the git source for the function. Only one of Assets, Git, or Npm may be specified.",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.JavaScriptGitSource"),
+							Ref:         ref("github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.JavaScriptGitSource"),
 						},
 					},
 					"npm": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Npm is the npm source for the function. Only one of Assets, Git, or Npm may be specified.",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.JavaScriptNpmSource"),
+							Ref:         ref("github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.JavaScriptNpmSource"),
 						},
 					},
 				},
@@ -3322,7 +3322,7 @@ func schema_apoxy_cli_api_extensions_v1alpha1_JavaScriptSource(ref common.Refere
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.JavaScriptAssetsSource", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.JavaScriptGitSource", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.JavaScriptNpmSource"},
+			"github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.JavaScriptAssetsSource", "github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.JavaScriptGitSource", "github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.JavaScriptNpmSource"},
 	}
 }
 
@@ -3421,13 +3421,13 @@ func schema_apoxy_cli_api_extensions_v1alpha1_OCIImageRef(ref common.ReferenceCa
 					"credentials": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Credentials is the credentials for pulling the OCI image. Only one of Credentials or CredentialsRef may be specified.",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.OCICredentials"),
+							Ref:         ref("github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.OCICredentials"),
 						},
 					},
 					"credentialsRef": {
 						SchemaProps: spec.SchemaProps{
 							Description: "CredentialsRef is the reference to the secret containing the credentials for pulling the OCI image. Only one of Credentials or CredentialsRef may be specified.",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.OCICredentialsObjectReference"),
+							Ref:         ref("github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.OCICredentialsObjectReference"),
 						},
 					},
 				},
@@ -3435,7 +3435,7 @@ func schema_apoxy_cli_api_extensions_v1alpha1_OCIImageRef(ref common.ReferenceCa
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.OCICredentials", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha1.OCICredentialsObjectReference"},
+			"github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.OCICredentials", "github.com/apoxy-dev/apoxy/api/extensions/v1alpha1.OCICredentialsObjectReference"},
 	}
 }
 
@@ -3544,20 +3544,20 @@ func schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunction(ref common.ReferenceC
 					"spec": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunctionSpec"),
+							Ref:     ref("github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.EdgeFunctionSpec"),
 						},
 					},
 					"status": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunctionStatus"),
+							Ref:     ref("github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.EdgeFunctionStatus"),
 						},
 					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunctionSpec", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunctionStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+			"github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.EdgeFunctionSpec", "github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.EdgeFunctionStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
 	}
 }
 
@@ -3577,26 +3577,26 @@ func schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunctionCodeSource(ref common.
 					"jsSource": {
 						SchemaProps: spec.SchemaProps{
 							Description: "JsSource specifies sources for the JavaScript function runtime. If set/modified, a function will undergo a build step to compile the JavaScript source into a WebAssembly binary before it is deployed.",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.JavaScriptSource"),
+							Ref:         ref("github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.JavaScriptSource"),
 						},
 					},
 					"wasmSource": {
 						SchemaProps: spec.SchemaProps{
 							Description: "WasmSource specifies sources for the WebAssembly function runtime.",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.WasmSource"),
+							Ref:         ref("github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.WasmSource"),
 						},
 					},
 					"goPluginSource": {
 						SchemaProps: spec.SchemaProps{
 							Description: "GoSource specifies sources for the Go filter plugin. This option is only available for non-cloud (kubernets, unmanaged, etc) Proxy providers.",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.GoPluginSource"),
+							Ref:         ref("github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.GoPluginSource"),
 						},
 					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.GoPluginSource", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.JavaScriptSource", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.WasmSource", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+			"github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.GoPluginSource", "github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.JavaScriptSource", "github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.WasmSource", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
 	}
 }
 
@@ -3633,7 +3633,7 @@ func schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunctionList(ref common.Refere
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunction"),
+										Ref:     ref("github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.EdgeFunction"),
 									},
 								},
 							},
@@ -3644,7 +3644,7 @@ func schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunctionList(ref common.Refere
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunction", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+			"github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.EdgeFunction", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
 	}
 }
 
@@ -3678,20 +3678,20 @@ func schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunctionRevision(ref common.Re
 					"spec": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunctionRevisionSpec"),
+							Ref:     ref("github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.EdgeFunctionRevisionSpec"),
 						},
 					},
 					"status": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunctionRevisionStatus"),
+							Ref:     ref("github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.EdgeFunctionRevisionStatus"),
 						},
 					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunctionRevisionSpec", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunctionRevisionStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+			"github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.EdgeFunctionRevisionSpec", "github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.EdgeFunctionRevisionStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
 	}
 }
 
@@ -3728,7 +3728,7 @@ func schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunctionRevisionList(ref commo
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunctionRevision"),
+										Ref:     ref("github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.EdgeFunctionRevision"),
 									},
 								},
 							},
@@ -3739,7 +3739,7 @@ func schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunctionRevisionList(ref commo
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunctionRevision", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+			"github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.EdgeFunctionRevision", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
 	}
 }
 
@@ -3761,7 +3761,7 @@ func schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunctionRevisionSpec(ref commo
 						SchemaProps: spec.SchemaProps{
 							Description: "Code is the source of the function code/binary.",
 							Default:     map[string]interface{}{},
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunctionCodeSource"),
+							Ref:         ref("github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.EdgeFunctionCodeSource"),
 						},
 					},
 					"env": {
@@ -3772,7 +3772,7 @@ func schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunctionRevisionSpec(ref commo
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EnvVar"),
+										Ref:     ref("github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.EnvVar"),
 									},
 								},
 							},
@@ -3781,7 +3781,7 @@ func schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunctionRevisionSpec(ref commo
 					"runtime": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Configuration for the function runtime.",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunctionRuntime"),
+							Ref:         ref("github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.EdgeFunctionRuntime"),
 						},
 					},
 				},
@@ -3789,7 +3789,7 @@ func schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunctionRevisionSpec(ref commo
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunctionCodeSource", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunctionRuntime", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EnvVar"},
+			"github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.EdgeFunctionCodeSource", "github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.EdgeFunctionRuntime", "github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.EnvVar"},
 	}
 }
 
@@ -3846,7 +3846,7 @@ func schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunctionRuntime(ref common.Ref
 					"capabilities": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Capabilities is the list of capabilities granted to the function.",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.RuntimeCapabilities"),
+							Ref:         ref("github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.RuntimeCapabilities"),
 						},
 					},
 					"port": {
@@ -3860,7 +3860,7 @@ func schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunctionRuntime(ref common.Ref
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.RuntimeCapabilities", "k8s.io/apimachinery/pkg/apis/meta/v1.Duration"},
+			"github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.RuntimeCapabilities", "k8s.io/apimachinery/pkg/apis/meta/v1.Duration"},
 	}
 }
 
@@ -3874,7 +3874,7 @@ func schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunctionSpec(ref common.Refere
 						SchemaProps: spec.SchemaProps{
 							Description: "Template is the template of the function.",
 							Default:     map[string]interface{}{},
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunctionRevisionSpec"),
+							Ref:         ref("github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.EdgeFunctionRevisionSpec"),
 						},
 					},
 					"revisionHistoryLimit": {
@@ -3889,7 +3889,7 @@ func schema_apoxy_cli_api_extensions_v1alpha2_EdgeFunctionSpec(ref common.Refere
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.EdgeFunctionRevisionSpec"},
+			"github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.EdgeFunctionRevisionSpec"},
 	}
 }
 
@@ -3973,7 +3973,7 @@ func schema_apoxy_cli_api_extensions_v1alpha2_GoPluginSource(ref common.Referenc
 					"oci": {
 						SchemaProps: spec.SchemaProps{
 							Description: "OCI is the OCI image reference to the Go plugin.",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.OCIImageRef"),
+							Ref:         ref("github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.OCIImageRef"),
 						},
 					},
 					"pluginConfig": {
@@ -3987,7 +3987,7 @@ func schema_apoxy_cli_api_extensions_v1alpha2_GoPluginSource(ref common.Referenc
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.OCIImageRef"},
+			"github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.OCIImageRef"},
 	}
 }
 
@@ -4004,7 +4004,7 @@ func schema_apoxy_cli_api_extensions_v1alpha2_JavaScriptAssetsSource(ref common.
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.SourceFile"),
+										Ref:     ref("github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.SourceFile"),
 									},
 								},
 							},
@@ -4015,7 +4015,7 @@ func schema_apoxy_cli_api_extensions_v1alpha2_JavaScriptAssetsSource(ref common.
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.SourceFile"},
+			"github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.SourceFile"},
 	}
 }
 
@@ -4100,19 +4100,19 @@ func schema_apoxy_cli_api_extensions_v1alpha2_JavaScriptSource(ref common.Refere
 					"assets": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Asset accepts a list of source files to be included in the function. Only one of Assets, Git, or Npm may be specified.",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.JavaScriptAssetsSource"),
+							Ref:         ref("github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.JavaScriptAssetsSource"),
 						},
 					},
 					"git": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Git is the git source for the function. Only one of Assets, Git, or Npm may be specified.",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.JavaScriptGitSource"),
+							Ref:         ref("github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.JavaScriptGitSource"),
 						},
 					},
 					"npm": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Npm is the npm source for the function. Only one of Assets, Git, or Npm may be specified.",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.JavaScriptNpmSource"),
+							Ref:         ref("github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.JavaScriptNpmSource"),
 						},
 					},
 				},
@@ -4120,7 +4120,7 @@ func schema_apoxy_cli_api_extensions_v1alpha2_JavaScriptSource(ref common.Refere
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.JavaScriptAssetsSource", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.JavaScriptGitSource", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.JavaScriptNpmSource"},
+			"github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.JavaScriptAssetsSource", "github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.JavaScriptGitSource", "github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.JavaScriptNpmSource"},
 	}
 }
 
@@ -4227,13 +4227,13 @@ func schema_apoxy_cli_api_extensions_v1alpha2_OCIImageRef(ref common.ReferenceCa
 					"credentials": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Credentials is the credentials for pulling the OCI image. Only one of Credentials or CredentialsRef may be specified.",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.OCICredentials"),
+							Ref:         ref("github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.OCICredentials"),
 						},
 					},
 					"credentialsRef": {
 						SchemaProps: spec.SchemaProps{
 							Description: "CredentialsRef is the reference to the secret containing the credentials for pulling the OCI image. Only one of Credentials or CredentialsRef may be specified.",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.OCICredentialsObjectReference"),
+							Ref:         ref("github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.OCICredentialsObjectReference"),
 						},
 					},
 				},
@@ -4241,7 +4241,7 @@ func schema_apoxy_cli_api_extensions_v1alpha2_OCIImageRef(ref common.ReferenceCa
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.OCICredentials", "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2.OCICredentialsObjectReference"},
+			"github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.OCICredentials", "github.com/apoxy-dev/apoxy/api/extensions/v1alpha2.OCICredentialsObjectReference"},
 	}
 }
 
@@ -4400,7 +4400,7 @@ func schema_apoxy_cli_api_gateway_v1_GRPCRouteList(ref common.ReferenceCallback)
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/gateway/v1.GRPCRoute"),
+										Ref:     ref("github.com/apoxy-dev/apoxy/api/gateway/v1.GRPCRoute"),
 									},
 								},
 							},
@@ -4411,7 +4411,7 @@ func schema_apoxy_cli_api_gateway_v1_GRPCRouteList(ref common.ReferenceCallback)
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/gateway/v1.GRPCRoute", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+			"github.com/apoxy-dev/apoxy/api/gateway/v1.GRPCRoute", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
 	}
 }
 
@@ -4540,7 +4540,7 @@ func schema_apoxy_cli_api_gateway_v1_GatewayClassList(ref common.ReferenceCallba
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/gateway/v1.GatewayClass"),
+										Ref:     ref("github.com/apoxy-dev/apoxy/api/gateway/v1.GatewayClass"),
 									},
 								},
 							},
@@ -4551,7 +4551,7 @@ func schema_apoxy_cli_api_gateway_v1_GatewayClassList(ref common.ReferenceCallba
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/gateway/v1.GatewayClass", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+			"github.com/apoxy-dev/apoxy/api/gateway/v1.GatewayClass", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
 	}
 }
 
@@ -4588,7 +4588,7 @@ func schema_apoxy_cli_api_gateway_v1_GatewayList(ref common.ReferenceCallback) c
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/gateway/v1.Gateway"),
+										Ref:     ref("github.com/apoxy-dev/apoxy/api/gateway/v1.Gateway"),
 									},
 								},
 							},
@@ -4599,7 +4599,7 @@ func schema_apoxy_cli_api_gateway_v1_GatewayList(ref common.ReferenceCallback) c
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/gateway/v1.Gateway", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+			"github.com/apoxy-dev/apoxy/api/gateway/v1.Gateway", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
 	}
 }
 
@@ -4682,7 +4682,7 @@ func schema_apoxy_cli_api_gateway_v1_HTTPRouteList(ref common.ReferenceCallback)
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/gateway/v1.HTTPRoute"),
+										Ref:     ref("github.com/apoxy-dev/apoxy/api/gateway/v1.HTTPRoute"),
 									},
 								},
 							},
@@ -4693,7 +4693,7 @@ func schema_apoxy_cli_api_gateway_v1_HTTPRouteList(ref common.ReferenceCallback)
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/gateway/v1.HTTPRoute", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+			"github.com/apoxy-dev/apoxy/api/gateway/v1.HTTPRoute", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
 	}
 }
 
@@ -4726,20 +4726,20 @@ func schema_apoxy_cli_api_policy_v1alpha1_RateLimit(ref common.ReferenceCallback
 					"spec": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/policy/v1alpha1.RateLimitSpec"),
+							Ref:     ref("github.com/apoxy-dev/apoxy/api/policy/v1alpha1.RateLimitSpec"),
 						},
 					},
 					"status": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/policy/v1alpha1.RateLimitStatus"),
+							Ref:     ref("github.com/apoxy-dev/apoxy/api/policy/v1alpha1.RateLimitStatus"),
 						},
 					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/policy/v1alpha1.RateLimitSpec", "github.com/apoxy-dev/apoxy-cli/api/policy/v1alpha1.RateLimitStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+			"github.com/apoxy-dev/apoxy/api/policy/v1alpha1.RateLimitSpec", "github.com/apoxy-dev/apoxy/api/policy/v1alpha1.RateLimitStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
 	}
 }
 
@@ -4766,7 +4766,7 @@ func schema_apoxy_cli_api_policy_v1alpha1_RateLimitDescriptor(ref common.Referen
 					"rateLimit": {
 						SchemaProps: spec.SchemaProps{
 							Description: "RateLimit defines the rate limit policy for the descriptor.",
-							Ref:         ref("github.com/apoxy-dev/apoxy-cli/api/policy/v1alpha1.RateLimitPolicy"),
+							Ref:         ref("github.com/apoxy-dev/apoxy/api/policy/v1alpha1.RateLimitPolicy"),
 						},
 					},
 					"shadowMode": {
@@ -4780,7 +4780,7 @@ func schema_apoxy_cli_api_policy_v1alpha1_RateLimitDescriptor(ref common.Referen
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/policy/v1alpha1.RateLimitPolicy"},
+			"github.com/apoxy-dev/apoxy/api/policy/v1alpha1.RateLimitPolicy"},
 	}
 }
 
@@ -4818,7 +4818,7 @@ func schema_apoxy_cli_api_policy_v1alpha1_RateLimitList(ref common.ReferenceCall
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/apoxy-dev/apoxy-cli/api/policy/v1alpha1.RateLimit"),
+										Ref:     ref("github.com/apoxy-dev/apoxy/api/policy/v1alpha1.RateLimit"),
 									},
 								},
 							},
@@ -4829,7 +4829,7 @@ func schema_apoxy_cli_api_policy_v1alpha1_RateLimitList(ref common.ReferenceCall
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/policy/v1alpha1.RateLimit", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+			"github.com/apoxy-dev/apoxy/api/policy/v1alpha1.RateLimit", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
 	}
 }
 
@@ -4879,7 +4879,7 @@ func schema_apoxy_cli_api_policy_v1alpha1_RateLimitSpec(ref common.ReferenceCall
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
-										Ref: ref("github.com/apoxy-dev/apoxy-cli/api/policy/v1alpha1.RateLimitDescriptor"),
+										Ref: ref("github.com/apoxy-dev/apoxy/api/policy/v1alpha1.RateLimitDescriptor"),
 									},
 								},
 							},
@@ -4889,7 +4889,7 @@ func schema_apoxy_cli_api_policy_v1alpha1_RateLimitSpec(ref common.ReferenceCall
 			},
 		},
 		Dependencies: []string{
-			"github.com/apoxy-dev/apoxy-cli/api/policy/v1alpha1.RateLimitDescriptor"},
+			"github.com/apoxy-dev/apoxy/api/policy/v1alpha1.RateLimitDescriptor"},
 	}
 }
 

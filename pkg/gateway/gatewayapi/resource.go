@@ -18,11 +18,11 @@ import (
 	gwapiv1b1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 	mcsapi "sigs.k8s.io/mcs-api/pkg/apis/v1alpha1"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/ir"
+	"github.com/apoxy-dev/apoxy/pkg/gateway/ir"
 
-	ctrlv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
-	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
-	extensionsv1alpha2 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2"
+	ctrlv1alpha1 "github.com/apoxy-dev/apoxy/api/controllers/v1alpha1"
+	corev1alpha "github.com/apoxy-dev/apoxy/api/core/v1alpha"
+	extensionsv1alpha2 "github.com/apoxy-dev/apoxy/api/extensions/v1alpha2"
 )
 
 type XdsIRMap map[string]*ir.Xds

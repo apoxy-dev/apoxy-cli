@@ -24,7 +24,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	policyv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/policy/v1alpha1"
+	policyv1alpha1 "github.com/apoxy-dev/apoxy/api/policy/v1alpha1"
 )
 
 const (

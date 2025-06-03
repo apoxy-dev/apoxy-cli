@@ -8,9 +8,9 @@ import (
 	"github.com/coredns/coredns/plugin"
 	"github.com/miekg/dns"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/edgefunc/runc/network"
-	"github.com/apoxy-dev/apoxy-cli/pkg/log"
-	apoxynet "github.com/apoxy-dev/apoxy-cli/pkg/net"
+	"github.com/apoxy-dev/apoxy/pkg/edgefunc/runc/network"
+	"github.com/apoxy-dev/apoxy/pkg/log"
+	apoxynet "github.com/apoxy-dev/apoxy/pkg/net"
 )
 
 const (

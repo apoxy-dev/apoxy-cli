@@ -13,8 +13,8 @@ import (
 	controllerlog "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
-	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/token"
+	corev1alpha "github.com/apoxy-dev/apoxy/api/core/v1alpha"
+	"github.com/apoxy-dev/apoxy/pkg/tunnel/token"
 )
 
 // TunnelNodeReconciler implements a basic garbage collector for dead/orphaned

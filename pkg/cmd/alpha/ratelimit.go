@@ -6,8 +6,8 @@ import (
 	"github.com/spf13/cobra"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/apoxy-dev/apoxy-cli/api/policy/v1alpha1"
-	"github.com/apoxy-dev/apoxy-cli/config"
+	"github.com/apoxy-dev/apoxy/api/policy/v1alpha1"
+	"github.com/apoxy-dev/apoxy/config"
 )
 
 // rateLimitCmd represents the proxy command

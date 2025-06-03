@@ -7,7 +7,7 @@ import (
 	"k8s.io/apiserver/pkg/registry/rest"
 	"sigs.k8s.io/apiserver-runtime/pkg/builder/resource"
 
-	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
+	corev1alpha "github.com/apoxy-dev/apoxy/api/core/v1alpha"
 )
 
 type SourceFile struct {

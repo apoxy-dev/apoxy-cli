@@ -15,9 +15,9 @@ import (
 	"github.com/tetratelabs/wazero"
 	"google.golang.org/protobuf/types/known/structpb"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/wasm/abi"
-	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/wasm/runtime/fetch"
-	"github.com/apoxy-dev/apoxy-cli/pkg/log"
+	"github.com/apoxy-dev/apoxy/pkg/backplane/wasm/abi"
+	"github.com/apoxy-dev/apoxy/pkg/backplane/wasm/runtime/fetch"
+	"github.com/apoxy-dev/apoxy/pkg/log"
 )
 
 const (

@@ -11,9 +11,9 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/netstack"
-	"github.com/apoxy-dev/apoxy-cli/pkg/socksproxy"
-	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/connection"
+	"github.com/apoxy-dev/apoxy/pkg/netstack"
+	"github.com/apoxy-dev/apoxy/pkg/socksproxy"
+	"github.com/apoxy-dev/apoxy/pkg/tunnel/connection"
 	"github.com/dpeckett/network"
 )
 

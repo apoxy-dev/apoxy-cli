@@ -6,7 +6,7 @@ import (
 	"net"
 	"os/exec"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/log"
+	"github.com/apoxy-dev/apoxy/pkg/log"
 )
 
 func handleConnection(

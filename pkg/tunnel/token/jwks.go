@@ -9,7 +9,7 @@ import (
 
 	"github.com/MicahParks/jwkset"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/cryptoutils"
+	"github.com/apoxy-dev/apoxy/pkg/cryptoutils"
 )
 
 const (

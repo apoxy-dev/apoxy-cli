@@ -29,12 +29,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/connection"
-	tunnet "github.com/apoxy-dev/apoxy-cli/pkg/tunnel/net"
-	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/router"
-	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/token"
+	"github.com/apoxy-dev/apoxy/pkg/tunnel/connection"
+	tunnet "github.com/apoxy-dev/apoxy/pkg/tunnel/net"
+	"github.com/apoxy-dev/apoxy/pkg/tunnel/router"
+	"github.com/apoxy-dev/apoxy/pkg/tunnel/token"
 
-	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
+	corev1alpha "github.com/apoxy-dev/apoxy/api/core/v1alpha"
 )
 
 var (

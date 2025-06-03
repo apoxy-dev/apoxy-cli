@@ -5,7 +5,7 @@ import (
 	"io"
 	"net/netip"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/connection"
+	"github.com/apoxy-dev/apoxy/pkg/tunnel/connection"
 )
 
 // Router is an interface for managing tunnel routing.

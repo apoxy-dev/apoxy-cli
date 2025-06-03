@@ -5,7 +5,7 @@ package router_test
 import (
 	"testing"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/utils/vm"
+	"github.com/apoxy-dev/apoxy/pkg/utils/vm"
 )
 
 // A stub for non-linux operating systems, when the test is compiled for the VM

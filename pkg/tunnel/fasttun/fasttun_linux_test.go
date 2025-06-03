@@ -15,9 +15,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/netstack"
-	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/fasttun"
-	"github.com/apoxy-dev/apoxy-cli/pkg/utils/vm"
+	"github.com/apoxy-dev/apoxy/pkg/netstack"
+	"github.com/apoxy-dev/apoxy/pkg/tunnel/fasttun"
+	"github.com/apoxy-dev/apoxy/pkg/utils/vm"
 	"github.com/stretchr/testify/require"
 	"github.com/vishvananda/netlink"
 	"github.com/vishvananda/netns"

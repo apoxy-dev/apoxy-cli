@@ -17,14 +17,14 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
-	"github.com/apoxy-dev/apoxy-cli/client/informers"
-	"github.com/apoxy-dev/apoxy-cli/client/versioned"
-	"github.com/apoxy-dev/apoxy-cli/pkg/drivers"
-	"github.com/apoxy-dev/apoxy-cli/pkg/log"
+	"github.com/apoxy-dev/apoxy/client/informers"
+	"github.com/apoxy-dev/apoxy/client/versioned"
+	"github.com/apoxy-dev/apoxy/pkg/drivers"
+	"github.com/apoxy-dev/apoxy/pkg/log"
 
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	ctrlv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
+	ctrlv1alpha1 "github.com/apoxy-dev/apoxy/api/controllers/v1alpha1"
 )
 
 const (

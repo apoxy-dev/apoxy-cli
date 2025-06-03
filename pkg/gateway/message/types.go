@@ -11,9 +11,9 @@ import (
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 	gwapiv1a2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/gatewayapi"
-	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/ir"
-	xdstypes "github.com/apoxy-dev/apoxy-cli/pkg/gateway/xds/types"
+	"github.com/apoxy-dev/apoxy/pkg/gateway/gatewayapi"
+	"github.com/apoxy-dev/apoxy/pkg/gateway/ir"
+	xdstypes "github.com/apoxy-dev/apoxy/pkg/gateway/xds/types"
 )
 
 // ProviderResources message

@@ -21,7 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gvisor.dev/gvisor/pkg/tcpip/transport/tcp"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/netstack"
+	"github.com/apoxy-dev/apoxy/pkg/netstack"
 )
 
 func TestTCPForwarder(t *testing.T) {

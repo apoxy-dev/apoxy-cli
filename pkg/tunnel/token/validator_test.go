@@ -10,8 +10,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/cryptoutils"
-	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/token"
+	"github.com/apoxy-dev/apoxy/pkg/cryptoutils"
+	"github.com/apoxy-dev/apoxy/pkg/tunnel/token"
 )
 
 func TestInMemoryValidator(t *testing.T) {

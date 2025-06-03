@@ -17,12 +17,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/shirou/gopsutil/process"
 
-	"github.com/apoxy-dev/apoxy-cli/config"
-	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/logs"
-	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/otel"
-	"github.com/apoxy-dev/apoxy-cli/pkg/log"
+	"github.com/apoxy-dev/apoxy/config"
+	"github.com/apoxy-dev/apoxy/pkg/backplane/logs"
+	"github.com/apoxy-dev/apoxy/pkg/backplane/otel"
+	"github.com/apoxy-dev/apoxy/pkg/log"
 
-	_ "github.com/apoxy-dev/apoxy-cli/pkg/gateway/xds/extensions"
+	_ "github.com/apoxy-dev/apoxy/pkg/gateway/xds/extensions"
 )
 
 const (

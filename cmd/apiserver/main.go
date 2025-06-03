@@ -15,11 +15,11 @@ import (
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	a3yversionedclient "github.com/apoxy-dev/apoxy-cli/client/versioned"
-	"github.com/apoxy-dev/apoxy-cli/pkg/apiserver"
-	"github.com/apoxy-dev/apoxy-cli/pkg/apiserver/ingest"
-	"github.com/apoxy-dev/apoxy-cli/pkg/gateway"
-	"github.com/apoxy-dev/apoxy-cli/pkg/log"
+	a3yversionedclient "github.com/apoxy-dev/apoxy/client/versioned"
+	"github.com/apoxy-dev/apoxy/pkg/apiserver"
+	"github.com/apoxy-dev/apoxy/pkg/apiserver/ingest"
+	"github.com/apoxy-dev/apoxy/pkg/gateway"
+	"github.com/apoxy-dev/apoxy/pkg/log"
 )
 
 var (

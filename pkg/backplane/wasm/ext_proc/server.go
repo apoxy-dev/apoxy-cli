@@ -7,8 +7,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/wasm/manifest"
-	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/wasm/runtime"
+	"github.com/apoxy-dev/apoxy/pkg/backplane/wasm/manifest"
+	"github.com/apoxy-dev/apoxy/pkg/backplane/wasm/runtime"
 )
 
 // Server implements ext_procv3.ExternalProcessorServer.

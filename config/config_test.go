@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	configv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/config/v1alpha1"
-	"github.com/apoxy-dev/apoxy-cli/config"
+	configv1alpha1 "github.com/apoxy-dev/apoxy/api/config/v1alpha1"
+	"github.com/apoxy-dev/apoxy/config"
 )
 
 func TestConfigLoad(t *testing.T) {

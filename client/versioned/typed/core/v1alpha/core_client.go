@@ -20,8 +20,8 @@ package v1alpha
 import (
 	"net/http"
 
-	v1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
-	"github.com/apoxy-dev/apoxy-cli/client/versioned/scheme"
+	v1alpha "github.com/apoxy-dev/apoxy/api/core/v1alpha"
+	"github.com/apoxy-dev/apoxy/client/versioned/scheme"
 	rest "k8s.io/client-go/rest"
 )
 

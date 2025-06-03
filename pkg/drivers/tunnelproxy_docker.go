@@ -11,11 +11,11 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/apoxy-dev/apoxy-cli/build"
-	"github.com/apoxy-dev/apoxy-cli/pkg/cryptoutils"
-	"github.com/apoxy-dev/apoxy-cli/pkg/log"
-	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/token"
-	dockerutils "github.com/apoxy-dev/apoxy-cli/pkg/utils/docker"
+	"github.com/apoxy-dev/apoxy/build"
+	"github.com/apoxy-dev/apoxy/pkg/cryptoutils"
+	"github.com/apoxy-dev/apoxy/pkg/log"
+	"github.com/apoxy-dev/apoxy/pkg/tunnel/token"
+	dockerutils "github.com/apoxy-dev/apoxy/pkg/utils/docker"
 )
 
 const (

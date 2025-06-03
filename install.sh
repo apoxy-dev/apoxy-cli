@@ -41,20 +41,20 @@ function install_apoxy() {
 					*)       ARCH=$(uname -m);;
 			esac
 			set -x
-			curl -fsSL https://github.com/apoxy-dev/apoxy-cli/releases/download/v$VERSION/apoxy-linux-$ARCH > apoxy
+			curl -fsSL https://github.com/apoxy-dev/apoxy/releases/download/v$VERSION/apoxy-linux-$ARCH > apoxy
 			copy_binary
   elif [[ "$OSTYPE" == "darwin"* ]]; then
 			# On macOS, "uname -m" reports "arm64" on ARM 64 bits machines
 			ARCH=$(uname -m)
 			set -x
-			curl -fsSL https://github.com/apoxy-dev/apoxy-cli/releases/download/v$VERSION/apoxy-darwin-$ARCH > apoxy
+			curl -fsSL https://github.com/apoxy-dev/apoxy/releases/download/v$VERSION/apoxy-darwin-$ARCH > apoxy
 			copy_binary
   else
       set +x
       echo "The Apoxy installer does not work for your platform: $OSTYPE"
       echo ""
       echo "If you think your platform should be supported, please file an issue:"
-      echo "https://github.com/apoxy-dev/apoxy-cli/issues/new"
+      echo "https://github.com/apoxy-dev/apoxy/issues/new"
       echo "Thank you!"
       exit 1
   fi

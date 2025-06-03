@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	proxyclient "golang.org/x/net/proxy"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/socksproxy"
+	"github.com/apoxy-dev/apoxy/pkg/socksproxy"
 )
 
 func TestProxyServer(t *testing.T) {

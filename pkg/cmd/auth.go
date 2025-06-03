@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/apoxy-dev/apoxy-cli/config"
+	"github.com/apoxy-dev/apoxy/config"
 )
 
 var checkOnly bool

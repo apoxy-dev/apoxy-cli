@@ -24,7 +24,7 @@ import (
 	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/tools/clientcmd"
 
-	"github.com/apoxy-dev/apoxy-cli/config"
+	"github.com/apoxy-dev/apoxy/config"
 )
 
 var (

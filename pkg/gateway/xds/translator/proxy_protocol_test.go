@@ -12,7 +12,7 @@ import (
 	"github.com/envoyproxy/go-control-plane/pkg/wellknown"
 	"github.com/stretchr/testify/require"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/ir"
+	"github.com/apoxy-dev/apoxy/pkg/gateway/ir"
 )
 
 func TestPatchProxyProtocolFilter(t *testing.T) {

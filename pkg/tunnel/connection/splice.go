@@ -13,7 +13,7 @@ import (
 	"golang.zx2c4.com/wireguard/tun"
 	"k8s.io/utils/ptr"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/netstack"
+	"github.com/apoxy-dev/apoxy/pkg/netstack"
 )
 
 const (

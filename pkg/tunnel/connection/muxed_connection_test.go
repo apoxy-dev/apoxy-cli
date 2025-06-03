@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/connection"
+	"github.com/apoxy-dev/apoxy/pkg/tunnel/connection"
 )
 
 type MockConnection struct {

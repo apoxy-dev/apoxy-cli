@@ -27,12 +27,12 @@ import (
 	apimachinerytypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
-	"github.com/apoxy-dev/apoxy-cli/pkg/cryptoutils"
-	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel"
-	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/router"
-	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/token"
-	"github.com/apoxy-dev/apoxy-cli/pkg/utils/vm"
+	corev1alpha "github.com/apoxy-dev/apoxy/api/core/v1alpha"
+	"github.com/apoxy-dev/apoxy/pkg/cryptoutils"
+	"github.com/apoxy-dev/apoxy/pkg/tunnel"
+	"github.com/apoxy-dev/apoxy/pkg/tunnel/router"
+	"github.com/apoxy-dev/apoxy/pkg/tunnel/token"
+	"github.com/apoxy-dev/apoxy/pkg/utils/vm"
 )
 
 func TestTunnelEndToEnd_UserModeClient(t *testing.T) {

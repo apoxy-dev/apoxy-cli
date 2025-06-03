@@ -8,7 +8,7 @@ import (
 
 	"github.com/coreos/go-iptables/iptables"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/log"
+	"github.com/apoxy-dev/apoxy/pkg/log"
 )
 
 // TODO(dilyevsky): Interface this out so we can mock it in tests.

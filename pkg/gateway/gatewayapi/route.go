@@ -21,15 +21,15 @@ import (
 	gwapiv1a2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	mcsapi "sigs.k8s.io/mcs-api/pkg/apis/v1alpha1"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/gatewayapi/status"
-	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/ir"
-	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/utils/regex"
-	"github.com/apoxy-dev/apoxy-cli/pkg/log"
-	apoxynet "github.com/apoxy-dev/apoxy-cli/pkg/net"
+	"github.com/apoxy-dev/apoxy/pkg/gateway/gatewayapi/status"
+	"github.com/apoxy-dev/apoxy/pkg/gateway/ir"
+	"github.com/apoxy-dev/apoxy/pkg/gateway/utils/regex"
+	"github.com/apoxy-dev/apoxy/pkg/log"
+	apoxynet "github.com/apoxy-dev/apoxy/pkg/net"
 
-	"github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
-	extensionsv1alpha2 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2"
-	agwapiv1a1 "github.com/apoxy-dev/apoxy-cli/api/gateway/v1"
+	"github.com/apoxy-dev/apoxy/api/core/v1alpha"
+	extensionsv1alpha2 "github.com/apoxy-dev/apoxy/api/extensions/v1alpha2"
+	agwapiv1a1 "github.com/apoxy-dev/apoxy/api/gateway/v1"
 )
 
 const (
@@ -333,7 +333,7 @@ func setTCPKeepalive(irRoute *ir.HTTPRoute, idleTime, interval uint32) {
 func setRetry(irRoute *ir.HTTPRoute, rule gwapiv1.HTTPRouteRule) error {
 	if rule.Retry != nil {
 		// If this is not nil, defaults are set from:
-		// https://github.com/apoxy-dev/apoxy-cli/blob/fcf9377eba517845286065afda7746a8bf1dc076/pkg/gateway/xds/translator/route.go#L105-L106
+		// https://github.com/apoxy-dev/apoxy/blob/fcf9377eba517845286065afda7746a8bf1dc076/pkg/gateway/xds/translator/route.go#L105-L106
 		irRoute.Retry = &ir.Retry{}
 
 		if len(rule.Retry.Codes) > 0 {
@@ -608,7 +608,7 @@ func (t *Translator) processGRPCRouteRules(grpcRoute *GRPCRouteContext, parentRe
 
 func setGRPCRetry(irRoute *ir.HTTPRoute) {
 	// If this is not nil, defaults are set from:
-	// https://github.com/apoxy-dev/apoxy-cli/blob/fcf9377eba517845286065afda7746a8bf1dc076/pkg/gateway/xds/translator/route.go#L105-L106
+	// https://github.com/apoxy-dev/apoxy/blob/fcf9377eba517845286065afda7746a8bf1dc076/pkg/gateway/xds/translator/route.go#L105-L106
 	irRoute.Retry = &ir.Retry{}
 }
 

@@ -35,9 +35,9 @@ import (
 	"oras.land/oras-go/v2/registry/remote/auth"
 	orasretry "oras.land/oras-go/v2/registry/remote/retry"
 
-	extensionsv1alpha2 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2"
-	"github.com/apoxy-dev/apoxy-cli/client/versioned"
-	"github.com/apoxy-dev/apoxy-cli/pkg/log"
+	extensionsv1alpha2 "github.com/apoxy-dev/apoxy/api/extensions/v1alpha2"
+	"github.com/apoxy-dev/apoxy/client/versioned"
+	"github.com/apoxy-dev/apoxy/pkg/log"
 )
 
 const (

@@ -21,7 +21,7 @@ limitations under the License.
 package ir
 
 import (
-	v1alpha2 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2"
+	v1alpha2 "github.com/apoxy-dev/apoxy/api/extensions/v1alpha2"
 	v1alpha1 "github.com/envoyproxy/gateway/api/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )

@@ -21,9 +21,9 @@ limitations under the License.
 package gatewayapi
 
 import (
-	controllersv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
-	v1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
-	extensionsv1alpha2 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2"
+	controllersv1alpha1 "github.com/apoxy-dev/apoxy/api/controllers/v1alpha1"
+	v1alpha "github.com/apoxy-dev/apoxy/api/core/v1alpha"
+	extensionsv1alpha2 "github.com/apoxy-dev/apoxy/api/extensions/v1alpha2"
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	unstructured "k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"

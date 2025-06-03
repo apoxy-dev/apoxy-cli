@@ -1,7 +1,7 @@
 package v1alpha1
 
 import (
-	"github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2"
+	"github.com/apoxy-dev/apoxy/api/extensions/v1alpha2"
 )
 
 func convertSpecFromV1Alpha1ToV1Alpha2(spec *EdgeFunctionSpec) (*v1alpha2.EdgeFunctionRevisionSpec, error) {

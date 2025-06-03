@@ -9,12 +9,12 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/gatewayapi"
-	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/message"
-	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/utils"
-	"github.com/apoxy-dev/apoxy-cli/pkg/log"
+	"github.com/apoxy-dev/apoxy/pkg/gateway/gatewayapi"
+	"github.com/apoxy-dev/apoxy/pkg/gateway/message"
+	"github.com/apoxy-dev/apoxy/pkg/gateway/utils"
+	"github.com/apoxy-dev/apoxy/pkg/log"
 
-	extensions "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2"
+	extensions "github.com/apoxy-dev/apoxy/api/extensions/v1alpha2"
 )
 
 const (

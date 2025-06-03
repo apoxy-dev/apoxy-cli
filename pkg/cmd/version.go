@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/apoxy-dev/apoxy-cli/build"
+	"github.com/apoxy-dev/apoxy/build"
 )
 
 // versionCmd represents the version command

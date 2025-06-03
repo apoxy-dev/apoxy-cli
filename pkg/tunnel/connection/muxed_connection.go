@@ -12,7 +12,7 @@ import (
 
 	"github.com/dpeckett/triemap"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/netstack"
+	"github.com/apoxy-dev/apoxy/pkg/netstack"
 )
 
 // Connection is a simple interface implemented by connect-ip-go and custom

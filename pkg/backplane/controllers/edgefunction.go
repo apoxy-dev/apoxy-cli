@@ -21,10 +21,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	ctrlv1alpha1 "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
-	extensionsv1alpha2 "github.com/apoxy-dev/apoxy-cli/api/extensions/v1alpha2"
-	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/wasm/manifest"
-	"github.com/apoxy-dev/apoxy-cli/pkg/edgefunc"
+	ctrlv1alpha1 "github.com/apoxy-dev/apoxy/api/controllers/v1alpha1"
+	extensionsv1alpha2 "github.com/apoxy-dev/apoxy/api/extensions/v1alpha2"
+	"github.com/apoxy-dev/apoxy/pkg/backplane/wasm/manifest"
+	"github.com/apoxy-dev/apoxy/pkg/edgefunc"
 )
 
 const (

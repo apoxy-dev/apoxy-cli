@@ -3,10 +3,10 @@ package gateway
 import (
 	"context"
 
-	gatewayapirunner "github.com/apoxy-dev/apoxy-cli/pkg/gateway/gatewayapi/runner"
-	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/message"
-	xdsserverrunner "github.com/apoxy-dev/apoxy-cli/pkg/gateway/xds/server/runner"
-	xdstranslatorrunner "github.com/apoxy-dev/apoxy-cli/pkg/gateway/xds/translator/runner"
+	gatewayapirunner "github.com/apoxy-dev/apoxy/pkg/gateway/gatewayapi/runner"
+	"github.com/apoxy-dev/apoxy/pkg/gateway/message"
+	xdsserverrunner "github.com/apoxy-dev/apoxy/pkg/gateway/xds/server/runner"
+	xdstranslatorrunner "github.com/apoxy-dev/apoxy/pkg/gateway/xds/translator/runner"
 )
 
 type Server struct {

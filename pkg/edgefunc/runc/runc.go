@@ -23,8 +23,8 @@ import (
 	_ "github.com/opencontainers/runc/libcontainer/cgroups/devices"
 	_ "github.com/opencontainers/runc/libcontainer/nsenter"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/edgefunc"
-	"github.com/apoxy-dev/apoxy-cli/pkg/log"
+	"github.com/apoxy-dev/apoxy/pkg/edgefunc"
+	"github.com/apoxy-dev/apoxy/pkg/log"
 )
 
 func init() {

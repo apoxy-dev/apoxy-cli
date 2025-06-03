@@ -1,10 +1,10 @@
 package gatewayapi
 
 import (
-	apoxy_v1alpha1 "github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
-	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/otel"
-	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/ir"
-	"github.com/apoxy-dev/apoxy-cli/pkg/log"
+	apoxy_v1alpha1 "github.com/apoxy-dev/apoxy/api/controllers/v1alpha1"
+	"github.com/apoxy-dev/apoxy/pkg/backplane/otel"
+	"github.com/apoxy-dev/apoxy/pkg/gateway/ir"
+	"github.com/apoxy-dev/apoxy/pkg/log"
 	envoy_v1alpha1 "github.com/envoyproxy/gateway/api/v1alpha1"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 )

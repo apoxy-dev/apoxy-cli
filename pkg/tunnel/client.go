@@ -22,7 +22,7 @@ import (
 	"github.com/quic-go/quic-go/http3"
 	"github.com/yosida95/uritemplate/v3"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/router"
+	"github.com/apoxy-dev/apoxy/pkg/tunnel/router"
 )
 
 type TunnelClientOption func(*tunnelClientOptions)

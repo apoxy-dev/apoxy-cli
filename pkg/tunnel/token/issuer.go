@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/MicahParks/jwkset"
-	"github.com/apoxy-dev/apoxy-cli/pkg/cryptoutils"
+	"github.com/apoxy-dev/apoxy/pkg/cryptoutils"
 	"github.com/golang-jwt/jwt/v5"
 )
 

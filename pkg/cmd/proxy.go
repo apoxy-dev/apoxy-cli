@@ -11,11 +11,11 @@ import (
 	"golang.org/x/exp/slog"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/apoxy-dev/apoxy-cli/api/controllers/v1alpha1"
-	"github.com/apoxy-dev/apoxy-cli/config"
-	"github.com/apoxy-dev/apoxy-cli/pkg/cmd/utils"
-	"github.com/apoxy-dev/apoxy-cli/pretty"
-	"github.com/apoxy-dev/apoxy-cli/rest"
+	"github.com/apoxy-dev/apoxy/api/controllers/v1alpha1"
+	"github.com/apoxy-dev/apoxy/config"
+	"github.com/apoxy-dev/apoxy/pkg/cmd/utils"
+	"github.com/apoxy-dev/apoxy/pretty"
+	"github.com/apoxy-dev/apoxy/rest"
 )
 
 var showProxyLabels bool

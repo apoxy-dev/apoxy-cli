@@ -23,8 +23,8 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 	structpb "google.golang.org/protobuf/types/known/structpb"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/wasm/manifest"
-	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/wasm/runtime"
+	"github.com/apoxy-dev/apoxy/pkg/backplane/wasm/manifest"
+	"github.com/apoxy-dev/apoxy/pkg/backplane/wasm/runtime"
 )
 
 var (

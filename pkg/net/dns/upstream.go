@@ -13,7 +13,7 @@ import (
 	"github.com/docker/docker/libnetwork/types"
 	mdns "github.com/miekg/dns"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/log"
+	"github.com/apoxy-dev/apoxy/pkg/log"
 )
 
 const (

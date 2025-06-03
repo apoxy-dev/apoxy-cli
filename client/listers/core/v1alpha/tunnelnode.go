@@ -18,7 +18,7 @@ limitations under the License.
 package v1alpha
 
 import (
-	v1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
+	v1alpha "github.com/apoxy-dev/apoxy/api/core/v1alpha"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/tools/cache"

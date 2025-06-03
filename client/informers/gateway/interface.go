@@ -18,8 +18,8 @@ limitations under the License.
 package gateway
 
 import (
-	v1 "github.com/apoxy-dev/apoxy-cli/client/informers/gateway/v1"
-	internalinterfaces "github.com/apoxy-dev/apoxy-cli/client/informers/internalinterfaces"
+	v1 "github.com/apoxy-dev/apoxy/client/informers/gateway/v1"
+	internalinterfaces "github.com/apoxy-dev/apoxy/client/informers/internalinterfaces"
 )
 
 // Interface provides access to each of this group's versions.

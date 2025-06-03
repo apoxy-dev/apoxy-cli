@@ -9,8 +9,8 @@ import (
 	ext_procv3 "github.com/envoyproxy/go-control-plane/envoy/service/ext_proc/v3"
 	svcext_procv3 "github.com/envoyproxy/go-control-plane/envoy/service/ext_proc/v3"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/backplane/wasm/abi"
-	"github.com/apoxy-dev/apoxy-cli/pkg/log"
+	"github.com/apoxy-dev/apoxy/pkg/backplane/wasm/abi"
+	"github.com/apoxy-dev/apoxy/pkg/log"
 )
 
 var (

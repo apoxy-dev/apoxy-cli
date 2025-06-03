@@ -13,9 +13,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	corev1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
-	"github.com/apoxy-dev/apoxy-cli/pkg/cryptoutils"
-	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/token"
+	corev1alpha "github.com/apoxy-dev/apoxy/api/core/v1alpha"
+	"github.com/apoxy-dev/apoxy/pkg/cryptoutils"
+	"github.com/apoxy-dev/apoxy/pkg/tunnel/token"
 )
 
 func TestTunnelNodeReconciler(t *testing.T) {

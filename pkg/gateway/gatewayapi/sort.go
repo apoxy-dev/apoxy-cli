@@ -8,7 +8,7 @@ package gatewayapi
 import (
 	"sort"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/gateway/ir"
+	"github.com/apoxy-dev/apoxy/pkg/gateway/ir"
 )
 
 type XdsIRRoutes []*ir.HTTPRoute

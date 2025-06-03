@@ -20,7 +20,7 @@ package fake
 import (
 	"context"
 
-	v1alpha "github.com/apoxy-dev/apoxy-cli/api/core/v1alpha"
+	v1alpha "github.com/apoxy-dev/apoxy/api/core/v1alpha"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
 	types "k8s.io/apimachinery/pkg/types"
