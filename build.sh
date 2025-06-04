@@ -46,4 +46,4 @@ if [ -z "${GOPATH}" ]; then
     GOPATH=$(go env GOPATH)
 fi
 
-mv ${GOPATH}/bin/apoxy-cli ${GOPATH}/bin/apoxy
+mv ${GOPATH}/bin/apoxy ${GOPATH}/bin/apoxy
