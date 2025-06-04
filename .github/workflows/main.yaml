@@ -20,4 +20,4 @@ jobs:
         timeout-minutes: 15
         run: |
           dagger call -v build-cli --src=. --platform=linux/amd64 --tag=${GITHUB_SHA::7}-dev --sha=${GITHUB_SHA::7}
-          dagger call -v publish-images --src=. --tag=latest --registry-password=env:APOXY_DOCKERHUB_PASSWORD
+          dagger call -v publish-images --src=. --tag=latest --sha=${GITHUB_SHA::7} --registry-password=env:APOXY_DOCKERHUB_PASSWORD

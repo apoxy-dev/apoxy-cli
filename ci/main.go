@@ -209,6 +209,21 @@ func (m *ApoxyCli) BuildCLI(
 		WithExec([]string{"go", "build", "-o", "/apoxy", "-ldflags", strings.Join(ldFlags, " "), "-tags", "netgo", "."})
 }
 
+// BuildCLIRelease builds a CLI container for release.
+func (m *ApoxyCli) BuildCLIRelease(
+	ctx context.Context,
+	src *dagger.Directory,
+	platform string,
+	tag, sha string,
+) *dagger.Container {
+	buildCtr := m.BuildCLI(ctx, src, platform, tag, sha)
+	return dag.Container(dagger.ContainerOpts{Platform: dagger.Platform(platform)}).
+		From("cgr.dev/chainguard/wolfi-base:latest").
+		WithExec([]string{"apk", "add", "-u", "iptables", "iproute2", "net-tools", "sed", "coreutils"}).
+		WithFile("/bin/apoxy", buildCtr.File("/apoxy")).
+		WithEntrypoint([]string{"/bin/apoxy"})
+}
+
 // PublishGithubRelease publishes a CLI binary to GitHub releases.
 func (m *ApoxyCli) PublishGithubRelease(
 	ctx context.Context,
@@ -437,6 +452,7 @@ func (m *ApoxyCli) PublishImages(
 	src *dagger.Directory,
 	registryPassword *dagger.Secret,
 	tag string,
+	sha string,
 ) error {
 	var apiCtrs []*dagger.Container
 	for _, platform := range []string{"linux/amd64", "linux/arm64"} {
@@ -498,6 +514,26 @@ func (m *ApoxyCli) PublishImages(
 
 	fmt.Println("Tunnelproxy images published to", addr)
 
+	var cliCtrs []*dagger.Container
+	for _, platform := range []string{"linux/amd64", "linux/arm64"} {
+		cliCtr := m.BuildCLIRelease(ctx, src, platform, tag, sha)
+		cliCtrs = append(cliCtrs, cliCtr)
+	}
+
+	addr, err = dag.Container().
+		WithRegistryAuth(
+			"registry-1.docker.io",
+			"apoxy",
+			registryPassword,
+		).
+		Publish(ctx, "docker.io/apoxy/apoxy:"+tag, dagger.ContainerPublishOpts{
+			PlatformVariants: cliCtrs,
+		})
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("Tunnelproxy images published to", addr)
 	return nil
 }
 
