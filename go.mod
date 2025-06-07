@@ -409,3 +409,7 @@ require (
 replace github.com/getsavvyinc/upgrade-cli => github.com/apoxy-dev/upgrade-cli v0.0.0-20240213232412-a56c3a52fa0e
 
 replace sigs.k8s.io/apiserver-runtime => github.com/apoxy-dev/apiserver-runtime v0.0.0-20250420214109-979c605051d1
+
+replace github.com/quic-go/quic-go => github.com/apoxy-dev/quic-go v0.0.0-20250530165952-53cca597715e
+
+replace github.com/quic-go/connect-ip-go => github.com/apoxy-dev/connect-ip-go v0.0.0-20250530062404-603929a73f45
