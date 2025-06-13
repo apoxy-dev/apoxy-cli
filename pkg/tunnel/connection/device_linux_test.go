@@ -20,16 +20,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/apoxy-dev/apoxy-cli/pkg/cryptoutils"
-	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/connection"
-	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/fasttun"
-	tunnet "github.com/apoxy-dev/apoxy-cli/pkg/tunnel/net"
 	connectip "github.com/quic-go/connect-ip-go"
 	"github.com/quic-go/quic-go"
 	"github.com/quic-go/quic-go/http3"
 	"github.com/stretchr/testify/require"
 	"github.com/yosida95/uritemplate/v3"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/apoxy-dev/apoxy/pkg/cryptoutils"
+	"github.com/apoxy-dev/apoxy/pkg/tunnel/connection"
+	"github.com/apoxy-dev/apoxy/pkg/tunnel/fasttun"
+	tunnet "github.com/apoxy-dev/apoxy/pkg/tunnel/net"
 )
 
 func TestConnectIPDeviceThroughput(t *testing.T) {

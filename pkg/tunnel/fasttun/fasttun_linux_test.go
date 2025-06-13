@@ -15,13 +15,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/apoxy-dev/apoxy/pkg/netstack"
-	"github.com/apoxy-dev/apoxy/pkg/tunnel/fasttun"
-	"github.com/apoxy-dev/apoxy/pkg/utils/vm"
 	"github.com/stretchr/testify/require"
 	"github.com/vishvananda/netlink"
 	"github.com/vishvananda/netns"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/apoxy-dev/apoxy/pkg/netstack"
+	"github.com/apoxy-dev/apoxy/pkg/tunnel/fasttun"
+	"github.com/apoxy-dev/apoxy/pkg/utils/vm"
 )
 
 func TestLinuxDeviceThroughput(t *testing.T) {

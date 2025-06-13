@@ -1,10 +1,11 @@
 package connection
 
 import (
-	"github.com/apoxy-dev/apoxy-cli/pkg/netstack"
-	"github.com/apoxy-dev/apoxy-cli/pkg/tunnel/fasttun"
 	connectip "github.com/quic-go/connect-ip-go"
 	"github.com/quic-go/quic-go"
+
+	"github.com/apoxy-dev/apoxy/pkg/netstack"
+	"github.com/apoxy-dev/apoxy/pkg/tunnel/fasttun"
 )
 
 var _ fasttun.Device = (*Device)(nil)
