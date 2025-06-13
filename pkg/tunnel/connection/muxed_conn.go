@@ -3,7 +3,6 @@ package connection
 import (
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"net"
 	"net/netip"
@@ -15,19 +14,8 @@ import (
 	"github.com/apoxy-dev/apoxy/pkg/netstack"
 )
 
-// Connection is a simple interface implemented by connect-ip-go and custom
-// connection types.
-type Connection interface {
-	io.Closer
-	ReadPacket([]byte) (int, error)
-	WritePacket([]byte) ([]byte, error)
-}
-
-var _ Connection = (*MuxedConnection)(nil)
-
-// MuxedConnection is a connection that multiplexes multiple downstream
-// connections over a single virtual connection.
-type MuxedConnection struct {
+// MuxedConn multiplexes multiple connection.Conn objects.
+type MuxedConn struct {
 	// Maps tunnel destination address to CONNECT-IP connection.
 	conns            *triemap.TrieMap[Connection]
 	incomingPackets  chan *[]byte
@@ -37,8 +25,9 @@ type MuxedConnection struct {
 	closed    atomic.Bool
 }
 
-func NewMuxedConnection() *MuxedConnection {
-	return &MuxedConnection{
+// NewMuxedConn creates a new muxedConn.
+func NewMuxedConn() *MuxedConn {
+	return &MuxedConn{
 		conns:           triemap.New[Connection](),
 		incomingPackets: make(chan *[]byte, 100),
 		packetBufferPool: sync.Pool{
@@ -50,7 +39,7 @@ func NewMuxedConnection() *MuxedConnection {
 	}
 }
 
-func (m *MuxedConnection) AddConnection(prefix netip.Prefix, conn Connection) {
+func (m *MuxedConn) AddConnection(prefix netip.Prefix, conn Connection) {
 	if prefix.IsValid() && prefix.Addr().Is6() {
 		m.conns.Insert(prefix, conn)
 		go m.readPackets(conn)
@@ -59,7 +48,7 @@ func (m *MuxedConnection) AddConnection(prefix netip.Prefix, conn Connection) {
 	}
 }
 
-func (m *MuxedConnection) RemoveConnection(prefix netip.Prefix) error {
+func (m *MuxedConn) RemoveConnection(prefix netip.Prefix) error {
 	// Has the connection already been closed?
 	if m.closed.Load() {
 		// Then this becomes a no-op.
@@ -85,7 +74,7 @@ func (m *MuxedConnection) RemoveConnection(prefix netip.Prefix) error {
 	return nil
 }
 
-func (m *MuxedConnection) Prefixes() []netip.Prefix {
+func (m *MuxedConn) Prefixes() []netip.Prefix {
 	var prefixes []netip.Prefix
 	m.conns.ForEach(func(prefix netip.Prefix, value Connection) bool {
 		prefixes = append(prefixes, prefix)
@@ -94,7 +83,7 @@ func (m *MuxedConnection) Prefixes() []netip.Prefix {
 	return prefixes
 }
 
-func (m *MuxedConnection) Close() error {
+func (m *MuxedConn) Close() error {
 	var firstErr error
 	m.closeOnce.Do(func() {
 		// Close all connections in the map.
@@ -122,7 +111,7 @@ func (m *MuxedConnection) Close() error {
 	return firstErr
 }
 
-func (m *MuxedConnection) ReadPacket(pkt []byte) (int, error) {
+func (m *MuxedConn) ReadPacket(pkt []byte) (int, error) {
 	p, ok := <-m.incomingPackets
 	if !ok {
 		return 0, net.ErrClosed
@@ -138,7 +127,7 @@ func (m *MuxedConnection) ReadPacket(pkt []byte) (int, error) {
 	return n, nil
 }
 
-func (m *MuxedConnection) WritePacket(pkt []byte) ([]byte, error) {
+func (m *MuxedConn) WritePacket(pkt []byte) ([]byte, error) {
 	slog.Debug("Write packet to connection", slog.Int("bytes", len(pkt)))
 
 	var dstIP netip.Addr
@@ -170,7 +159,7 @@ func (m *MuxedConnection) WritePacket(pkt []byte) ([]byte, error) {
 	return conn.WritePacket(pkt)
 }
 
-func (m *MuxedConnection) readPackets(conn Connection) {
+func (m *MuxedConn) readPackets(conn Connection) {
 	for {
 		pkt := m.packetBufferPool.Get().(*[]byte)
 

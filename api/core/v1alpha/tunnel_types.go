@@ -25,7 +25,21 @@ type TunnelNode struct {
 	Status TunnelNodeStatus `json:"status,omitempty"`
 }
 
+type EgressGatewaySpec struct {
+	// Whether the egress gateway is enabled. Default is false.
+	// When enabled, the egress gateway will be used to route traffic from the tunnel
+	// node to the internet. Traffic will be SNAT'ed.
+	// +optional
+	Enabled bool `json:"enabled,omitempty"`
+}
+
 type TunnelNodeSpec struct {
+	// Configures Egress Gateway mode on the Tunnel Node. In this mode, the Tunnel
+	// Node acts as a gateway for outbound connections originating from the
+	// Agent side in addition to its default mode (where the connections arrive in the
+	// direction of the Agent).
+	// +optional
+	EgressGateway *EgressGatewaySpec `json:"egressGateway,omitempty"`
 }
 
 type AgentStatus struct {

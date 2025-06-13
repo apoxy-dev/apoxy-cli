@@ -278,10 +278,10 @@ func (c *TunnelClient) Start(ctx context.Context) error {
 	}
 
 	if c.options.mode == TunnelClientModeKernel {
-		c.router, err = router.NewNetlinkRouter(routerOpts...)
-		if err != nil {
-			return fmt.Errorf("failed to create kernel router: %w", err)
-		}
+		//c.router, err = router.NewNetlinkRouter(routerOpts...)
+		//if err != nil {
+		//	return fmt.Errorf("failed to create kernel router: %w", err)
+		//}
 	} else if c.options.mode == TunnelClientModeUser {
 		c.router, err = router.NewNetstackRouter(routerOpts...)
 		if err != nil {
@@ -298,9 +298,8 @@ func (c *TunnelClient) Start(ctx context.Context) error {
 		for _, prefix := range route.Prefixes() {
 			slog.Info("Adding route", slog.String("prefix", prefix.String()))
 
-			_, _, err := c.router.AddPeer(prefix, c.conn)
-			if err != nil {
-				return fmt.Errorf("failed to add peer route %s: %w", prefix.String(), err)
+			if err := c.router.Add(prefix, c.conn); err != nil {
+				return fmt.Errorf("failed to add route %s: %w", prefix.String(), err)
 			}
 		}
 	}

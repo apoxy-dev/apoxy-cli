@@ -40,7 +40,7 @@ type NetlinkRouter struct {
 	extPrefixes []netip.Prefix
 	ipt         utiliptables.Interface
 
-	mux *connection.MuxedConnection
+	mux *connection.MuxedConn
 
 	closeOnce sync.Once
 }
@@ -161,7 +161,7 @@ func NewNetlinkRouter(opts ...Option) (*NetlinkRouter, error) {
 		extPrefixes: lrs,
 		ipt:         utiliptables.New(utilexec.New(), utiliptables.ProtocolIPv6),
 
-		mux: connection.NewMuxedConnection(),
+		mux: connection.NewMuxedConn(),
 	}, nil
 }
 
@@ -285,8 +285,8 @@ func (r *NetlinkRouter) syncDNATChain() error {
 	return nil
 }
 
-// AddPeer adds a peer route to the tunnel.
-func (r *NetlinkRouter) AddPeer(peer netip.Prefix, conn connection.Connection) (netip.Addr, []netip.Prefix, error) {
+// Add adds a dst route to the tunnel.
+func (r *NetlinkRouter) Add(peer netip.Prefix, conn connection.Connection) error {
 	slog.Debug("Adding route", slog.String("prefix", peer.String()))
 
 	route := &netlink.Route{
@@ -298,22 +298,26 @@ func (r *NetlinkRouter) AddPeer(peer netip.Prefix, conn connection.Connection) (
 		Scope: netlink.SCOPE_LINK,
 	}
 	if err := netlink.RouteAdd(route); err != nil {
-		return netip.Addr{}, nil, fmt.Errorf("failed to add route: %w", err)
+		return fmt.Errorf("failed to add route: %w", err)
 	}
 
 	r.mux.AddConnection(peer, conn)
 	if err := r.syncDNATChain(); err != nil {
-		return netip.Addr{}, nil, fmt.Errorf("failed to sync DNAT chain: %w", err)
+		return fmt.Errorf("failed to sync DNAT chain: %w", err)
 	}
 
-	return r.extAddr, r.extPrefixes, nil
+	return nil
 }
 
-// RemovePeer removes a peer route from the tunnel.
-func (r *NetlinkRouter) RemovePeer(peer netip.Prefix) error {
-	slog.Debug("Removing route", slog.String("prefix", peer.String()))
+func (r *NetlinkRouter) Del(dst netip.Prefix, _ string) error {
+	return r.DelAll(dst) // TODO: implement multi-conn routing.
+}
 
-	if err := r.mux.RemoveConnection(peer); err != nil {
+// DelAll removes a route for dst.
+func (r *NetlinkRouter) DelAll(dst netip.Prefix) error {
+	slog.Debug("Removing route", slog.String("prefix", dst.String()))
+
+	if err := r.mux.RemoveConnection(dst); err != nil {
 		slog.Error("failed to remove connection", slog.Any("error", err))
 	}
 	if err := r.syncDNATChain(); err != nil {
@@ -323,8 +327,8 @@ func (r *NetlinkRouter) RemovePeer(peer netip.Prefix) error {
 	route := &netlink.Route{
 		LinkIndex: r.tunLink.Attrs().Index,
 		Dst: &net.IPNet{
-			IP:   peer.Addr().AsSlice(),
-			Mask: net.CIDRMask(peer.Bits(), 128),
+			IP:   dst.Addr().AsSlice(),
+			Mask: net.CIDRMask(dst.Bits(), 128),
 		},
 		Scope: netlink.SCOPE_LINK,
 	}
@@ -335,8 +339,22 @@ func (r *NetlinkRouter) RemovePeer(peer netip.Prefix) error {
 	return nil
 }
 
+// ListRoutes returns a list of all routes in the tunnel.
+func (r *NetlinkRouter) ListRoutes() ([]TunnelRoute, error) {
+	ps := r.mux.Prefixes()
+	rts := make([]TunnelRoute, 0, len(ps))
+	for _, p := range ps {
+		rts = append(rts, TunnelRoute{
+			Dst: p,
+			// TODO: Add connID,
+			State: TunnelRouteStateActive,
+		})
+	}
+	return rts, nil
+}
+
 // GetMuxedConnection returns the muxed connection for adding/removing connections.
-func (r *NetlinkRouter) GetMuxedConnection() *connection.MuxedConnection {
+func (r *NetlinkRouter) GetMuxedConnection() *connection.MuxedConn {
 	return r.mux
 }
 

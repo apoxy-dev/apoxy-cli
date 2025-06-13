@@ -22,9 +22,10 @@ var (
 )
 
 // NetstackRouter implements Router using a userspace network stack.
+// This router can be used for both client and server sides.
 type NetstackRouter struct {
 	tunDev          *netstack.TunDevice
-	mux             *connection.MuxedConnection
+	mux             *connection.MuxedConn
 	proxy           *socksproxy.ProxyServer
 	localAddresses  []netip.Prefix
 	resolveConf     *network.ResolveConfig
@@ -48,7 +49,7 @@ func NewNetstackRouter(opts ...Option) (*NetstackRouter, error) {
 
 	return &NetstackRouter{
 		tunDev:          tunDev,
-		mux:             connection.NewMuxedConnection(),
+		mux:             connection.NewMuxedConn(),
 		proxy:           proxy,
 		localAddresses:  options.localAddresses,
 		resolveConf:     options.resolveConf,
@@ -105,23 +106,42 @@ func (r *NetstackRouter) Start(ctx context.Context) error {
 	return g.Wait()
 }
 
-// AddPeer adds a peer route to the tunnel.
-func (r *NetstackRouter) AddPeer(peer netip.Prefix, conn connection.Connection) (netip.Addr, []netip.Prefix, error) {
-	r.mux.AddConnection(peer, conn)
-	return peer.Addr(), r.localAddresses, nil
+// Add adds a dst route to the tunnel.
+func (r *NetstackRouter) Add(dst netip.Prefix, conn connection.Connection) error {
+	r.mux.AddConnection(dst, conn)
+	return nil
 }
 
-// RemovePeer removes a peer route from the tunnel.
-func (r *NetstackRouter) RemovePeer(peer netip.Prefix) error {
-	if err := r.mux.RemoveConnection(peer); err != nil {
+// Del removes a dst route from the tunnel.
+func (r *NetstackRouter) Del(dst netip.Prefix, _ string) error {
+	return r.DelAll(dst) // TODO: implement multi-conn routes.
+}
+
+// DelAll removes all routes for the dst.
+func (r *NetstackRouter) DelAll(dst netip.Prefix) error {
+	if err := r.mux.RemoveConnection(dst); err != nil {
 		slog.Error("failed to remove connection", slog.Any("error", err))
 	}
 
 	return nil
 }
 
+// ListRoutes returns a list of all routes in the tunnel.
+func (r *NetstackRouter) ListRoutes() ([]TunnelRoute, error) {
+	ps := r.mux.Prefixes()
+	rts := make([]TunnelRoute, 0, len(ps))
+	for _, p := range ps {
+		rts = append(rts, TunnelRoute{
+			Dst: p,
+			// TODO: Add connID,
+			State: TunnelRouteStateActive,
+		})
+	}
+	return rts, nil
+}
+
 // GetMuxedConnection returns the muxed connection for adding/removing connections.
-func (r *NetstackRouter) GetMuxedConnection() *connection.MuxedConnection {
+func (r *NetstackRouter) GetMuxedConnection() *connection.MuxedConn {
 	return r.mux
 }
 

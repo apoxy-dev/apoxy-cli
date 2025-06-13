@@ -106,7 +106,7 @@ type TunnelServer struct {
 	router       router.Router
 
 	// Connections
-	mux *connection.MuxedConnection
+	mux *connection.MuxedConn
 	// Maps
 	tunnelNodes *haxmap.Map[string, *corev1alpha.TunnelNode]
 }
@@ -134,7 +134,7 @@ func NewTunnelServer(
 		jwtValidator: v,
 		router:       r,
 
-		mux:         connection.NewMuxedConnection(),
+		mux:         connection.NewMuxedConn(),
 		tunnelNodes: haxmap.New[string, *corev1alpha.TunnelNode](),
 	}
 
@@ -311,14 +311,14 @@ func (t *TunnelServer) handleConnect(w http.ResponseWriter, r *http.Request) {
 
 	logger.Info("Client prefix assigned", slog.String("ip", peerPrefix.String()))
 
-	addr, advRoutes, err := t.router.AddPeer(peerPrefix, conn)
-	if err != nil {
+	if err := t.router.Add(peerPrefix, conn); err != nil {
 		logger.Error("Failed to add TUN peer", slog.Any("error", err))
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = w.Write([]byte(err.Error()))
 		return
 	}
 
+	advRoutes := []netip.Prefix{} // TODO: Implement route advertisement logic from TunnelNode and config.
 	logger.Info("Advertising routes", slog.Any("routes", advRoutes))
 
 	if err := conn.AdvertiseRoute(r.Context(), iproutesFromPrefixes(advRoutes)); err != nil {
@@ -329,10 +329,10 @@ func (t *TunnelServer) handleConnect(w http.ResponseWriter, r *http.Request) {
 	}
 
 	agent := &corev1alpha.AgentStatus{
-		Name:           uuid.NewString(),
-		ConnectedAt:    ptr.To(metav1.Now()),
-		PrivateAddress: addr.String(),
-		AgentAddress:   r.RemoteAddr,
+		Name:        uuid.NewString(),
+		ConnectedAt: ptr.To(metav1.Now()),
+		//PrivateAddress: addr.String(),
+		AgentAddress: r.RemoteAddr,
 	}
 	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		upd := &corev1alpha.TunnelNode{}
@@ -363,7 +363,7 @@ func (t *TunnelServer) handleConnect(w http.ResponseWriter, r *http.Request) {
 		logger.Error("Failed to deallocate IP address", slog.Any("error", err))
 	}
 
-	if err := t.router.RemovePeer(peerPrefix); err != nil {
+	if err := t.router.DelAll(peerPrefix); err != nil {
 		logger.Error("Failed to remove TUN peer", slog.Any("error", err))
 	}
 
